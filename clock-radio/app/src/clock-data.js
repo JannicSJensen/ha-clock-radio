@@ -9,6 +9,7 @@ function parts(at, zone) {
   return Object.fromEntries(dayFormatters.get(zone).formatToParts(new Date(at)).filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
 }
 const wallEpoch = (p) => Date.UTC(p.year, p.month - 1, p.day, p.hour ?? 0, p.minute ?? 0, p.second ?? 0);
+const nightEntityId = (settings) => settings.night_mode === "sun" ? "sun.sun" : settings.night_entity;
 
 function wallCandidates(desired, zone) {
   const wall = wallEpoch(desired);
@@ -62,6 +63,9 @@ export function alarmEntityAt(state, zone, now = Date.now()) {
 
 export function nightEntityActive(state, settings, previous = false) {
   if (!state || ["unknown", "unavailable"].includes(state.state)) return previous;
+  if (settings.night_mode === "sun") {
+    return state.state === "below_horizon" ? true : state.state === "above_horizon" ? false : previous;
+  }
   if (state.state.trim() !== "" && Number.isFinite(Number(state.state))) {
     const value = Number(state.state);
     const margin = settings.night_mode === "illuminance" ? settings.night_threshold * 0.25 : Math.max(settings.night_threshold * 0.1, 1);
@@ -83,7 +87,7 @@ export class ClockData {
   async refresh(config, states, zone) {
     const settings = config.clock;
     const index = new Map(states.map((state) => [state.entity_id, state]));
-    this.night = nightEntityActive(index.get(settings.night_entity), settings, this.night);
+    this.night = nightEntityActive(index.get(nightEntityId(settings)), settings, this.night);
     const weather = index.get(settings.weather_entity);
     if (this.weather?.entity_id !== weather?.entity_id) this.forecast = null;
     this.weather = weather;
@@ -132,13 +136,19 @@ export class ClockData {
     const snooze = alarms.snoozed?.until;
     if (snooze && Date.parse(snooze) > this.now() && (!alarm || Date.parse(snooze) < Date.parse(alarm))) alarm = snooze;
     const weatherAvailable = weather && !["unknown", "unavailable"].includes(weather.state);
+    const nightState = states.find((state) => state.entity_id === nightEntityId(settings));
+    const nightError = settings.night_mode === "sun" && !["above_horizon", "below_horizon"].includes(nightState?.state)
+      ? "Home Assistant sun.sun is missing, unavailable or invalid. Check the Sun integration. The last night state is retained."
+      : ["entity", "illuminance"].includes(settings.night_mode)
+        && (!nightState || ["unknown", "unavailable"].includes(nightState.state))
+        ? "Choose an available Home Assistant entity for sensor-based night mode. The last night state is retained." : null;
     return {
       layout: settings.layout, clock: settings.layout === "full" ? settings.full_face : settings.face,
       widget: settings.widget, seconds: settings.seconds, secondHand: settings.second_hand,
       timeFormat: settings.time_format, locale: settings.language,
       timeZone: zone, weekStart: settings.week_start, primary: settings.primary,
       accent: settings.accent, secondsColor: settings.seconds_color, background: settings.background,
-      night: ["entity", "illuminance"].includes(settings.night_mode) ? "entity" : settings.night_mode,
+      night: ["entity", "illuminance", "sun"].includes(settings.night_mode) ? "entity" : settings.night_mode,
       nightStart: settings.night_start, nightEnd: settings.night_end,
       nightActive: this.night, nightColor: settings.night_color, nightBrightness: settings.night_brightness,
       weatherConfigured: Boolean(settings.weather_entity), weatherPlace: settings.weather_name || weather?.attributes?.friendly_name || "",
@@ -147,9 +157,7 @@ export class ClockData {
       weatherUnit: weather?.attributes?.temperature_unit ?? "°C",
       weatherDate: this.forecast?.date ?? null, weatherHigh: this.forecast?.high ?? null, weatherLow: this.forecast?.low ?? null,
       alarm, error: [this.error, alarmError].filter(Boolean).join(" ") || null,
-      night_error: ["entity", "illuminance"].includes(settings.night_mode)
-        && (!settings.night_entity || !states.some((state) => state.entity_id === settings.night_entity && !["unknown", "unavailable"].includes(state.state)))
-        ? "Choose an available Home Assistant entity for sensor-based night mode. The last night state is retained." : null,
+      night_error: nightError,
     };
   }
 }

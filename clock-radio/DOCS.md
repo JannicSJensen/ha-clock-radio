@@ -174,10 +174,21 @@ uses oversized digits with date/weather and the next alarm.
 | `weather_name` | Optional place label; empty uses the HA entity's friendly name |
 | `weather_entity` | Legacy key accepted for compatibility but ignored; use the HA app option |
 | `next_alarm_entity` | Optional timestamp sensor or `input_datetime`; time-only helpers are daily. Empty derives the next enabled Clock Radio alarm. |
-| `night_mode` | `off` (default), `always`, `schedule`, `entity`, `illuminance` |
+| `night_mode` | `off` (default), `always`, `schedule`, `sun`, `entity`, `illuminance` |
 | `night_start`, `night_end` | Hours 0-23; defaults 22 and 7; overnight schedules supported |
 | `night_entity`, `night_threshold` | HA night entity / room illuminance sensor and threshold; defaults empty and 5 |
 | `night_color`, `night_brightness` | Night color and brightness 20-100%; defaults `#ff2a1f` and 70 |
+
+Choose **Settings > Clock appearance > Night mode > Sun (below horizon)** to
+follow Home Assistant's `sun.sun` entity automatically. `below_horizon` enables
+your night color/brightness; `above_horizon` restores the daytime colors.
+Enable the HA Sun integration and configure HA's location correctly.
+No automation, schedule hours, threshold or night-entity selection is required.
+Existing night-entity/hour/threshold settings are preserved but ignored in Sun
+mode. Horizon changes are applied on the next refresh (within five seconds).
+If the sun entity is missing, unavailable or invalid, a visible warning appears
+and the last known night state is retained (daytime on first start).
+Sun mode is opt-in; existing night modes and settings are unchanged.
 
 Set `weather_entity` in **Settings > Apps > Clock Radio > Configuration**, save
 and restart the app. This is the only weather entity selector; the dashboard

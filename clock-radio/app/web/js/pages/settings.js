@@ -8,7 +8,7 @@ const names = {
   weather: "Weather", date: "Date", "date-calendar": "Date and calendar", none: "None",
   "60": "Smooth, 60 fps", "30": "Smooth, 30 fps", tick: "Ticking",
   automatic: "Automatic", "24-hour": "24-hour", "12-hour": "12-hour",
-  off: "Off", always: "Always", schedule: "Schedule", entity: "Home Assistant entity",
+  off: "Off", always: "Always", schedule: "Schedule", sun: "Sun (below horizon)", entity: "Home Assistant entity",
   illuminance: "Room-light sensor (HA illuminance)", monday: "Monday", sunday: "Sunday", saturday: "Saturday",
 };
 const input = (name, type, props = {}) => h("input", { name, type, ...props });
@@ -134,7 +134,7 @@ export function createSettingsPages(ctx) {
     const language = clock.elements.namedItem("language");
     if (model.config.clock.language && ![...language.options].some((option) => option.value === model.config.clock.language)) language.add(new Option(model.config.clock.language, model.config.clock.language));
     for (const form of forms) form.update(model, busy);
-    clockInfo.textContent = `Clock time zone: ${model.clock.timeZone || "this device"}. Alarm schedules always use Home Assistant's time zone. Room-light mode uses an HA illuminance sensor, with hysteresis; unavailable sensors retain their last state.`;
+    clockInfo.textContent = `Clock time zone: ${model.clock.timeZone || "this device"}. Alarm schedules always use Home Assistant's time zone. Sun mode automatically uses sun.sun: below the horizon enables night colors; above restores daytime colors. The entity, hours and threshold controls are not used in Sun mode. Room-light mode uses an HA illuminance sensor, with hysteresis; unavailable sensors retain their last state.`;
     musicInfo.textContent = model.music.library ? "Music Assistant browsing is configured. The read-only access token stays on the server." : "For Discover, Albums, Artists, Podcasts, Playlists and Search, set music_assistant_token in the HA app options (Music Assistant → Settings → Profile). Set music_assistant_url if it is not discovered automatically. Restart the app after changing these options. Radio presets work without library access.";
   } };
 }

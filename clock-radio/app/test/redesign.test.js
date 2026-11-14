@@ -78,6 +78,59 @@ test("night entity thresholds use hysteresis and retain state while unavailable"
   assert.equal(nightEntityActive({ state: "off" }, settings, true), false);
 });
 
+test("Sun mode only follows HA horizon states and retains its last state on invalid data", () => {
+  const settings = { night_mode: "sun", night_threshold: 10000 };
+  assert.equal(parseClockOptions({ night_mode: "sun" }).night_entity, "");
+  assert.equal(nightEntityActive({ state: "below_horizon" }, settings), true);
+  assert.equal(nightEntityActive({ state: "above_horizon" }, settings, true), false);
+  for (const state of [undefined, { state: "unavailable" }, { state: "unknown" }, { state: "" }, { state: "on" }, { state: "0" }]) {
+    assert.equal(nightEntityActive(state, settings, true), true);
+    assert.equal(nightEntityActive(state, settings, false), false);
+  }
+});
+
+test("Sun night mode saves without an entity selector, survives restart and follows live HA horizon changes", async (t) => {
+  const app = await setup(t);
+  const state = await app.get("api/state");
+  const settings = { ...state.config.clock, night_mode: "sun", night_entity: "input_boolean.bedroom_night", night_color: "#772211", night_brightness: 40 };
+  assert.equal((await app.post("api/settings/clock", settings)).status, 200);
+  const sun = app.states.find((entity) => entity.entity_id === "sun.sun");
+  const payload = () => app.dashboard.payload().clock;
+  assert.equal(payload().night, "entity", "The renderer receives its existing live-entity mode");
+  assert.equal(payload().nightActive, false);
+  sun.state = "below_horizon";
+  await app.dashboard.refresh();
+  assert.equal(payload().nightActive, true);
+  assert.equal(payload().nightColor, "#772211");
+  assert.equal(payload().nightBrightness, 40);
+  assert.equal(payload().night_error, null);
+  assert.equal(app.states.find((entity) => entity.entity_id === "input_boolean.bedroom_night").state, "off", "Sun mode ignores a previously selected night entity");
+  const reopened = new ConfigStore({ dir: path.dirname(app.store.file), example: path.join(root, "examples/dashboard.yaml"), logger: quiet });
+  assert.equal(reopened.current.clock.night_mode, "sun");
+  const restarted = new Dashboard({ ha: app.ha, configStore: reopened, mediaPlayer: "media_player.bedroom", logger: quiet });
+  await restarted.refresh();
+  assert.equal(restarted.payload().clock.nightActive, true);
+  for (const invalid of ["unavailable", "unknown", "on", "0"]) {
+    sun.state = invalid;
+    await app.dashboard.refresh();
+    assert.equal(payload().nightActive, true);
+    assert.match(payload().night_error, /sun.sun/);
+  }
+  app.states.splice(app.states.indexOf(sun), 1);
+  await app.dashboard.refresh();
+  assert.equal(payload().nightActive, true);
+  assert.match(payload().night_error, /Sun integration/);
+  app.states.push(sun);
+  sun.state = "above_horizon";
+  await app.dashboard.refresh();
+  assert.equal(payload().nightActive, false);
+  assert.equal(payload().night_error, null);
+  const missing = new ClockData({ ha: app.ha, logger: quiet });
+  const noSun = app.states.filter((entity) => entity.entity_id !== "sun.sun");
+  await missing.refresh(reopened.current, noSun, "Europe/Copenhagen");
+  assert.equal(missing.payload(reopened.current, { alarms: [] }, noSun, "Europe/Copenhagen").nightActive, false);
+});
+
 test("explicit next-alarm sensors and date/time helpers use the proper epoch", () => {
   const now = Date.parse("2026-11-14T12:00:00Z");
   assert.equal(alarmEntityAt({ entity_id: "sensor.next_alarm", state: "2026-11-15T05:15:00+01:00" }, "Europe/Copenhagen", now), "2026-11-15T04:15:00.000Z");

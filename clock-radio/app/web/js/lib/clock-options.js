@@ -6,7 +6,7 @@ export const CLOCK_CHOICES = {
   second_hand: ["60", "30", "tick"],
   time_format: ["automatic", "24-hour", "12-hour"],
   week_start: ["automatic", "monday", "sunday", "saturday"],
-  night_mode: ["off", "always", "schedule", "entity", "illuminance"],
+  night_mode: ["off", "always", "schedule", "sun", "entity", "illuminance"],
 };
 export const CLOCK_DEFAULTS = {
   layout: "widget", face: "analog", full_face: "analog", widget: "calendar",

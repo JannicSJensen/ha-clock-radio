@@ -54,6 +54,7 @@ export function demoStates() {
     { entity_id: "weather.bedroom", state: "partlycloudy", attributes: { friendly_name: "Bedroom weather", temperature: 18, temperature_unit: "°C" } },
     { entity_id: "sensor.bedroom_illuminance", state: "30", attributes: { friendly_name: "Bedroom light", device_class: "illuminance", unit_of_measurement: "lx" } },
     { entity_id: "input_boolean.bedroom_night", state: "off", attributes: { friendly_name: "Bedroom night mode" } },
+    { entity_id: "sun.sun", state: "above_horizon", attributes: { friendly_name: "Demo sun" } },
     { entity_id: "sensor.demo_next_alarm", state: new Date(Date.now() + 3600000).toISOString(), attributes: { friendly_name: "Demo next alarm", device_class: "timestamp" } },
   );
   for (const id of [1, 2]) {

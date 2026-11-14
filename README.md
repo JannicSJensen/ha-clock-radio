@@ -14,7 +14,7 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
    [nightstand-clock](https://github.com/taclab/nightstand-clock): square/round
    analog and digital clocks, calendar, weather, date, date/calendar and
    full-screen faces. Includes seconds/sweep modes, locale/week-start settings,
-   colors, next alarm and scheduled/entity/room-light night modes.
+   colors, next alarm and sun/scheduled/entity/room-light night modes.
 2. **Music overview** - Dasher's layout with swipeable Discover,
    Radio, Albums, Artists, Podcasts, Playlists and Search tabs, sticky
    now-playing bar and artwork player with seeking, shuffle, repeat and volume.
@@ -39,6 +39,8 @@ Set `media_player` in the HA app configuration: Music and every alarm use that
 one speaker, without player selection, grouping or Party.
 Set `weather_entity` there as well and restart the app to enable weather in
 the widget and full-screen clock. Weather selection is not in dashboard Settings.
+For automatic night colors, select **Sun (below horizon)** in Settings' Night
+mode. It follows HA's `sun.sun` entity without an automation or fixed schedule.
 
 ## Foundation
 

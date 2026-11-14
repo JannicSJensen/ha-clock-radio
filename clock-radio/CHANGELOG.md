@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.0
+
+- Add a Sun night-mode option that automatically follows Home Assistant's
+  `sun.sun`: below the horizon uses night color/brightness; above restores
+  daytime colors without a schedule, threshold or entity selection.
+- Preserve existing night-mode settings. Report missing/unavailable/invalid sun
+  states explicitly and retain the last known night state until HA recovers.
+
 ## 0.7.0
 
 - Automatically show a dedicated ringing-alarm screen with large time, an
