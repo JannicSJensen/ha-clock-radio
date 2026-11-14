@@ -111,6 +111,7 @@ export function pickImage(item, type = "thumb", depth = 0) {
 
 /** Where the add-on can fetch an image from (it is the add-on that fetches, never the tablet). */
 export function imageSource(image, baseUrl, size = 300) {
+  if (typeof image === "string") return /^https?:\/\//.test(image) ? image : null;
   if (!image?.path) return null;
   if (image.remotely_accessible) return /^https?:\/\//.test(image.path) ? image.path : null;
   if (image.proxy_id) return `${baseUrl}/imageproxy/${encodeURIComponent(image.proxy_id)}?size=${size}`;

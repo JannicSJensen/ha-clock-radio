@@ -8,6 +8,7 @@ import { createDemoAPI, DEMO_HA_TOKEN, DEMO_MA_TOKEN } from "../dev/fixtures.js"
 import { HAClient } from "../src/ha-client.js";
 import { ConfigStore, parseConfig } from "../src/config.js";
 import { MusicService, validPlayUri } from "../src/music.js";
+import { imageSource, pickImage } from "../src/ma-api.js";
 import { RadioLibrary } from "../src/radio-library.js";
 import { Dashboard } from "../src/dashboard.js";
 import { createServer, staticAsset } from "../src/server.js";
@@ -146,6 +147,82 @@ test("ported music translations include formatted and dynamic labels", () => {
     assert.notEqual(t(key), key);
   }
   assert.equal(makeTranslator("DA-DK")("tab_albums"), makeTranslator("da")("tab_albums"));
+});
+
+test("artwork accepts HA's ready-made URLs unchanged while retaining MA image mappings", () => {
+  const source = "https://logos.example/imageproxy?path=https%253A%252F%252Flogos.example%252Fradio.png&provider=builtin&size=0";
+  assert.equal(pickImage({ image: source }), source);
+  assert.equal(imageSource(source, "https://music.example/ma"), source);
+  assert.equal(imageSource(source, ""), source);
+  assert.equal(imageSource({ path: source, remotely_accessible: true }, ""), source);
+  assert.equal(imageSource({ path: "radio.png", proxy_id: "radio/1" }, "https://music.example/ma"),
+    "https://music.example/ma/imageproxy/radio%2F1?size=300");
+  assert.equal(imageSource({ path: "https://logos.example/radio.png", provider: "radio browser" }, "https://music.example/ma"),
+    "https://music.example/ma/imageproxy?path=https%253A%252F%252Flogos.example%252Fradio.png&provider=radio%20browser&size=300");
+  for (const invalid of [null, "", "/relative/logo.png", "file:///logo.png", "javascript:alert(1)"]) assert.equal(imageSource(invalid, ""), null);
+});
+
+test("public radio artwork works through HA without a Music Assistant browsing URL or token", async () => {
+  const requests = [];
+  const ha = {
+    requestWs: async () => [{ domain: "music_assistant", state: "loaded", entry_id: "test" }],
+    callServiceWithResponse: async () => ({ items: [
+      { uri: "library://radio/1", name: "Public radio", image: "https://logos.example/radio.png" },
+      { uri: "library://radio/2", name: "No logo", image: null },
+    ] }),
+  };
+  const music = new MusicService({ ha, logger: quiet, fetchImpl: async (url, options) => {
+    requests.push({ url, options });
+    return new Response("image", { headers: { "Content-Type": "image/png" } });
+  } });
+  const radio = new RadioLibrary({ ha, music, logger: quiet });
+  assert.equal(music.configured, false);
+  await radio.refresh();
+  assert.equal(radio.error, null);
+  const [station, withoutLogo] = radio.payload({ stations: [] });
+  assert.match(station.image, /^api\/music\/image\/[a-f0-9]+$/);
+  assert.equal(withoutLogo.image, null);
+  assert.equal((await music.image(station.image.split("/").at(-1))).type, "image/png");
+  assert.equal(requests[0].url, "https://logos.example/radio.png");
+  assert.equal(requests[0].options.headers.Authorization, undefined);
+});
+
+test("radio logos and player artwork use HA-supplied URLs instead of a failing HA player proxy", async (t) => {
+  const app = await setup(t, { playerArtworkStatus: 400 });
+  const player = app.states.find((state) => state.entity_id === "media_player.bedroom");
+  const upstream = await app.ha.fetch(`${app.ha.url}${player.attributes.entity_picture}`, { headers: { Authorization: `Bearer ${DEMO_HA_TOKEN}` } });
+  assert.equal(upstream.status, 400, "Reproduce the original player artwork failure");
+  await upstream.arrayBuffer();
+  app.artworkRequests.length = 0;
+  let state = await app.get("api/state");
+  const station = state.music.stations.find((item) => item.uri === "library://radio/1");
+  assert.match(station.image, /^api\/music\/image\/[a-f0-9]+$/);
+  assert.equal(state.players[0].attributes.entity_picture, station.image);
+  assert.ok(!JSON.stringify(state).includes("/radio-logo/"), "Upstream URLs remain server-only");
+  const logo = await fetch(`${app.url}/${station.image}`);
+  assert.equal(logo.status, 200);
+  assert.equal(logo.headers.get("content-type"), "image/svg+xml");
+  const body = await logo.text();
+  const playerImage = await fetch(`${app.url}/api/player/image/media_player.bedroom`);
+  assert.equal(playerImage.status, 200);
+  assert.equal(await playerImage.text(), body);
+  assert.deepEqual(app.artworkRequests, ["/radio-logo/1"], "Reuse the station artwork cache; never request the failing HA proxy");
+  player.state = "idle";
+  await app.dashboard.refresh();
+  assert.equal(app.dashboard.payload().players[0].attributes.entity_picture, station.image, "Keep reliable radio artwork when HA retains idle metadata");
+  assert.equal((await fetch(`${app.url}/api/player/image/media_player.other`)).status, 403);
+  player.state = "playing";
+  player.attributes.media_content_id = "library://track/1";
+  player.attributes.media_title = station.name;
+  await app.dashboard.refresh();
+  state = await app.get("api/state");
+  assert.match(state.players[0].attributes.entity_picture, /^api\/player\/image\//, "A matching title must not replace ordinary track artwork");
+  assert.equal((await fetch(`${app.url}/api/player/image/media_player.bedroom`)).status, 502, "Unrelated HA image errors remain explicit, not disguised with a radio logo");
+  app.dashboard.radio.stations.find((item) => item.uri === station.uri).image = null;
+  player.attributes.media_content_id = station.uri;
+  await app.dashboard.refresh();
+  assert.match(app.dashboard.payload().players[0].attributes.entity_picture, /^api\/player\/image\//, "Stations without a known logo keep HA artwork");
+  assert.equal((await fetch(`${app.url}/api/player/image/media_player.bedroom`)).status, 502);
 });
 
 test("next alarm uses HA weekdays and timezone, including DST gaps and repeated hours", () => {

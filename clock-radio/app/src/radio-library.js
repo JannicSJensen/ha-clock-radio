@@ -29,7 +29,8 @@ export class RadioLibrary {
       this.stations = list.map((item) => {
         if (typeof item.uri !== "string" || typeof item.name !== "string") throw new Error("Music Assistant returned an invalid radio item.");
         const image = pickImage(item);
-        const source = image?.remotely_accessible || this.music.configured ? imageSource(image, this.music.client.baseUrl) : null;
+        const source = typeof image === "string" || image?.remotely_accessible || this.music.configured
+          ? imageSource(image, this.music.client.baseUrl) : null;
         return {
           id: `ma-${crypto.createHash("sha256").update(item.uri).digest("hex").slice(0, 16)}`,
           name: item.name, uri: item.uri, source: "music_assistant",

@@ -114,6 +114,10 @@ export class Dashboard {
     if (this.radio) await this.radio.refresh();
   }
 
+  radioArtwork(state) {
+    return this.radio?.stations.find((station) => station.uri === state?.attributes?.media_content_id)?.image ?? null;
+  }
+
   payload() {
     const config = this.config;
     const states = this.states.filter((state) => state.entity_id === this.mediaPlayer);
@@ -125,7 +129,9 @@ export class Dashboard {
       }
       safeAttributes.group_members = Array.isArray(attributes.group_members) ? attributes.group_members.filter((id) => states.some((player) => player.entity_id === id)) : [];
       if (typeof attributes.media_content_id === "string" && /^[a-z0-9_.-]+:\/\/[a-z_]+\/\S{1,400}$/i.test(attributes.media_content_id) && !/^https?:/.test(attributes.media_content_id)) safeAttributes.media_content_id = attributes.media_content_id;
-      if (attributes.entity_picture) {
+      const radioArtwork = this.radioArtwork(state);
+      if (radioArtwork) safeAttributes.entity_picture = radioArtwork;
+      else if (attributes.entity_picture) {
         const hash = crypto.createHash("sha256").update(String(attributes.entity_picture)).digest("hex").slice(0, 12);
         safeAttributes.entity_picture = `api/player/image/${encodeURIComponent(state.entity_id)}?v=${hash}`;
       }
@@ -307,7 +313,10 @@ export class Dashboard {
 
   async playerImage(id) {
     this.player(id);
-    const picture = this.states.find((state) => state.entity_id === id)?.attributes?.entity_picture;
+    const state = this.states.find((state) => state.entity_id === id);
+    const radioArtwork = this.radioArtwork(state);
+    if (radioArtwork) return this.music.image(radioArtwork.slice("api/music/image/".length));
+    const picture = state?.attributes?.entity_picture;
     if (typeof picture !== "string") throw new RequestError("No artwork is available.", 404);
     const url = new URL(picture, `${this.ha.url}/`);
     if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new RequestError("Unsupported artwork URL.", 400);

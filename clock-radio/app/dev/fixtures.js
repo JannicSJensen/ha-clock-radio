@@ -83,9 +83,10 @@ export function demoStates() {
   return states;
 }
 
-export function createDemoAPI({ states = demoStates(), library = demoLibrary(), party = true } = {}) {
+export function createDemoAPI({ states = demoStates(), library = demoLibrary(), party = true, playerArtworkStatus = 200 } = {}) {
   const calls = [];
   const helperRequests = [];
+  const artworkRequests = [];
   const entity = (id) => states.find((state) => state.entity_id === id);
   let previous = null;
   function cleanupAlarm() {
@@ -134,6 +135,12 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
       res.writeHead(status, { "Content-Type": "application/json" });
       res.end(JSON.stringify(data));
     };
+    if (url.pathname.startsWith("/radio-logo/")) {
+      artworkRequests.push(url.pathname);
+      if (req.headers.authorization) return reply(400, { error: "Public radio logos must not receive access tokens." });
+      res.writeHead(200, { "Content-Type": "image/svg+xml" });
+      return res.end(DEMO_ART);
+    }
     if (url.pathname.startsWith("/ma/imageproxy/")) {
       if (req.headers.authorization !== `Bearer ${DEMO_MA_TOKEN}`) return reply(401, { error: "Invalid demo music token." });
       res.writeHead(200, { "Content-Type": "image/svg+xml" });
@@ -147,6 +154,8 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
       }
       if (req.method === "GET" && url.pathname === "/api/config") return reply(200, { time_zone: "Europe/Copenhagen" });
       if (req.method === "GET" && url.pathname.startsWith("/api/media_player_proxy/")) {
+        artworkRequests.push(url.pathname);
+        if (playerArtworkStatus !== 200) return reply(playerArtworkStatus, { error: "Demo player artwork unavailable." });
         res.writeHead(200, { "Content-Type": "image/svg+xml" });
         return res.end(DEMO_ART);
       }
@@ -168,7 +177,13 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
           [data.entity_id]: { forecast: [{ datetime: new Date().toISOString(), temperature: 22, templow: 11 }] },
         } });
       }
-      if (domain === "music_assistant" && service === "get_library") return reply(200, { service_response: { items: library.radio, count: library.radio.length } });
+      if (domain === "music_assistant" && service === "get_library") return reply(200, { service_response: {
+        items: library.radio.map((item) => ({
+          media_type: "radio", uri: item.uri, name: item.name, favorite: item.favorite,
+          image: item.image ? `http://127.0.0.1:${server.address().port}/radio-logo/${item.item_id}` : null,
+        })),
+        count: library.radio.length,
+      } });
       if (domain === "script" && service === "turn_on" && data.entity_id === "script.clock_radio_stop") {
         cleanupAlarm();
         entity("input_text.clock_radio_snoozed_alarm").state = "";
@@ -290,5 +305,5 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
       }
     });
   });
-  return { server, ws, states, calls, helperRequests, library, startAlarm, advanceAlarms };
+  return { server, ws, states, calls, helperRequests, artworkRequests, library, startAlarm, advanceAlarms };
 }

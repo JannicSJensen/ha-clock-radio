@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.8.1
+
+- Accept the ready-made radio artwork URLs returned by Home Assistant's Music
+  Assistant integration, including when MA browsing is not configured.
+- Use known station logos for radio tiles, now playing and the ringing Music
+  mini player instead of HA's sometimes-failing media-player image proxy.
+  Preserve ordinary music artwork, server-side caching and credential isolation.
+
 ## 0.8.0
 
 - Add a Sun night-mode option that automatically follows Home Assistant's

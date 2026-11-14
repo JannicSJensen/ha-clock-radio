@@ -237,6 +237,12 @@ URIs and HTTP(S) streams are also accepted in this mode. Only Music Assistant
 players can handle these actions. MA library radio is also read through HA
 automatically, without a separate MA token.
 
+Radio logos use the ready-made image URLs supplied by HA, without requiring MA
+browsing configuration. A playing radio's exact library URI selects its station
+logo for now playing and the ringing Music mini player, avoiding stale or failing
+HA player-image proxies. Logos remain cached and proxied server-side; ordinary
+music keeps its existing artwork source.
+
 Discover, Albums, Artists, Podcasts, Playlists and Search use Music
 Assistant's own API. Set `music_assistant_token` to a **read-only** token from
 MA **Settings > Profile**. A running HA Music Assistant app is discovered via
