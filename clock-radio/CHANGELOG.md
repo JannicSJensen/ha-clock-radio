@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.5.1
+
+- Remove the Alarm playback section from Alarm configuration. Keep profile
+  editing, alarm creation and Stop active alarm; shared Music/Buzzer sources
+  remain configured through their existing Home Assistant helpers.
+
 ## 0.5.0
 
 - Split Settings into an Alarm configuration page for alarm profiles, creation

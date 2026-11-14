@@ -151,17 +151,6 @@ export function createSettingsPages(ctx) {
     return form;
   }
 
-  const speakerInfo = h("p", { class: "settings-hint" });
-  const playback = createForm("Alarm playback",
-    [
-      speakerInfo,
-      h("p", { class: "settings-hint" }, "All alarms use the HA app's configured speaker. A newer alarm replaces the previous one; each wake timer stops playback when it finishes."),
-      h("div", { class: "setting-grid" },
-        field("Music source (Music Assistant URI or URL)", input("music_source", "text", { maxlength: 255, required: true })),
-        field("Buzzer sound (absolute HTTP(S) URL)", input("buzzer_source", "text", { maxlength: 255, required: true }))),
-    ],
-    (form) => ({ ...Object.fromEntries(new FormData(form)), player: ctx.getModel().music.default_player }), "api/settings/alarm-playback",
-    (model) => model.alarms, (model) => model.alarms.playback_missing.length === 0 && model.alarms.alarms.every((alarm) => alarm.available));
   const stop = h("button", { class: "btn", type: "button" }, "Stop active alarm");
   stop.addEventListener("click", () => ctx.write("api/alarm/stop", {}));
   const musicInfo = h("p", { class: "settings-hint" });
@@ -174,7 +163,7 @@ export function createSettingsPages(ctx) {
   const alarmsEl = h("div", { class: "settings" },
     h("header", { class: "settings-heading" }, h("h1", null, "Alarm configuration"), h("p", null, "Swipe down at the top for Music, or up at the bottom for Settings."), add, addInfo),
     alarmList,
-    playback, stop,
+    stop,
   );
   const el = h("div", { class: "settings" },
     h("header", { class: "settings-heading" }, h("h1", null, "Settings"), h("p", null, "Swipe down at the top for Alarm configuration, or up at the bottom for The Clock.")),
@@ -211,7 +200,6 @@ export function createSettingsPages(ctx) {
     }
     add.disabled = busy || !ctx.canControl() || !model.alarms.can_create;
     addInfo.textContent = model.alarms.can_create ? "Creates persistent HA helpers and an independent wake timer. New alarms start disabled." : "Update the HA alarm package to the dynamic scheduler to enable Add alarm.";
-    speakerInfo.textContent = `Music and alarm speaker: ${model.music.default_player || "not configured"}. Change media_player in the Home Assistant app configuration.`;
     const entities = model.clock_entities;
     weatherInfo.textContent = `Weather entity: ${model.config.clock.weather_entity || "not configured"}. Set weather_entity in the Home Assistant app configuration and restart the app.`;
     optionsFor(clock.elements.namedItem("night_entity"), entities.filter((item) => !item.entity_id.startsWith("weather.")), "Choose an entity", model.config.clock.night_entity);

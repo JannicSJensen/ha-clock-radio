@@ -19,20 +19,22 @@ that package separately in Home Assistant. Alarm configuration edits the existin
 weekdays, volume (0-100%) and wake timer (1-120 minutes). Profiles may
 use different times and durations; all use the configured app speaker and shared source
 helpers. Missing/unavailable helpers are shown explicitly and cannot be saved.
+Configure the shared Music/Buzzer source helpers in Home Assistant as described
+in the alarm package setup; they are not editable in the app.
 
 Saving a profile temporarily disables its schedule while the individual HA
 helpers are updated, then applies the requested enabled state. If a write
 fails, the app reports that the edit was incomplete; inspect the profile before
 enabling it. Existing enabled states and helper values are not initialized or
 reset just by opening the app. Native HA entities cards continue to work.
-Shared playback edits and configured-speaker changes temporarily pause enabled schedules and restore them
-only after all source/speaker helpers are saved. Conflicting edits are rejected;
+Configured-speaker changes temporarily pause enabled schedules and restore them
+only after the speaker helper is saved. Conflicting edits are rejected;
 failed edits immediately refresh the actual HA values rather than reporting success.
 
 **Add alarm** creates 13 settings helpers, a persistent initialization flag and a
 restoring timer using HA's admin-only helper APIs. Fresh profiles default to
 Music, 06:00, Monday-Friday, 50% and five minutes, **disabled**. Find this action
-and shared Music/Buzzer sources on **Alarm configuration**. **Settings** contains
+and profile controls on **Alarm configuration**. **Settings** contains
 clock appearance and Music Assistant guidance. Direct links `#alarms` and
 `#settings` open the respective pages; unsaved form edits survive page changes.
 The dynamic HA

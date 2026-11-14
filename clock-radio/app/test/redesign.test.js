@@ -153,6 +153,8 @@ test("four-page HTTP integration browses Dasher music, plays only registered ite
   assert.deepEqual(menus, []);
   assert.deepEqual([...html.matchAll(/<section id="page-([^"]+)"/g)].map((match) => match[1]), ["clock", "music", "alarms", "settings"]);
   assert.match(html, /id="page-alarms" class="page settings-page" aria-label="Alarm configuration" hidden/);
+  const settings = await (await fetch(`${app.url}/js/pages/settings.js`)).text();
+  assert.doesNotMatch(settings, /Alarm playback|api\/settings\/alarm-playback/);
   const state = await app.get("api/state");
   assert.equal(state.connected, true);
   assert.equal(state.alarms.alarms.length, 2);
@@ -196,8 +198,8 @@ test("four-page HTTP integration browses Dasher music, plays only registered ite
   assert.equal(app.calls.filter((call) => call.domain === "input_number").length, 4);
   assert.equal((await app.get("api/state")).alarms.alarms[1].minute, 15);
 
-  const settings = { ...CLOCK_DEFAULTS, layout: "full", full_face: "digital", weather_entity: "weather.bedroom" };
-  assert.equal((await app.post("api/settings/clock", settings)).status, 200);
+  const clockSettings = { ...CLOCK_DEFAULTS, layout: "full", full_face: "digital", weather_entity: "weather.bedroom" };
+  assert.equal((await app.post("api/settings/clock", clockSettings)).status, 200);
   const reopened = new ConfigStore({ dir: path.dirname(app.store.file), example: path.join(root, "examples/dashboard.yaml"), logger: quiet });
   assert.equal(reopened.current.clock.full_face, "digital");
   assert.equal(reopened.current.stations.length, app.store.current.stations.length);

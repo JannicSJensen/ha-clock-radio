@@ -35,9 +35,10 @@ entities cards remain an alternative.
      `http://homeassistant:8123/local/sounds/wakeup.mp3` if that hostname is
      reachable from your Music Assistant server. A bare `/local/...` path is
      not a Music Assistant media URI. No sound file is bundled.
-6. Use **Alarm configuration** in Clock Radio to edit alarms, add more and edit shared
-   playback sources, or add [alarm-cards.yaml](alarm-cards.yaml) as a manual card
-   in a native HA dashboard. It uses standard entities cards, without HACS.
+6. Use **Alarm configuration** in Clock Radio to edit alarms and add more, or add
+   [alarm-cards.yaml](alarm-cards.yaml) as a manual card in a native HA dashboard.
+   It uses standard entities cards, without HACS. Shared playback sources are
+   configured through the HA helpers in step 5, not through the app.
 7. Test a profile from Developer tools > Actions using
    `script.clock_radio_play_alarm` with a profile ID such as `alarm: "1"` or `"3"`. This manual
    action intentionally works even when the schedule is disabled.

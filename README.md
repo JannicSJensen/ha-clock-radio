@@ -110,7 +110,7 @@ station URLs for real playback; they are fictional.
 ```sh
 npm run check
 npm test
-docker build --build-arg BUILD_VERSION=0.5.0 --build-arg BUILD_ARCH=amd64 ../
+docker build --build-arg BUILD_VERSION=0.5.1 --build-arg BUILD_ARCH=amd64 ../
 ```
 
 ## Layout and releases
