@@ -1,9 +1,23 @@
 title: Clock Radio
 locale: en-GB
-# Empty uses the tablet's time zone. Set e.g. Europe/Copenhagen to override.
+# Empty follows HA's time zone. Set e.g. Europe/Copenhagen to override the clock.
 time_zone: ""
-clock_24h: true
-show_seconds: false
+
+# Settings saves this section atomically. Existing legacy clock_24h and
+# show_seconds settings still work when their corresponding clock keys are absent.
+clock:
+  layout: widget
+  face: analog
+  full_face: analog
+  widget: calendar
+  seconds: true
+  second_hand: "30"
+  time_format: automatic
+  language: ""
+  week_start: automatic
+  weather_entity: ""
+  night_mode: off
+  night_entity: ""
 
 # Empty discovers every media_player. Set an explicit list to limit control.
 players: []

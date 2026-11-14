@@ -31,7 +31,21 @@ test("Supervisor packaging has persistent config, ingress and non-conflicting ta
   assert.equal(config.ports["8100/tcp"], 8100);
   assert.equal(config.map[0].type, "app_config");
   assert.equal(config.map[0].read_only, false);
+  assert.deepEqual(Object.keys(config.map[0]).sort(), ["path", "read_only", "type"]);
+  assert.equal(config.hassio_api, true);
+  assert.equal(config.hassio_role, "default");
+  assert.equal(config.schema.music_assistant_token, "password?");
   const translation = YAML.parse(read(path.join(addon, "translations/en.yaml")));
   assert.deepEqual(Object.keys(config.options).sort(), Object.keys(translation.configuration).sort());
   assert.ok(!("image" in config), "Supervisor should build locally");
+});
+
+test("vendored renderer and fonts retain their full redistribution licenses", () => {
+  assert.match(read(path.join(app, "web/clock/LICENSE")), /Apache License/);
+  for (const file of ["web/clock/fonts/OFL.txt", "web/clock/fonts/OFL-Archivo.txt", "web/fonts/LICENSE.txt"]) {
+    const license = read(path.join(app, file));
+    assert.match(license, /SIL OPEN FONT LICENSE Version 1\.1/);
+    assert.match(license, /PERMISSION (?:&|AND) CONDITIONS/);
+    assert.match(license, /DISCLAIMER/);
+  }
 });

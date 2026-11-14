@@ -5,6 +5,9 @@ import { ConfigStore } from "./config.js";
 import { HAClient } from "./ha-client.js";
 import { Dashboard } from "./dashboard.js";
 import { createServer } from "./server.js";
+import { MusicService } from "./music.js";
+import { RadioLibrary } from "./radio-library.js";
+import { discoverMusicAssistant } from "./discovery.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const version = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;
@@ -38,7 +41,16 @@ const configStore = new ConfigStore({
   example: path.join(root, "examples/dashboard.yaml"),
   logger,
 });
-const dashboard = new Dashboard({ ha, configStore, readOnly: options.read_only === true, demo: process.env.DEMO === "1", version, logger });
+let musicUrl = process.env.MA_URL ?? options.music_assistant_url ?? "";
+const musicToken = process.env.MA_TOKEN ?? options.music_assistant_token ?? "";
+if (typeof musicUrl !== "string" || typeof musicToken !== "string") throw new Error("Music Assistant address and token must be strings.");
+if (!musicUrl && token && musicToken) {
+  try { musicUrl = await discoverMusicAssistant(token); }
+  catch (error) { logger.warn(error.message); }
+}
+const music = new MusicService({ ha, logger, url: musicUrl, token: musicToken });
+const radio = new RadioLibrary({ ha, music, logger });
+const dashboard = new Dashboard({ ha, configStore, music, radio, readOnly: options.read_only === true, demo: process.env.DEMO === "1", version, logger });
 const server = createServer({ dashboard, webRoot: path.join(root, "web"), logger });
 await dashboard.refresh();
 const timer = setInterval(() => dashboard.refresh(), 5000);

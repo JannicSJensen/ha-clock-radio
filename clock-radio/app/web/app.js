@@ -1,150 +1,192 @@
+import { getJson, postJson } from "./js/core/api.js";
+import { icon } from "./js/core/icons.js";
+import { makeTranslator } from "./js/lib/i18n.js";
+import { createMusicPage } from "./js/pages/music.js";
+import { createNowPlayingScreen } from "./js/components/nowplaying-screen.js";
+import { createSettingsPage } from "./js/pages/settings.js";
+
 const $ = (id) => document.getElementById(id);
-let model;
-let selected = "";
-let busy = false;
-let stationSignature = "";
+const frame = $("clock-frame");
+let model = null;
+let current = "clock";
+let musicPage = null;
+let musicSignature = "";
+let settingsPage = null;
+let nowPlaying = null;
 let clockSignature = "";
-let timeFormatter;
-let dateFormatter;
+let clockRevision = 0;
+let clockDataSignature = "";
+let pending = 0;
+let polling = null;
 
 function notice(id, message) {
   $(id).textContent = message ?? "";
   $(id).hidden = !message;
 }
-
-function clock() {
-  const now = new Date();
-  $("clock").textContent = (timeFormatter ?? new Intl.DateTimeFormat("en-GB", { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })).format(now);
-  $("clock").dateTime = now.toISOString();
-  if (dateFormatter) $("date").textContent = dateFormatter.format(now);
+function toast(message) {
+  const el = document.createElement("div");
+  el.className = "toast";
+  el.textContent = message;
+  $("toasts").append(el);
+  setTimeout(() => el.remove(), 4500);
 }
+const canControl = () => Boolean(model?.connected && !model.read_only);
+const ctx = {
+  t: makeTranslator("en"), toast, canControl, getModel: () => model,
+  getState: (id) => model?.players.find((player) => player.entity_id === id) ?? null,
+  musicPlayers: () => model?.music.players ?? [],
+  stations: () => model?.music.stations ?? [],
+  navigate: (page) => { location.hash = page; },
+  openNowPlaying: (id) => nowPlaying?.open(id),
+  playRadio: (entity_id, station_id) => write("api/radio/play", { entity_id, station_id }),
+  playMusic: (entity_id, request) => write("api/music/play", { ...request, entity_id }),
+  groupRadio: (leader, change) => write("api/radio/group", { leader, ...change }),
+  call: (domain, action, entity_id, data = {}) => {
+    if (domain !== "media_player") throw new Error("Only scoped media controls are supported.");
+    return write("api/command", { action, entity_id, ...data });
+  },
+  write,
+};
 
-function render() {
-  const config = model.config;
-  document.title = config.title;
-  document.documentElement.lang = config.locale;
-  $("dashboard-title").textContent = config.title;
-  $("version").textContent = `v${model.version}`;
-  $("demo-notice").hidden = !model.demo;
-  $("connection").textContent = model.connected ? (model.demo ? "Demo connected" : "Connected") : "Disconnected";
-  $("connection").classList.toggle("online", model.connected);
-  notice("connection-error", model.connection_error);
-  notice("config-error", model.config_error);
-  notice("missing-players", model.missing_players.length ? `Missing configured speakers: ${model.missing_players.join(", ")}` : "");
-  const nextClockSignature = JSON.stringify([config.locale, config.time_zone, config.clock_24h, config.show_seconds]);
-  if (clockSignature !== nextClockSignature) {
-    document.querySelector(".clock-panel").classList.toggle("long-time", config.show_seconds || !config.clock_24h);
-    const zone = config.time_zone ? { timeZone: config.time_zone } : {};
-    timeFormatter = new Intl.DateTimeFormat(config.locale, { ...zone, hour: "2-digit", minute: "2-digit", ...(config.show_seconds ? { second: "2-digit" } : {}), hourCycle: config.clock_24h ? "h23" : "h12" });
-    dateFormatter = new Intl.DateTimeFormat(config.locale, { ...zone, weekday: "long", day: "numeric", month: "long" });
-    $("time-zone").textContent = timeFormatter.resolvedOptions().timeZone.replaceAll("_", " ");
-    clockSignature = nextClockSignature;
-    clock();
-  }
-  if (!model.players.some((player) => player.entity_id === selected)) {
-    selected = model.players.find((player) => player.entity_id === config.default_player)?.entity_id
-      ?? model.players.find((player) => !["unavailable", "unknown"].includes(player.state))?.entity_id
-      ?? model.players[0]?.entity_id ?? "";
-  }
-  const speaker = $("speaker");
-  const playerSignature = JSON.stringify(model.players.map(({ entity_id, name }) => [entity_id, name]));
-  if (speaker.dataset.signature !== playerSignature) {
-    speaker.replaceChildren(...(model.players.length
-      ? model.players.map((player) => new Option(player.name, player.entity_id))
-      : [new Option("No speakers found", "")]));
-    speaker.dataset.signature = playerSignature;
-  }
-  speaker.value = selected;
-  const player = model.players.find((item) => item.entity_id === selected);
-  const disabled = busy || model.read_only || !model.connected || !player || ["unavailable", "unknown"].includes(player.state);
-  const supports = (feature) => Boolean((player?.supported_features ?? 0) & feature);
-  $("track-title").textContent = player?.title || "Choose a station";
-  $("track-artist").textContent = player?.artist || player?.name || "Your radio, through Home Assistant.";
-  $("player-state").textContent = player ? player.state.toUpperCase() : "READY WHEN YOU ARE";
-  $("play-pause").textContent = player?.state === "playing" ? "Pause" : "Play";
-  $("play-pause").disabled = disabled || !supports(player?.state === "playing" ? 1 : 16384);
-  $("stop").disabled = disabled || !supports(4096);
-  $("volume").disabled = disabled || !supports(4);
-  if (document.activeElement !== $("volume")) {
-    $("volume").value = Math.round((player?.volume_level ?? 0) * 100);
-    $("volume-value").textContent = player?.volume_level == null ? "--" : `${$("volume").value}%`;
-  }
-  speaker.disabled = busy || !model.players.length;
-  const nextSignature = JSON.stringify(config.stations);
-  if (stationSignature !== nextSignature) {
-    $("stations").replaceChildren(...config.stations.map((station, index) => {
-      const button = document.createElement("button");
-      button.type = "button";
-      button.className = "station";
-      const number = document.createElement("span");
-      number.textContent = `PRESET ${String(index + 1).padStart(2, "0")}`;
-      const label = document.createElement("strong");
-      label.textContent = station.name;
-      button.append(number, label);
-      button.addEventListener("click", () => command({ action: "play_station", station_id: station.id }));
-      return button;
-    }));
-    stationSignature = nextSignature;
-  }
-  for (const button of $("stations").children) button.disabled = disabled || !supports(512);
-  $("empty-stations").hidden = Boolean(config.stations.length);
-  $("empty-players").hidden = Boolean(model.players.length);
-  $("read-only").hidden = !model.read_only;
-}
-
-async function poll() {
-  try {
-    const response = await fetch("./api/state", { cache: "no-store" });
-    if (!response.ok) throw new Error(`Dashboard request failed (HTTP ${response.status}).`);
-    model = await response.json();
-    render();
-  } catch (error) {
-    if (model) {
-      model.connected = false;
-      model.connection_error = `Dashboard connection lost: ${error.message}`;
-      render();
-    } else {
-      notice("connection-error", `Cannot reach the dashboard: ${error.message}`);
-      $("connection").textContent = "Disconnected";
+function policy() {
+  for (const el of document.querySelectorAll("[data-mutation]")) {
+    if (el.tagName === "BUTTON") el.disabled = !canControl();
+    else {
+      el.setAttribute("aria-disabled", String(!canControl()));
+      el.tabIndex = canControl() ? 0 : -1;
     }
   }
 }
+new MutationObserver(policy).observe($("page-music"), { subtree: true, childList: true });
 
-async function command(body) {
-  if (busy) return;
-  busy = true;
+function navigate() {
+  current = ["clock", "music", "settings"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "clock";
+  for (const page of ["clock", "music", "settings"]) $(`page-${page}`).hidden = page !== current;
+  for (const link of document.querySelectorAll("[data-page]")) {
+    if (link.dataset.page === current) link.setAttribute("aria-current", "page");
+    else link.removeAttribute("aria-current");
+  }
+  document.body.classList.toggle("on-clock", current === "clock");
+  if (current !== "clock") document.body.classList.remove("is-night");
+  frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" }, location.origin);
+  if (current === "music") musicPage?.update();
+}
+
+function renderClock() {
+  const options = { ...model.clock };
+  document.body.style.setProperty("--clock-night", options.nightColor);
+  delete options.error;
+  delete options.night_error;
+  const live = new Set(["nightActive", "alarm", "weatherConfigured", "weatherPlace", "weatherCondition", "weatherTemperature", "weatherUnit", "weatherDate", "weatherHigh", "weatherLow"]);
+  const signature = JSON.stringify(Object.fromEntries(Object.entries(options).filter(([key]) => !live.has(key))));
+  if (signature !== clockSignature) {
+    frame.src = `./clock/index.html?view=${++clockRevision}#${encodeURIComponent(JSON.stringify(options))}`;
+    clockSignature = signature;
+    clockDataSignature = "";
+  } else if (JSON.stringify(options) !== clockDataSignature) {
+    frame.contentWindow?.postMessage({ type: "clock-radio-data", options }, location.origin);
+  }
+  clockDataSignature = JSON.stringify(options);
+}
+
+function render() {
+  if (!model) return;
+  document.title = model.config.title;
+  document.documentElement.lang = model.config.locale;
+  $("dashboard-title").textContent = model.config.title;
+  $("version").textContent = `v${model.version}`;
+  $("connection").textContent = model.connected ? model.demo ? "Demo connected" : "Connected" : "Disconnected";
+  $("connection").classList.toggle("online", model.connected);
+  $("initial-loading").hidden = true;
+  $("demo-notice").hidden = !model.demo;
+  notice("connection-error", model.connection_error);
+  notice("config-error", model.config_error);
+  notice("clock-error", [model.clock.error, model.clock.night_error].filter(Boolean).join(" "));
+  notice("missing-players", model.missing_players.length ? `Missing configured speakers: ${model.missing_players.join(", ")}` : "");
+  $("read-only").hidden = !model.read_only;
+  renderClock();
+  const signature = JSON.stringify([model.music, model.config.locale]);
+  if (signature !== musicSignature) {
+    ctx.t = makeTranslator(model.config.locale);
+    musicPage?.destroy();
+    musicPage = createMusicPage(model.music, ctx);
+    $("page-music").replaceChildren(musicPage.el);
+    musicSignature = signature;
+  }
+  if (!settingsPage) {
+    settingsPage = createSettingsPage(ctx);
+    $("page-settings").append(settingsPage.el);
+  }
+  if (!nowPlaying) {
+    nowPlaying = createNowPlayingScreen(ctx, { enabled: () => false });
+    document.body.append(nowPlaying.el);
+  }
+  musicPage.update();
+  nowPlaying.update();
+  settingsPage.update(model, pending > 0);
+  policy();
+}
+
+async function poll() {
+  if (polling) return polling;
+  polling = (async () => {
+    try {
+      model = await getJson("api/state");
+      render();
+    } catch (error) {
+      console.warn(error.message);
+      if (model) {
+        model.connected = false;
+        model.connection_error = `Dashboard connection lost: ${error.message}`;
+        render();
+      } else {
+        notice("connection-error", `Cannot reach the dashboard: ${error.message}`);
+        $("connection").textContent = "Disconnected";
+      }
+    }
+  })().finally(() => { polling = null; });
+  return polling;
+}
+
+async function write(url, data) {
+  if (!canControl()) { toast("The dashboard is read-only or disconnected."); return false; }
+  pending++;
   notice("command-error", "");
-  notice("command-status", "Sending command...");
-  render();
+  settingsPage?.update(model, true);
   try {
-    const response = await fetch("./api/command", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...body, entity_id: selected }),
-    });
-    const result = await response.json();
-    if (!response.ok) throw new Error(result.error ?? `Command failed (HTTP ${response.status}).`);
-    notice("command-status", "Command sent.");
+    await postJson(url, data);
     await poll();
+    return true;
   } catch (error) {
-    notice("command-status", "");
+    console.warn(error.message);
     notice("command-error", error.message);
+    await poll();
+    return false;
   } finally {
-    busy = false;
-    render();
+    pending--;
+    settingsPage?.update(model, pending > 0);
   }
 }
 
-$("speaker").addEventListener("change", (event) => { selected = event.target.value; render(); });
-$("play-pause").addEventListener("click", () => command({ action: model.players.find((player) => player.entity_id === selected)?.state === "playing" ? "media_pause" : "media_play" }));
-$("stop").addEventListener("click", () => command({ action: "media_stop" }));
-$("volume").addEventListener("input", () => { $("volume-value").textContent = `${$("volume").value}%`; });
-$("volume").addEventListener("change", () => command({ action: "volume_set", volume_level: Number($("volume").value) / 100 }));
-$("night-mode").addEventListener("click", () => {
-  const night = document.body.classList.toggle("night");
-  $("night-mode").setAttribute("aria-pressed", String(night));
+for (const el of document.querySelectorAll("[data-icon]")) el.replaceChildren(icon(el.dataset.icon));
+frame.addEventListener("load", () => {
+  frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" }, location.origin);
+  if (model) frame.contentWindow?.postMessage({ type: "clock-radio-data", options: model.clock }, location.origin);
 });
-clock();
-setInterval(clock, 1000);
+addEventListener("message", (event) => {
+  if (event.origin !== location.origin || event.source !== frame.contentWindow || event.data?.type !== "clock-radio-night") return;
+  document.body.classList.toggle("is-night", current === "clock" && event.data.active === true);
+});
+addEventListener("hashchange", navigate);
+addEventListener("keydown", (event) => { if (event.key === "Escape") nowPlaying?.close({ dismiss: true }); });
+$("fullscreen").hidden = !document.fullscreenEnabled;
+$("fullscreen").addEventListener("click", async () => {
+  try {
+    if (document.fullscreenElement) await document.exitFullscreen();
+    else await document.documentElement.requestFullscreen();
+  } catch (error) { toast(`Cannot enter full screen: ${error.message}`); }
+});
+addEventListener("fullscreenchange", () => { $("fullscreen").textContent = document.fullscreenElement ? "Exit full screen" : "Full screen"; });
+navigate();
 await poll();
 setInterval(poll, 5000);

@@ -1,8 +1,10 @@
 import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
+import crypto from "node:crypto";
+import { CLOCK_DEFAULTS, parseClockOptions } from "../web/js/lib/clock-options.js";
 
-const keys = new Set(["title", "locale", "time_zone", "clock_24h", "show_seconds", "players", "default_player", "stations"]);
+const keys = new Set(["title", "locale", "time_zone", "clock_24h", "show_seconds", "players", "default_player", "stations", "clock"]);
 const playerId = /^media_player\.[a-z0-9_]+$/;
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
 
@@ -76,7 +78,13 @@ export function parseConfig(raw) {
       source,
     };
   });
-  return { title, locale, time_zone: timeZone, clock_24h: raw.clock_24h ?? true, show_seconds: raw.show_seconds ?? false, players, default_player: defaultPlayer, stations };
+  const clock = parseClockOptions(raw.clock ?? {}, {
+    ...CLOCK_DEFAULTS,
+    language: raw.locale === undefined ? "" : locale,
+    seconds: raw.show_seconds ?? CLOCK_DEFAULTS.seconds,
+    time_format: raw.clock_24h === false ? "12-hour" : "24-hour",
+  });
+  return { title, locale, time_zone: timeZone, clock_24h: raw.clock_24h ?? true, show_seconds: raw.show_seconds ?? false, clock, players, default_player: defaultPlayer, stations };
 }
 
 export class ConfigStore {
@@ -103,5 +111,23 @@ export class ConfigStore {
       if (message !== this.error) this.logger.warn(message);
       this.error = message;
     }
+  }
+
+  saveClock(raw) {
+    const source = fs.readFileSync(this.file, "utf8");
+    const document = YAML.parseDocument(source);
+    if (document.errors.length) throw new Error(`Fix dashboard.yaml before saving: ${document.errors[0].message}`);
+    parseConfig(document.toJS());
+    const clock = parseClockOptions(raw);
+    document.set("clock", clock);
+    const temporary = `${this.file}.${crypto.randomUUID()}.tmp`;
+    try {
+      fs.writeFileSync(temporary, document.toString(), { flag: "wx" });
+      fs.renameSync(temporary, this.file);
+    } finally {
+      if (fs.existsSync(temporary)) fs.unlinkSync(temporary);
+    }
+    this.load(true);
+    return this.current.clock;
   }
 }

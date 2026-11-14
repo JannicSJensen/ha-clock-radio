@@ -30,6 +30,7 @@ test("HTTP foundation works end to end with HA, hot reload, error paths and ingr
     res.setHeader("Content-Type", "application/json");
     if (failure) { res.writeHead(500); return res.end("{}"); }
     if (req.url === "/api/states") return res.end(JSON.stringify([{ entity_id: "media_player.room", state: "playing", attributes: { supported_features: 20997 } }]));
+    if (req.url === "/api/config") return res.end(JSON.stringify({ time_zone: "Europe/Copenhagen" }));
     if (serviceFailure) { res.writeHead(500); return res.end("{}"); }
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
@@ -53,7 +54,9 @@ test("HTTP foundation works end to end with HA, hot reload, error paths and ingr
   assert.match(html, /href="\.\/styles.css"/);
   assert.match(html, /src="\.\/app.js"/);
   const js = await (await fetch(`${url}/app.js`)).text();
-  assert.match(js, /fetch\("\.\/api\/state"/);
+  assert.match(js, /getJson\("api\/state"/);
+  const api = await (await fetch(`${url}/js/core/api.js`)).text();
+  assert.match(api, /fetch\(`\.\/\$\{url\}`/);
   assert.equal((await fetch(`${url}/styles.css`)).status, 200);
   assert.equal((await fetch(`${url}/app.js`, { method: "HEAD" })).status, 200);
   assert.equal((await fetch(`${url}/package.json`)).status, 404);

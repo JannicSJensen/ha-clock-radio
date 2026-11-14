@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.3.0
+
+- Streamline navigation to The Clock, Music overview and Settings.
+- Adapt nightstand-clock's complete clock layouts/widgets, smooth/ticking
+  seconds, locale/week-start, colors, weather/high-low and next-alarm display.
+  Add HA illuminance/entity and scheduled night modes with hysteresis.
+- Reuse Dasher's Music Assistant library tabs, speaker groups, recommendations,
+  search/details, queue actions, Party QR and full-screen artwork player.
+- Add persistent clock settings and an editor for the two existing HA alarm
+  profiles, with independent times/weekdays/volumes/wake timers.
+- Enforce read-only/disconnect policy across new mutations, proxy artwork
+  without exposing tokens, and expand the fictional demo and integration tests.
+- Preserve bundled Apache-2.0 and SIL Open Font licenses and document the
+  renderer's timezone/live-data adaptations.
+
 ## 0.2.0
 
 - Add an optional HA-native package with two independent alarm profiles,

@@ -8,14 +8,24 @@ A calm bedside clock and radio dashboard, built on the same concept as
 Assistant app (add-on), a small Node.js server, and a vanilla JavaScript tablet
 page with no build step, HACS cards, or tablet-side Home Assistant token.
 
-## Initial foundation
+## Three pages
 
-- Large clock, date, configurable time zone, 12/24-hour display and seconds.
-- Responsive dark dashboard and an optional warmer night palette.
-- Home Assistant speaker discovery, speaker selection, radio presets, play,
-  pause, stop and volume (where the selected player supports them).
-- Stream URLs and Home Assistant media-source presets; optional Music Assistant
-  library radio playback through its Home Assistant integration.
+1. **The Clock** - the layouts and widgets from
+   [nightstand-clock](https://github.com/taclab/nightstand-clock): square/round
+   analog and digital clocks, calendar, weather, date, date/calendar and
+   full-screen faces. Includes seconds/sweep modes, locale/week-start settings,
+   colors, next alarm and scheduled/entity/room-light night modes.
+2. **Music overview** - Dasher's speaker chips, grouping, swipeable Discover,
+   Radio, Albums, Artists, Podcasts, Playlists, Party and Search tabs, sticky
+   now-playing bar and artwork player with seeking, shuffle, repeat and volume.
+   Full library browsing needs a Music Assistant read-only token in app options.
+3. **Settings** - persistent clock appearance and the two existing HA alarm
+   profiles: Music/Buzzer type, independent wake times, weekdays, volumes and
+   wake timers. Install the [alarm package](examples/home-assistant/README.md)
+   once; the editor uses those helpers rather than creating duplicates.
+
+## Foundation
+
 - Ingress sidebar access and a separate tablet page on port **8100** (Dasher
   remains on 8099, so both apps can run together).
 - Supervisor-provided credentials, server-side command restrictions, read-only
@@ -24,12 +34,11 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
   seconds. Invalid edits show an error and retain the last valid configuration.
 - A fictional local demo, automated tests, app linting and image-build CI.
 
-This is a focused starter, not a copy of Dasher's full feature set. An optional
-[Home Assistant alarm package](examples/home-assistant/README.md) adds two
-independent Music/Buzzer profiles with wake times, weekday switches and
-auto-stop timers, configured through native HA entities cards. The tablet does
-not yet include an alarm editor. Sleep timers and Music Assistant library
-browsing are not implemented. Playback happens on your HA speaker, not the tablet.
+Room-light mode reads an **HA illuminance sensor**, not an Android hardware
+sensor. Alarms run inside HA, even with the tablet closed. Opening the app does
+not enable alarms or reset existing helper values. Playback happens on your HA
+speaker, not the tablet. The artwork player opens only when requested, so alarm
+music does not take you away from the clock.
 
 ## Install
 
@@ -39,7 +48,8 @@ Requires Home Assistant OS or a Supervisor installation on amd64 or aarch64.
    older versions).
 2. Add `https://github.com/JannicSJensen/ha-clock-radio`.
 3. Install **Clock Radio**, start it and choose **Open web UI**.
-4. Configure your radio presets in the app's `dashboard.yaml`; see
+4. Configure the clock/alarms in **Settings**, and optional radio presets in
+   the app's `dashboard.yaml`; see
    [settings and examples](clock-radio/DOCS.md).
 5. On a tablet, open `http://<home-assistant>:8100/`.
 
@@ -49,7 +59,8 @@ the app's Network settings.
 
 **Trust boundary:** the direct tablet page has no login, like Dasher. Anyone
 able to reach port 8100 can see the configured player information and control
-allowed players. Keep it on a trusted LAN; do not expose it to the internet.
+allowed players, edit dashboard settings and change the Clock Radio alarm
+helpers. Keep it on a trusted LAN; do not expose it to the internet.
 Use ingress for authenticated access. Empty `players` allows all discovered
 media players; explicitly list players to narrow control.
 
@@ -63,7 +74,8 @@ npm run dev
 ```
 
 The demo creates ignored configuration under `clock-radio/app/dev/config/`.
-It starts its mock HA on a free loopback port and stops it when the app exits.
+It starts fictional HA and Music Assistant APIs on a free loopback port and
+stops them when the app exits. Both demo alarms start disabled.
 `PORT=8101 npm run dev` selects another dashboard port.
 
 For real Home Assistant development:
@@ -82,7 +94,7 @@ station URLs for real playback; they are fictional.
 ```sh
 npm run check
 npm test
-docker build --build-arg BUILD_VERSION=0.2.0 --build-arg BUILD_ARCH=amd64 ../
+docker build --build-arg BUILD_VERSION=0.3.0 --build-arg BUILD_ARCH=amd64 ../
 ```
 
 ## Layout and releases
@@ -112,8 +124,18 @@ is never overwritten on upgrade; see the example file for new settings.
 
 Based on the packaging and dashboard concept of
 [JannicSJensen/ha-dasher-addon](https://github.com/JannicSJensen/ha-dasher-addon)
-(MIT). This focused implementation uses REST polling every five seconds rather
-than Dasher's broader WebSocket/registry integration. No Dasher assets, unrelated
-pages or private configuration are bundled.
+(MIT). Focused music components and Poppins fonts are reused from Dasher; no
+unrelated pages or private configuration are bundled. HA state uses five-second
+REST polling, with a short-lived WebSocket request for MA integration discovery.
+Dasher source revision: `36702c2cb4c2a9691acb53220c33ce10b32ac091`.
+
+Clock rendering and fonts are adapted from
+[taclab/nightstand-clock](https://github.com/taclab/nightstand-clock)
+([Apache-2.0](clock-radio/app/web/clock/LICENSE)). Modifications add app-timezone
+support, live HA weather/alarms/night data and a visibility bridge. Bundled fonts
+retain their [Inter](clock-radio/app/web/clock/fonts/OFL.txt),
+[Archivo](clock-radio/app/web/clock/fonts/OFL-Archivo.txt) and
+[Poppins](clock-radio/app/web/fonts/LICENSE.txt) SIL Open Font Licenses.
+Nightstand source revision: `6adb688d95efce91f2cd81ae28b5feed4af96c70`.
 
 [MIT license](LICENSE).

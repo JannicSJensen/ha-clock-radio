@@ -3,7 +3,9 @@
 The optional [package](clock_radio_alarms.yaml) runs alarms in Home Assistant,
 independently of an open tablet or the Clock Radio app process. It requires the
 Music Assistant integration and a Music Assistant speaker with volume and repeat
-support. This is native HA configuration, not an alarm editor in the tablet UI.
+support. After installing it, Clock Radio's **Settings** page edits these same
+two profiles directly; it does not create a second set of helpers. Native HA
+entities cards remain an alternative.
 
 ## Install
 
@@ -31,8 +33,9 @@ support. This is native HA configuration, not an alarm editor in the tablet UI.
      `http://homeassistant:8123/local/sounds/wakeup.mp3` if that hostname is
      reachable from your Music Assistant server. A bare `/local/...` path is
      not a Music Assistant media URI. No sound file is bundled.
-6. Add [alarm-cards.yaml](alarm-cards.yaml) as a manual card in a native HA
-   dashboard. It uses standard entities cards, without HACS dependencies.
+6. Use **Settings** in Clock Radio to edit the two alarms and their shared
+   playback sources, or add [alarm-cards.yaml](alarm-cards.yaml) as a manual card
+   in a native HA dashboard. It uses standard entities cards, without HACS.
 7. Test a profile from Developer tools > Actions using
    `script.clock_radio_play_alarm` with `alarm: "1"` or `"2"`. This manual
    action intentionally works even when the schedule is disabled.

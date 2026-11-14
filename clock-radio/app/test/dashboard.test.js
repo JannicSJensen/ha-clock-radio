@@ -72,7 +72,9 @@ test("payload is scoped and sanitized; disconnect disables commands and recovery
   assert.equal(dashboard.payload().connected, true);
   assert.equal(dashboard.payload().players.length, 1);
   const payload = JSON.stringify(dashboard.payload());
-  for (const secret of ["private", "secret", "https://example.com", "library://"]) assert.ok(!payload.includes(secret));
+  for (const secret of ["token=private", "private_data", "secret", "https://example.com", "library://"]) assert.ok(!payload.includes(secret));
+  assert.equal(dashboard.payload().clock_entities[0].entity_id, "sensor.private");
+  assert.ok(!Object.hasOwn(dashboard.payload().clock_entities[0], "state"));
   await dashboard.command(base);
   assert.equal(calls.length, 1);
   offline = true;

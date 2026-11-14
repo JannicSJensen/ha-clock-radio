@@ -4,4 +4,10 @@ configuration:
     description: How much the app writes to its log. Restart after changing.
   read_only:
     name: Read-only
-    description: Show the clock and player states but reject all playback and volume commands. Restart after changing.
+    description: Show clock, music and alarm states but reject playback, grouping and all settings changes. Restart after changing.
+  music_assistant_url:
+    name: Music Assistant address
+    description: Optional HTTP(S) address, usually http://homeassistant:8095. A running HA app is discovered automatically when a token is provided. Restart after changing.
+  music_assistant_token:
+    name: Music Assistant read-only token
+    description: Create a read-only access token in Music Assistant under Settings > Profile. Required for library browsing, not HA radio presets. Kept on the server. Restart after changing.

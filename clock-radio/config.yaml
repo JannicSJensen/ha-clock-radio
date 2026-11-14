@@ -1,13 +1,15 @@
 name: Clock Radio
-version: "0.2.0"
+version: "0.3.0"
 slug: clock_radio
 url: https://github.com/JannicSJensen/ha-clock-radio
-description: A calm clock and radio dashboard for bedside tablets
+description: Nightstand clock, music overview and Home Assistant alarm settings
 arch:
   - aarch64
   - amd64
 init: false
 homeassistant_api: true
+hassio_api: true
+hassio_role: default
 ingress: true
 ingress_port: 8100
 ingress_stream: true
@@ -24,6 +26,10 @@ map:
 options:
   log_level: info
   read_only: false
+  music_assistant_url: ""
+  music_assistant_token: ""
 schema:
   log_level: list(debug|info|warning|error)
   read_only: bool
+  music_assistant_url: str?
+  music_assistant_token: password?
