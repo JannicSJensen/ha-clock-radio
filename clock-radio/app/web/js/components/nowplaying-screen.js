@@ -5,7 +5,6 @@ import { icon, setIcon } from "../core/icons.js";
 import { createSlider } from "../core/slider.js";
 import { isUnavailable } from "../lib/format.js";
 import { chooseNowPlaying, clock, describeMedia, nextRepeat, screenDecision, trackPosition } from "../lib/nowplaying.js";
-import { groupOf } from "../lib/radio.js";
 import { throttle } from "../lib/throttle.js";
 import { pressable } from "../tiles/common.js";
 
@@ -100,7 +99,7 @@ export function createNowPlayingScreen(ctx, { enabled = () => true } = {}) {
   const volumeRow = h("div", { class: "npscreen__volume" }, volIcon, volume.el);
   const speakerName = h("span");
   const speakerMore = h("span", { class: "npscreen__more" });
-  const speaker = h("button", { class: "npscreen__speaker", type: "button" }, icon("speaker"), speakerName, speakerMore);
+  const speaker = h("div", { class: "npscreen__speaker" }, icon("speaker"), speakerName, speakerMore);
 
   const el = h(
     "div",
@@ -129,14 +128,6 @@ export function createNowPlayingScreen(ctx, { enabled = () => true } = {}) {
   pressable(repeat, {
     onTap: () => view.id && ctx.call("media_player", "repeat_set", view.id, { repeat: nextRepeat(getState(view.id)?.attributes?.repeat ?? "off") }),
   });
-  pressable(speaker, {
-    onTap: () => {
-      if (view.active.length > 1) {
-        current = view.active[(view.active.indexOf(view.id) + 1) % view.active.length];
-        paint();
-      }
-    },
-  });
   // The sliders must not be taken for taps on the background.
   for (const slider of [progress, volumeRow]) slider.addEventListener("pointerdown", (e) => e.stopPropagation());
   el.addEventListener("keydown", (event) => {
@@ -151,8 +142,7 @@ export function createNowPlayingScreen(ctx, { enabled = () => true } = {}) {
   /** Opens the player; `preferId` (a speaker) is shown first when it is playing or paused. */
   function open(preferId = null) {
     if (preferId) {
-      const leader = groupOf(preferId, getState).leader;
-      current = getState(leader) ? leader : preferId;
+      current = ctx.musicPlayers().includes(preferId) ? preferId : null;
     }
     if (isOpen) {
       paint();
@@ -211,7 +201,6 @@ export function createNowPlayingScreen(ctx, { enabled = () => true } = {}) {
     }
     const state = getState(choice.id);
     const attrs = state?.attributes ?? {};
-    const grp = groupOf(choice.id, getState);
     const media = describeMedia(attrs, ctx.stations());
     view = { id: choice.id, mode: choice.mode, active: choice.active };
     const playing = choice.mode === "playing";
@@ -239,8 +228,7 @@ export function createNowPlayingScreen(ctx, { enabled = () => true } = {}) {
     line3.hidden = !media.artist;
 
     speakerName.textContent = attrs.friendly_name ?? choice.id.replace(/^media_player\./, "");
-    speakerMore.textContent = grp.grouped ? `+${grp.members.length - 1}` : choice.active.length > 1 ? String(choice.active.length) : "";
-    speaker.classList.toggle("is-switchable", choice.active.length > 1);
+    speakerMore.textContent = "";
 
     setIcon(playIcon, playing ? "pause" : "play");
     const allowed = ctx.canControl();

@@ -19,7 +19,8 @@ clock:
   night_mode: off
   night_entity: ""
 
-# Empty discovers every media_player. Set an explicit list to limit control.
+# Legacy fields are still parsed, but the HA app's media_player option now
+# selects the only speaker used for both Music and all alarms.
 players: []
 default_player: ""
 

@@ -135,6 +135,9 @@ timer:
 
 template:
   - sensor:
+      - name: Clock Radio Alarm Scheduler Version
+        unique_id: clock_radio_alarm_scheduler_version
+        state: "2"
       - name: Clock Radio Alarm 1 Wake Time
         unique_id: clock_radio_alarm_1_wake_time
         icon: mdi:eye
@@ -229,7 +232,9 @@ script:
     sequence:
       - action: timer.cancel
         target:
-          entity_id: [timer.clock_radio_alarm_1, timer.clock_radio_alarm_2]
+          entity_id: >-
+            {{ states.timer | selectattr('entity_id', 'match', '^timer[.]clock_radio_alarm_[1-9][0-9]*$')
+               | map(attribute='entity_id') | list }}
       - variables:
           player: "{{ states('input_text.clock_radio_active_player') }}"
       - if: "{{ player is match('^media_player\\.[a-z0-9_]+$') }}"
@@ -266,19 +271,19 @@ script:
   clock_radio_play_alarm:
     alias: Clock Radio - play alarm
     description: Start a profile manually or from its schedule. A newer alarm replaces the previous one.
-    mode: queued
-    max: 2
+    mode: restart
     fields:
       alarm:
         name: Alarm number
         required: true
         selector:
-          select:
-            options: ["1", "2"]
+          # Package merging drops empty selector mappings.
+          text:
+            multiline: false
     sequence:
-      - if: "{{ alarm | default('') | string not in ['1', '2'] }}"
+      - if: "{{ not ((alarm | default('') | string) is match('^[1-9][0-9]*$')) }}"
         then:
-          - stop: Alarm must be 1 or 2.
+          - stop: Alarm must be a positive integer.
             error: true
       - variables:
           prefix: "{{ 'clock_radio_alarm_' ~ alarm }}"
@@ -291,6 +296,7 @@ script:
           {{ not (player is match('^media_player\\.[a-z0-9_]+$'))
              or states(player) in ['unknown', 'unavailable']
              or kind not in ['Music', 'Buzzer']
+             or (alarm | int > 2 and not is_state('input_boolean.' ~ prefix ~ '_initialized', 'on'))
              or not (source is match('^(https?://|library://|radiobrowser://)'))
              or not is_number(states('input_number.' ~ prefix ~ '_volume'))
              or not is_number(states('input_number.' ~ prefix ~ '_duration')) }}
@@ -365,13 +371,17 @@ automation:
         seconds: "0"
     actions:
       - repeat:
-          for_each: ["1", "2"]
+          for_each: >-
+            {{ states.input_boolean | selectattr('entity_id', 'match', '^input_boolean[.]clock_radio_alarm_[1-9][0-9]*_enabled$')
+               | map(attribute='entity_id') | map('replace', 'input_boolean.clock_radio_alarm_', '')
+               | map('replace', '_enabled', '') | map('int') | sort | map('string') | list }}
           sequence:
             - variables:
                 prefix: "{{ 'clock_radio_alarm_' ~ repeat.item }}"
                 weekday: "{{ ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'][now().weekday()] }}"
             - if: >-
                 {{ is_state('input_boolean.' ~ prefix ~ '_enabled', 'on')
+                   and (repeat.item | int <= 2 or is_state('input_boolean.' ~ prefix ~ '_initialized', 'on'))
                    and is_state('input_boolean.' ~ prefix ~ '_' ~ weekday, 'on')
                    and is_number(states('input_number.' ~ prefix ~ '_hour'))
                    and is_number(states('input_number.' ~ prefix ~ '_minute'))
@@ -391,7 +401,7 @@ automation:
         event_type: timer.finished
     conditions:
       - condition: template
-        value_template: "{{ trigger.event.data.entity_id in ['timer.clock_radio_alarm_1', 'timer.clock_radio_alarm_2'] }}"
+        value_template: "{{ trigger.event.data.entity_id is match('^timer[.]clock_radio_alarm_[1-9][0-9]*$') }}"
     actions:
       - action: script.clock_radio_stop
   - id: clock_radio_startup

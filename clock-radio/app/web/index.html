@@ -14,15 +14,7 @@
   </head>
   <body>
     <div class="app">
-      <aside class="sidebar">
-        <div class="brand"><span class="brand-mark" aria-hidden="true">CR</span><span id="dashboard-title">Clock Radio</span></div>
-        <nav class="menu" aria-label="Main menu">
-          <a href="#clock" data-page="clock" aria-current="page"><span data-icon="clock-outline"></span><span>The Clock</span></a>
-          <a href="#music" data-page="music"><span data-icon="music"></span><span>Music overview</span></a>
-          <a href="#settings" data-page="settings"><span data-icon="cog-outline"></span><span>Settings</span></a>
-        </nav>
-        <div class="connection"><span id="connection" role="status">Connecting</span><span id="version"></span></div>
-      </aside>
+      <div class="sr-only"><span id="connection" role="status">Connecting</span><span id="version"></span><span id="page-position" role="status"></span></div>
       <main class="stage">
         <section id="page-clock" class="page clock-page" aria-label="The Clock">
           <iframe id="clock-frame" title="Nightstand clock" src="about:blank"></iframe>

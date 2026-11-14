@@ -74,11 +74,14 @@ export function demoStates() {
     buzzer_source: "https://example.com/sounds/wakeup.mp3", active_player: "",
   })) states.push({ entity_id: `input_text.clock_radio_${key}`, state, attributes: {} });
   states.push({ entity_id: "script.clock_radio_stop", state: "off", attributes: {} });
+  states.push({ entity_id: "script.clock_radio_play_alarm", state: "off", attributes: {} });
+  states.push({ entity_id: "sensor.clock_radio_alarm_scheduler_version", state: "2", attributes: {} });
   return states;
 }
 
 export function createDemoAPI({ states = demoStates(), library = demoLibrary(), party = true } = {}) {
   const calls = [];
+  const helperRequests = [];
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
     const reply = (status, data) => {
@@ -207,8 +210,22 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
         socket.send(JSON.stringify({ type: authenticated ? "auth_ok" : "auth_invalid" }));
       } else if (authenticated && message.type === "config_entries/get") {
         socket.send(JSON.stringify({ type: "result", id: message.id, success: true, result: [{ domain: "music_assistant", entry_id: "demo-music", state: "loaded" }] }));
+      } else if (authenticated && message.type === "config/entity_registry/list") {
+        socket.send(JSON.stringify({ type: "result", id: message.id, success: true, result: states.map((state) => ({ entity_id: state.entity_id })) }));
+      } else if (authenticated && /^(input_boolean|input_number|input_select|timer)\/create$/.test(message.type)) {
+        helperRequests.push(message);
+        const domain = message.type.split("/")[0];
+        const objectId = message.name.toLowerCase().replaceAll(" ", "_");
+        const entity_id = `${domain}.${objectId}`;
+        if (states.some((state) => state.entity_id === entity_id)) {
+          socket.send(JSON.stringify({ type: "result", id: message.id, success: false, error: { message: "Entity already exists." } }));
+          return;
+        }
+        const state = domain === "input_boolean" ? "off" : domain === "timer" ? "idle" : domain === "input_select" ? message.options[0] : String(message.min);
+        states.push({ entity_id, state, attributes: { friendly_name: message.name, min: message.min, max: message.max, step: message.step, options: message.options } });
+        socket.send(JSON.stringify({ type: "result", id: message.id, success: true, result: { id: objectId, name: message.name } }));
       }
     });
   });
-  return { server, ws, states, calls, library };
+  return { server, ws, states, calls, helperRequests, library };
 }

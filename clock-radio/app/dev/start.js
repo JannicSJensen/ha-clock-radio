@@ -48,7 +48,7 @@ const child = spawn(process.execPath, ["src/index.js"], {
     ...process.env, SUPERVISOR_TOKEN: "", OPTIONS_FILE: optionsFile,
     HA_URL: `http://127.0.0.1:${mock.address().port}`, HA_TOKEN: DEMO_HA_TOKEN,
     MA_URL: `http://127.0.0.1:${mock.address().port}/ma`, MA_TOKEN: DEMO_MA_TOKEN,
-    CONFIG_DIR: configDir, DEMO: "1", HOST: process.env.HOST ?? "127.0.0.1",
+    CONFIG_DIR: configDir, MEDIA_PLAYER: "media_player.bedroom", DEMO: "1", HOST: process.env.HOST ?? "127.0.0.1",
   },
 });
 child.on("error", (error) => { console.error(error); ws.close(); mock.close(); process.exitCode = 1; });

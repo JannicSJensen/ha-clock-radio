@@ -1,5 +1,6 @@
 import { getJson, postJson } from "./js/core/api.js";
-import { icon } from "./js/core/icons.js";
+import { onSwipe } from "./js/core/swipe.js";
+import { getPref, setPref } from "./js/core/prefs.js";
 import { makeTranslator } from "./js/lib/i18n.js";
 import { createMusicPage } from "./js/pages/music.js";
 import { createNowPlayingScreen } from "./js/components/nowplaying-screen.js";
@@ -40,7 +41,6 @@ const ctx = {
   openNowPlaying: (id) => nowPlaying?.open(id),
   playRadio: (entity_id, station_id) => write("api/radio/play", { entity_id, station_id }),
   playMusic: (entity_id, request) => write("api/music/play", { ...request, entity_id }),
-  groupRadio: (leader, change) => write("api/radio/group", { leader, ...change }),
   call: (domain, action, entity_id, data = {}) => {
     if (domain !== "media_player") throw new Error("Only scoped media controls are supported.");
     return write("api/command", { action, entity_id, ...data });
@@ -62,14 +62,27 @@ new MutationObserver(policy).observe($("page-music"), { subtree: true, childList
 function navigate() {
   current = ["clock", "music", "settings"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "clock";
   for (const page of ["clock", "music", "settings"]) $(`page-${page}`).hidden = page !== current;
-  for (const link of document.querySelectorAll("[data-page]")) {
-    if (link.dataset.page === current) link.setAttribute("aria-current", "page");
-    else link.removeAttribute("aria-current");
-  }
+  $(`page-${current}`).tabIndex = -1;
+  $(`page-${current}`).focus({ preventScroll: true });
+  $("page-position").textContent = `${{ clock: "The Clock", music: "Music overview", settings: "Settings" }[current]}. Swipe up/down or use Page Up/Down to change pages.`;
   document.body.classList.toggle("on-clock", current === "clock");
   if (current !== "clock") document.body.classList.remove("is-night");
   frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" }, location.origin);
   if (current === "music") musicPage?.update();
+}
+
+function changePage(step) {
+  if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+  const pages = ["clock", "music", "settings"];
+  location.hash = pages[(pages.indexOf(current) + step + pages.length) % pages.length];
+}
+
+function changeClockView(panel, step) {
+  if (!model || current !== "clock" || !["face", "widget"].includes(panel)) return;
+  if (pending) return toast("Please wait for the current save to finish.");
+  const views = panel === "face" ? ["analog", "analog-round", "digital"] : ["calendar", "weather", "date", "date-calendar"];
+  const value = views[(Math.max(0, views.indexOf(model.config.clock[panel])) + step + views.length) % views.length];
+  write("api/settings/clock", { ...model.config.clock, [panel]: value });
 }
 
 function renderClock() {
@@ -93,7 +106,6 @@ function render() {
   if (!model) return;
   document.title = model.config.title;
   document.documentElement.lang = model.config.locale;
-  $("dashboard-title").textContent = model.config.title;
   $("version").textContent = `v${model.version}`;
   $("connection").textContent = model.connected ? model.demo ? "Demo connected" : "Connected" : "Disconnected";
   $("connection").classList.toggle("online", model.connected);
@@ -125,6 +137,10 @@ function render() {
   nowPlaying.update();
   settingsPage.update(model, pending > 0);
   policy();
+  if (!getPref("touch-navigation-hint")) {
+    toast("Swipe up/down between pages (scroll to the edge first). Swipe left/right within clock panels. Keyboard: Page Up/Down.");
+    setPref("touch-navigation-hint", true);
+  }
 }
 
 async function poll() {
@@ -168,17 +184,27 @@ async function write(url, data) {
   }
 }
 
-for (const el of document.querySelectorAll("[data-icon]")) el.replaceChildren(icon(el.dataset.icon));
 frame.addEventListener("load", () => {
   frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" }, location.origin);
   if (model) frame.contentWindow?.postMessage({ type: "clock-radio-data", options: model.clock }, location.origin);
 });
 addEventListener("message", (event) => {
-  if (event.origin !== location.origin || event.source !== frame.contentWindow || event.data?.type !== "clock-radio-night") return;
-  document.body.classList.toggle("is-night", current === "clock" && event.data.active === true);
+  if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
+  if (event.data?.type === "clock-radio-night") document.body.classList.toggle("is-night", current === "clock" && event.data.active === true);
+  if (![1, -1].includes(event.data?.step)) return;
+  if (event.data.type === "clock-radio-page") changePage(event.data.step);
+  if (event.data.type === "clock-radio-view") changeClockView(event.data.panel, event.data.step);
 });
+onSwipe($("page-music"), { vertical: changePage });
+onSwipe($("page-settings"), { vertical: changePage });
 addEventListener("hashchange", navigate);
-addEventListener("keydown", (event) => { if (event.key === "Escape") nowPlaying?.close({ dismiss: true }); });
+addEventListener("keydown", (event) => {
+  if (event.key === "Escape") nowPlaying?.close({ dismiss: true });
+  if (["PageUp", "PageDown"].includes(event.key) && !event.target.closest("input,textarea,select,[role=dialog]")) {
+    event.preventDefault();
+    changePage(event.key === "PageDown" ? 1 : -1);
+  }
+});
 $("fullscreen").hidden = !document.fullscreenEnabled;
 $("fullscreen").addEventListener("click", async () => {
   try {

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.4.0
+
+- Replace the menu with vertical page swipes and keyboard Page Up/Down navigation.
+- Swipe horizontally within split clock panels to save their face/widget views.
+- Use one HA app-configured media player for Music and every alarm; remove speaker
+  selection, grouping and Party.
+- Add persistent HA alarm helpers and independent timers from Settings, with
+  disabled defaults and recoverable partial setup. Generalize the HA scheduler.
+
 ## 0.3.0
 
 - Streamline navigation to The Clock, Music overview and Settings.

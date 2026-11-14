@@ -8,14 +8,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .icon { display: inline-flex; width: 1em; height: 1em; flex: none; }
 .icon svg { display: block; width: 100%; height: 100%; }
 .app { display: flex; height: 100vh; height: 100dvh; width: 100%; }
-.sidebar { flex: none; width: 172px; background: #000; display: flex; flex-direction: column; padding: 26px 12px; gap: 24px; }
-.brand { display: flex; align-items: center; gap: 9px; font-size: 12px; }
-.brand-mark { display: grid; place-items: center; border: 1px solid #333; border-radius: 9px; width: 33px; height: 33px; font-size: 11px; color: var(--accent); flex: none; }
-.menu { display: grid; gap: 12px; margin: auto 0; }
-.menu a { display: flex; align-items: center; gap: 10px; padding: 14px 9px; min-height: 50px; border-radius: 12px; color: var(--muted); font-size: 12px; }
-.menu .icon { font-size: 25px; }
-.menu [aria-current="page"] { color: var(--accent); background: #102622; }
-.connection { display: grid; gap: 5px; color: var(--muted); font-size: 10px; padding: 8px; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .online { color: var(--accent); }
 .stage { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; }
 .page { width: 100%; height: 100%; }
@@ -23,11 +16,9 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 #clock-frame { display: block; border: 0; width: 100%; height: 100%; }
 .clock-focus { position: absolute; right: 18px; top: 16px; padding: 8px 12px; border-radius: 10px; background: #161616; color: #a6a6a6; opacity: .2; font-size: 11px; }
 .clock-focus:hover, .clock-focus:focus-visible { opacity: 1; }
-.is-night .sidebar { --accent: var(--clock-night, #ff2a1f); --muted: color-mix(in srgb, var(--clock-night, #ff2a1f) 45%, #000); --text: color-mix(in srgb, var(--clock-night, #ff2a1f) 70%, #000); }
-.is-night .menu [aria-current="page"] { background: #190908; }
 .is-night .clock-focus { color: #8b4038; background: #190908; }
 .initial-loading { position: absolute; top: 45%; width: 100%; text-align: center; color: var(--muted); }
-.banners { position: fixed; z-index: 55; bottom: 12px; left: 184px; right: 12px; display: grid; justify-items: center; gap: 5px; pointer-events: none; }
+.banners { position: fixed; z-index: 55; bottom: 12px; left: 12px; right: 12px; display: grid; justify-items: center; gap: 5px; pointer-events: none; }
 .banner { margin: 0; padding: 8px 14px; border-radius: 12px; background: #3b1d1d; color: #fecaca; font-size: 12px; max-width: 100%; overflow-wrap: anywhere; text-align: center; }
 .banner--info { background: #25282b; color: #c6cdd0; font-size: 10px; }
 .toasts { position: fixed; bottom: 85px; left: 50%; transform: translateX(-50%); z-index: 60; display: grid; gap: 8px; max-width: 90vw; }
@@ -79,13 +70,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .alarm-countdown { color: var(--accent); font-size: 13px; }
 .alarm-countdown:empty { display: none; }
 @media (max-width: 700px) {
-  .app { flex-direction: column-reverse; }
-  .sidebar { width: 100%; padding: 0 5px max(5px, env(safe-area-inset-bottom)); }
-  .brand, .connection { display: none; }
-  .menu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin: 0; }
-  .menu a { flex-direction: column; gap: 3px; padding: 8px 3px; min-height: 61px; font-size: 10px; text-align: center; }
-  .menu .icon { font-size: 22px; }
-  .banners { left: 8px; right: 8px; bottom: 76px; }
+  .banners { left: 8px; right: 8px; bottom: 8px; }
   .settings { padding: 20px 14px 180px; }
   .settings-card { padding: 18px; }
   .clock-focus { top: 10px; right: 10px; }

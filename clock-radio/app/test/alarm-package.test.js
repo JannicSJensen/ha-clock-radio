@@ -37,7 +37,13 @@ test("initialization is guarded, schedules use weekdays and HH:MM, and timer/sta
   const schedule = config.automation.find((item) => item.id === "clock_radio_schedule");
   assert.equal(schedule.triggers[0].seconds, "0");
   const loop = schedule.actions[0].repeat;
-  assert.deepEqual(loop.for_each, ["1", "2"]);
+  assert.match(loop.for_each, /states.input_boolean/);
+  assert.match(loop.for_each, /sort/);
+  assert.equal(config.script.clock_radio_play_alarm.mode, "restart");
+  assert.deepEqual(config.script.clock_radio_play_alarm.fields.alarm.selector, { text: { multiline: false } },
+    "HA package merging must retain the selector type instead of dropping an empty mapping");
+  assert.match(config.script.clock_radio_cleanup.sequence[0].target.entity_id, /states.timer/);
+  assert.equal(config.template[0].sensor.find((sensor) => sensor.unique_id === "clock_radio_alarm_scheduler_version").state, "2");
   for (const required of ["_enabled", "weekday", "_hour", "_minute", "is_number"]) {
     assert.ok(loop.sequence[1].if.includes(required));
   }

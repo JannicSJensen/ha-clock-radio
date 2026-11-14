@@ -40,7 +40,7 @@ test("HTTP foundation works end to end with HA, hot reload, error paths and ingr
   const haUrl = await listen(mock);
   t.after(() => close(mock));
   const store = new ConfigStore({ dir, example: path.join(root, "examples/dashboard.yaml"), logger: { warn() {} } });
-  const dashboard = new Dashboard({ ha: new HAClient({ url: haUrl, token: "test-secret" }), configStore: store, version: "0.1.0", logger: { warn() {} } });
+  const dashboard = new Dashboard({ mediaPlayer: "media_player.room", ha: new HAClient({ url: haUrl, token: "test-secret" }), configStore: store, version: "0.1.0", logger: { warn() {} } });
   await dashboard.refresh();
   const server = createServer({ dashboard, webRoot: path.join(root, "web"), logger: { warn() {} } });
   const url = await listen(server);
@@ -83,8 +83,11 @@ test("HTTP foundation works end to end with HA, hot reload, error paths and ingr
   assert.equal((await send(body)).status, 403);
   dashboard.readOnly = false;
   fs.writeFileSync(store.file, "title: Reloaded\nplayers: [media_player.other]\n");
-  assert.equal((await send(body)).status, 403);
+  assert.equal((await send(body)).status, 200);
   assert.equal(dashboard.payload().config.title, "Reloaded");
+  dashboard.mediaPlayer = "media_player.other";
+  assert.equal((await send(body)).status, 403);
+  dashboard.mediaPlayer = "media_player.room";
   fs.writeFileSync(store.file, "title: Reloaded\nplayers: [media_player.room]\n");
   failure = true;
   const offline = await send(body);
@@ -93,5 +96,5 @@ test("HTTP foundation works end to end with HA, hot reload, error paths and ingr
   failure = false;
   await dashboard.refresh();
   assert.equal(dashboard.connected, true);
-  assert.equal(calls.length, 1);
+  assert.equal(calls.length, 2);
 });

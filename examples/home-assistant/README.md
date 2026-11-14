@@ -4,7 +4,7 @@ The optional [package](clock_radio_alarms.yaml) runs alarms in Home Assistant,
 independently of an open tablet or the Clock Radio app process. It requires the
 Music Assistant integration and a Music Assistant speaker with volume and repeat
 support. After installing it, Clock Radio's **Settings** page edits these same
-two profiles directly; it does not create a second set of helpers. Native HA
+profiles directly; **Add alarm** creates additional persistent profiles. Native HA
 entities cards remain an alternative.
 
 ## Install
@@ -25,7 +25,9 @@ entities cards remain an alternative.
    `input_boolean.clock_radio_initialized`, so normal reloads/restarts do not
    reset your choices.
 5. Set these helpers:
-   - `input_text.clock_radio_player`: your Music Assistant `media_player` ID.
+   - Set `media_player` in the Clock Radio HA app configuration to your Music
+     Assistant speaker. The app safely updates `input_text.clock_radio_player`.
+     Standalone native-HA use can still set that helper manually.
    - `input_text.clock_radio_music_source`: a radio URI from your MA library,
      e.g. `library://radio/123`, or an HTTP(S) radio stream.
    - `input_text.clock_radio_buzzer_source`: a reachable HTTP(S) audio URL.
@@ -33,11 +35,11 @@ entities cards remain an alternative.
      `http://homeassistant:8123/local/sounds/wakeup.mp3` if that hostname is
      reachable from your Music Assistant server. A bare `/local/...` path is
      not a Music Assistant media URI. No sound file is bundled.
-6. Use **Settings** in Clock Radio to edit the two alarms and their shared
+6. Use **Settings** in Clock Radio to edit alarms, add more and edit shared
    playback sources, or add [alarm-cards.yaml](alarm-cards.yaml) as a manual card
    in a native HA dashboard. It uses standard entities cards, without HACS.
 7. Test a profile from Developer tools > Actions using
-   `script.clock_radio_play_alarm` with `alarm: "1"` or `"2"`. This manual
+   `script.clock_radio_play_alarm` with a profile ID such as `alarm: "1"` or `"3"`. This manual
    action intentionally works even when the schedule is disabled.
 
 ## Defaults and controls
@@ -48,13 +50,13 @@ entities cards remain an alternative.
 | Alarm 2 | Buzzer | 06:15 | Monday-Friday | 5 minutes | 50% | No |
 
 Each profile has its own enable switch, type selector, hour/minute sliders, wake
-time display, seven weekday switches, volume, duration and countdown timer.
-Either profile can be Music or Buzzer. Playback sources and the speaker are
+time display in Settings, seven weekday switches, volume, duration and countdown timer.
+Any profile can be Music or Buzzer. Playback sources and the speaker are
 shared settings. Values restore across restarts rather than being reset by YAML
 `initial` fields.
 
 Scheduling uses **Home Assistant's time zone**, checked at the start of each
-minute. It does not replay alarms missed while HA was stopped. Both profiles can
+minute. It does not replay alarms missed while HA was stopped. Profiles can
 be enabled independently; when their playback overlaps, the later start replaces
 the earlier alarm because they share one speaker. Changing a schedule does not
 immediately trigger it in the middle of a minute.

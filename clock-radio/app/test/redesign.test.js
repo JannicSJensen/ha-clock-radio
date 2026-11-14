@@ -38,7 +38,7 @@ async function setup(t, options = {}) {
   const ha = new HAClient({ url: haUrl, token: DEMO_HA_TOKEN });
   const music = new MusicService({ ha, logger: quiet, url: `${haUrl}/ma`, token: DEMO_MA_TOKEN });
   const radio = new RadioLibrary({ ha, music, logger: quiet });
-  const dashboard = new Dashboard({ ha, configStore: store, music, radio, logger: quiet, version: "test" });
+  const dashboard = new Dashboard({ ha, configStore: store, music, radio, mediaPlayer: "media_player.bedroom", logger: quiet, version: "test" });
   await dashboard.refresh();
   const server = createServer({ dashboard, webRoot: path.join(root, "web"), logger: quiet });
   const url = await listen(server);
@@ -133,7 +133,7 @@ test("alarm input validation is exact, and a failed save leaves the schedule dis
   const profile = alarmSnapshot(mock.states).alarms[0];
   const value = { id: 1, enabled: false, type: "Music", hour: 6, minute: 0, volume: 50, duration: 5, days: profile.days };
   assert.equal(validateAlarm(value).id, 1);
-  for (const change of [{ id: "1" }, { id: 3 }, { duration: 0 }, { duration: 121 }, { volume: 101 }, { minute: 60 }, { type: "Other" }, { enabled: "true" }, { entity_id: "input_boolean.other" }, { days: {} }, { enabled: true, days: Object.fromEntries(Object.keys(profile.days).map((day) => [day, false])) }]) assert.throws(() => validateAlarm({ ...value, ...change }));
+  for (const change of [{ id: "1" }, { id: 0 }, { id: Number.MAX_SAFE_INTEGER + 1 }, { duration: 0 }, { duration: 121 }, { volume: 101 }, { minute: 60 }, { type: "Other" }, { enabled: "true" }, { entity_id: "input_boolean.other" }, { days: {} }, { enabled: true, days: Object.fromEntries(Object.keys(profile.days).map((day) => [day, false])) }]) assert.throws(() => validateAlarm({ ...value, ...change }));
   const calls = [];
   const ha = { async callService(domain, service, data) {
     calls.push({ domain, service, data });
@@ -150,7 +150,8 @@ test("three-page HTTP integration browses Dasher music, plays only registered it
   const app = await setup(t);
   const html = await (await fetch(app.url)).text();
   const menus = [...html.matchAll(/data-page="([^"]+)"/g)].map((match) => match[1]);
-  assert.deepEqual(menus, ["clock", "music", "settings"]);
+  assert.deepEqual(menus, []);
+  for (const page of ["clock", "music", "settings"]) assert.ok(html.includes(`id="page-${page}"`));
   const state = await app.get("api/state");
   assert.equal(state.connected, true);
   assert.equal(state.alarms.alarms.length, 2);
@@ -167,10 +168,8 @@ test("three-page HTTP integration browses Dasher music, plays only registered it
   assert.equal(item.sections[0].items.length, 2);
   assert.equal((await app.get("api/music/discover")).rows.length, 2);
   assert.equal((await app.get("api/music/search?q=First")).tracks[0].name, "First Light");
-  const party = await app.get("api/music/party");
-  assert.equal(party.enabled, true);
-  assert.equal(party.next[0].requested, true);
-  assert.equal((await fetch(`${app.url}/${party.qr}`)).headers.get("content-type"), "image/svg+xml");
+  assert.ok(!state.music.tabs.includes("party"));
+  assert.deepEqual(state.music.players, ["media_player.bedroom"]);
   assert.equal((await fetch(`${app.url}/${albums.items[0].image}`)).status, 200);
   assert.equal((await fetch(`${app.url}/${state.players[0].attributes.entity_picture}`)).status, 200);
 
@@ -182,8 +181,8 @@ test("three-page HTTP integration browses Dasher music, plays only registered it
   assert.equal((await app.post("api/command", { entity_id: "media_player.bedroom", action: "media_seek", seek_position: 100 })).status, 200);
   assert.equal((await app.post("api/command", { entity_id: "media_player.bedroom", action: "media_seek", seek_position: 9999 })).status, 400);
   assert.equal((await app.post("api/command", { entity_id: "media_player.bedroom", action: "repeat_set", repeat: "one" })).status, 200);
-  assert.equal((await app.post("api/radio/group", { leader: "media_player.bedroom", add: ["media_player.kitchen"] })).status, 200);
-  assert.deepEqual((await app.get("api/state")).players[0].attributes.group_members, ["media_player.bedroom", "media_player.kitchen"]);
+  assert.equal((await app.post("api/radio/group", { leader: "media_player.bedroom", add: ["media_player.kitchen"] })).status, 405);
+  assert.deepEqual((await app.get("api/state")).players[0].attributes.group_members, []);
 
   const alarm = state.alarms.alarms[0];
   const save = { id: 1, enabled: false, type: "Music", hour: 7, minute: 25, volume: 35, duration: 12, days: alarm.days };
@@ -206,7 +205,7 @@ test("three-page HTTP integration browses Dasher music, plays only registered it
 
 test("every new mutation rejects read-only and cross-site requests before touching HA or YAML", async (t) => {
   const app = await setup(t);
-  const routes = ["api/settings/clock", "api/settings/alarm", "api/settings/alarm-playback", "api/alarm/stop", "api/radio/play", "api/music/play", "api/radio/group"];
+  const routes = ["api/settings/clock", "api/settings/alarm", "api/settings/alarm-playback", "api/alarm/stop", "api/radio/play", "api/music/play", "api/alarm/create"];
   const before = fs.readFileSync(app.store.file, "utf8");
   const count = app.calls.length;
   app.dashboard.readOnly = true;
@@ -230,11 +229,11 @@ test("clock configuration saves preserve comments, unrelated YAML and invalid us
   assert.equal(fs.readFileSync(app.store.file, "utf8"), invalid);
 });
 
-test("missing Party plugin is an explicit notice, not an empty successful queue", async (t) => {
+test("removed Party routes are unavailable", async (t) => {
   const app = await setup(t, { party: false });
   const response = await fetch(`${app.url}/api/music/party`);
   assert.equal(response.status, 404);
-  assert.match((await response.json()).error, /not enabled/);
+  assert.match((await response.json()).error, /Not found/);
 });
 
 test("asset paths and music URLs cannot escape their allowed surfaces", () => {
@@ -312,7 +311,7 @@ test("simultaneous edits cannot interleave the same alarm's helper writes", asyn
 test("shared playback saves pause schedules, preserve enabled states and update helpers", async (t) => {
   const app = await setup(t);
   for (const id of [1, 2]) app.states.find((state) => state.entity_id === `input_boolean.clock_radio_alarm_${id}_enabled`).state = "on";
-  const settings = { player: "media_player.kitchen", music_source: "library://radio/2", buzzer_source: "https://example.com/sound.mp3" };
+  const settings = { player: "media_player.bedroom", music_source: "library://radio/2", buzzer_source: "https://example.com/sound.mp3" };
   const before = app.calls.length;
   assert.equal((await app.post("api/settings/alarm-playback", settings)).status, 200);
   assert.deepEqual(app.calls.slice(before).map((call) => call.service), ["turn_off", "turn_off", "set_value", "set_value", "set_value", "turn_on", "turn_on"]);
@@ -337,4 +336,115 @@ test("failed profile edits refresh actual disabled state before returning the er
   const saved = (await app.get("api/state")).alarms.alarms[0];
   assert.equal(saved.enabled, false);
   assert.equal(saved.duration, 7);
+});
+
+test("adding alarms provisions scoped persistent helpers and leaves existing profiles untouched", async (t) => {
+  const app = await setup(t);
+  const original = structuredClone((await app.get("api/state")).alarms.alarms);
+  assert.equal((await app.get("api/state")).alarms.can_create, true);
+  for (const id of [3, 4]) {
+    const response = await app.post("api/alarm/create", {});
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true, alarm_id: id });
+    const profile = (await app.get("api/state")).alarms.alarms.find((alarm) => alarm.id === id);
+    assert.equal(profile.enabled, false);
+    assert.equal(profile.setup_complete, true);
+    assert.equal(profile.type, "Music");
+    assert.equal(profile.hour, 6);
+    assert.equal(profile.minute, 0);
+    assert.equal(profile.duration, 5);
+    assert.equal(profile.volume, 50);
+    assert.equal(profile.days.monday, true);
+    assert.equal(profile.days.sunday, false);
+    assert.equal(profile.timer, "idle");
+  }
+  assert.equal(app.helperRequests.length, 30);
+  assert.ok(app.helperRequests.every((request) => !Object.hasOwn(request, "initial")));
+  assert.ok(app.helperRequests.filter((request) => request.type === "timer/create").every((request) => request.restore === true));
+  assert.deepEqual((await app.get("api/state")).alarms.alarms.slice(0, 2), original);
+  const third = (await app.get("api/state")).alarms.alarms[2];
+  const settings = { id: 3, type: "Buzzer", enabled: false, hour: 8, minute: 43, volume: 35, duration: 9, days: third.days };
+  assert.equal((await app.post("api/settings/alarm", settings)).status, 200);
+  await app.dashboard.refresh();
+  assert.equal(app.dashboard.payload().alarms.alarms[2].duration, 9);
+  assert.equal(app.states.find((state) => state.entity_id === "input_select.clock_radio_alarm_3_type").state, "Buzzer");
+});
+
+test("legacy schedulers and invalid creation requests cannot create HA helpers", async (t) => {
+  const app = await setup(t);
+  for (const body of [{ id: 1 }, { id: -1 }, { id: "3" }, { domain: "switch" }]) {
+    assert.equal((await app.post("api/alarm/create", body)).status, 400);
+  }
+  const play = app.states.find((state) => state.entity_id === "script.clock_radio_play_alarm");
+  play.state = "unavailable";
+  assert.equal((await app.post("api/alarm/create", {})).status, 409);
+  assert.equal((await app.get("api/state")).alarms.can_create, false);
+  play.state = "off";
+  app.states.find((state) => state.entity_id === "sensor.clock_radio_alarm_scheduler_version").state = "1";
+  assert.equal((await app.post("api/alarm/create", {})).status, 409);
+  assert.equal(app.helperRequests.length, 0);
+});
+
+test("partial helper creation is visible, disabled and resumable without duplicate entities", async (t) => {
+  const app = await setup(t);
+  const original = app.ha.requestWs.bind(app.ha);
+  app.ha.requestWs = async (message) => {
+    if (message.type === "input_number/create") throw new Error("Helper creation denied");
+    return original(message);
+  };
+  assert.equal((await app.post("api/alarm/create", {})).status, 502);
+  const partial = (await app.get("api/state")).alarms.alarms[2];
+  assert.equal(partial.enabled, false);
+  assert.equal(partial.setup_complete, false);
+  assert.equal(partial.available, false);
+  assert.equal((await app.post("api/alarm/create", {})).status, 409);
+  app.ha.requestWs = original;
+  assert.equal((await app.post("api/alarm/create", { id: 3 })).status, 200);
+  assert.equal(app.helperRequests.length, 15);
+  assert.equal(new Set(app.states.map((state) => state.entity_id)).size, app.states.length);
+});
+
+test("failed initialization cannot be enabled and resuming preserves existing helper edits", async (t) => {
+  const app = await setup(t);
+  const original = app.ha.callService.bind(app.ha);
+  app.ha.callService = async (domain, service, data) => {
+    if (data.entity_id === "input_number.clock_radio_alarm_3_volume") throw new Error("Value write failed");
+    return original(domain, service, data);
+  };
+  assert.equal((await app.post("api/alarm/create", {})).status, 502);
+  const partial = (await app.get("api/state")).alarms.alarms[2];
+  assert.equal(partial.available, true);
+  assert.equal(partial.setup_complete, false);
+  const settings = { id: 3, enabled: true, type: "Music", hour: 6, minute: 0, duration: 5, volume: 50, days: partial.days };
+  settings.days.monday = true;
+  assert.equal((await app.post("api/settings/alarm", settings)).status, 409);
+  app.ha.callService = original;
+  await original("input_number", "set_value", { entity_id: "input_number.clock_radio_alarm_3_volume", value: 40 });
+  assert.equal((await app.post("api/alarm/create", { id: 3 })).status, 200);
+  assert.equal((await app.get("api/state")).alarms.alarms[2].volume, 40);
+});
+
+test("the configured speaker is the only target and synchronizes all alarm schedules safely", async (t) => {
+  const app = await setup(t);
+  for (const id of [1, 2]) app.states.find((state) => state.entity_id === `input_boolean.clock_radio_alarm_${id}_enabled`).state = "on";
+  app.dashboard.mediaPlayer = "media_player.kitchen";
+  const before = app.calls.length;
+  await app.dashboard.refresh();
+  assert.deepEqual(app.calls.slice(before).map((call) => call.service), ["turn_off", "turn_off", "set_value", "turn_on", "turn_on"]);
+  assert.deepEqual(app.dashboard.payload().music.players, ["media_player.kitchen"]);
+  assert.equal(app.dashboard.payload().alarms.player, "media_player.kitchen");
+  assert.ok(app.dashboard.payload().alarms.alarms.every((alarm) => alarm.enabled));
+  assert.equal((await app.post("api/command", { entity_id: "media_player.bedroom", action: "media_pause" })).status, 403);
+  app.dashboard.readOnly = true;
+  app.dashboard.mediaPlayer = "media_player.bedroom";
+  const count = app.calls.length;
+  await app.dashboard.refresh();
+  assert.equal(app.calls.length, count);
+  assert.match(app.dashboard.payload().config_error, /Read-only/);
+  app.dashboard.readOnly = false;
+  app.dashboard.mediaPlayer = "media_player.missing";
+  await app.dashboard.refresh();
+  assert.equal(app.dashboard.payload().alarms.player, "media_player.missing");
+  assert.deepEqual(app.dashboard.payload().music.players, []);
+  assert.deepEqual(app.dashboard.payload().missing_players, ["media_player.missing"]);
 });

@@ -2,27 +2,42 @@
 
 ## Three pages and alarm helpers
 
-The menu contains **The Clock**, **Music overview** and **Settings**. Clock
-appearance and alarm schedules are edited on Settings. Music uses the same
-speaker/group, tab, card and now-playing components as Dasher.
+There is no menu. Swipe **up/down** between **The Clock**, **Music overview** and
+**Settings**, or use keyboard **Page Up/Down** outside form inputs. Scroll to
+the top/bottom first in Music and Settings: ordinary scrolling never changes
+pages mid-scroll. Open player dialogs and sliders do not trigger page swipes.
+Swipe left/right within the split clock's left panel to cycle square analog,
+round analog and digital faces; the right panel cycles calendar, weather, date
+and date/calendar. These selections save to YAML. Full-screen faces and hiding
+the widget remain Settings options. Swipes cannot save views in read-only mode.
 
 See the [Home Assistant alarm package](../examples/home-assistant/README.md) for
 two independent Music/Buzzer alarm profiles and native entities cards. Install
-that package separately in Home Assistant; the app does not silently create HA
-helpers. Settings edits the existing `clock_radio_alarm_1_*` and
-`clock_radio_alarm_2_*` helpers, including enabled state, type, wake time, seven
-weekdays, volume (0-100%) and wake timer (1-120 minutes). The two profiles may
-use different times and durations; both use the shared alarm speaker and source
+that package separately in Home Assistant. Settings edits the existing
+`clock_radio_alarm_N_*` helpers, including enabled state, type, wake time, seven
+weekdays, volume (0-100%) and wake timer (1-120 minutes). Profiles may
+use different times and durations; all use the configured app speaker and shared source
 helpers. Missing/unavailable helpers are shown explicitly and cannot be saved.
 
 Saving a profile temporarily disables its schedule while the individual HA
 helpers are updated, then applies the requested enabled state. If a write
 fails, the app reports that the edit was incomplete; inspect the profile before
 enabling it. Existing enabled states and helper values are not initialized or
-changed just by opening the app. Native HA entities cards continue to work.
-Shared playback edits temporarily pause both enabled schedules and restore them
+reset just by opening the app. Native HA entities cards continue to work.
+Shared playback edits and configured-speaker changes temporarily pause enabled schedules and restore them
 only after all source/speaker helpers are saved. Conflicting edits are rejected;
 failed edits immediately refresh the actual HA values rather than reporting success.
+
+**Add alarm** creates 13 settings helpers, a persistent initialization flag and a
+restoring timer using HA's admin-only helper APIs. Fresh profiles default to
+Music, 06:00, Monday-Friday, 50% and five minutes, **disabled**. The dynamic HA
+package must expose `sensor.clock_radio_alarm_scheduler_version` >= 2 and have
+available playback/stop scripts before creation is offered. Updating its scripts/automations/templates is sufficient
+for an existing installation; helper definitions and saved values are preserved.
+Partial setup is explicitly reported and can be resumed with **Finish setup**;
+existing helper edits are not overwritten. Review resumed values before enabling.
+An incomplete profile is never scheduled. Helpers, times and timers remain in
+HA after app restarts and work with the tablet/app closed.
 
 ## First start
 
@@ -48,9 +63,6 @@ locale: en-GB
 time_zone: Europe/Copenhagen
 clock_24h: true
 show_seconds: false
-players:
-  - media_player.bedroom
-default_player: media_player.bedroom
 stations:
   - id: favourite
     name: My favourite station
@@ -70,8 +82,8 @@ must be able to reach and decode the URL. The app itself does not fetch streams.
 | `time_zone` | `""` | IANA time zone, e.g. `Europe/Copenhagen`; empty follows HA. Alarm schedules always use HA's zone. |
 | `clock_24h` | `true` | Legacy time-format default when `clock.time_format` is absent. |
 | `show_seconds` | `true` | Legacy seconds default when `clock.seconds` is absent. |
-| `players` | `[]` | Allowed media player IDs; empty discovers and permits all media players. |
-| `default_player` | `""` | Initial speaker; with an explicit list it must be in `players`. |
+| `players` | `[]` | Legacy field; superseded by the app's `media_player` option. |
+| `default_player` | `""` | Legacy field; does not override the configured app speaker. |
 | `stations` | `[]` | Presets with unique lowercase `id`, `name`, and `media_content_id`; shown alongside MA library radio. |
 | `clock` | See below | Clock appearance and live-data sources; saved by Settings. |
 
@@ -142,29 +154,34 @@ URIs and HTTP(S) streams are also accepted in this mode. Only Music Assistant
 players can handle these actions. MA library radio is also read through HA
 automatically, without a separate MA token.
 
-Discover, Albums, Artists, Podcasts, Playlists, Search and Party use Music
+Discover, Albums, Artists, Podcasts, Playlists and Search use Music
 Assistant's own API. Set `music_assistant_token` to a **read-only** token from
 MA **Settings > Profile**. A running HA Music Assistant app is discovered via
 Supervisor when no `music_assistant_url` is set; otherwise supply its HTTP(S)
 address (normally port 8095). Restart after changing connection options.
 Unconfigured browsing and unavailable services are shown explicitly.
 
-The music page retains Dasher's speaker selection/grouping, swipeable tabs,
+The music page retains Dasher's layout and swipeable tabs,
 recommendations, sorting/favorites/filtering, item detail/track lists, queue
-actions, search, Party guest QR/live queue and the full-screen artwork player.
-Party requires MA's Party plugin and reports clearly when it is not enabled.
+actions, search and the full-screen artwork player. Speaker selection, grouping
+and Party are removed.
 Seeking/previous/next/shuffle/repeat/volume depend on player capabilities.
 The artwork player opens on request, never automatically over the clock.
-The initial speaker follows `default_player`, then the existing alarm speaker,
-unless this device already has a saved speaker selection.
+The HA app's configured media player is the only playback/volume target.
+Old per-device speaker preferences cannot override it.
 
 ## App options
 
 Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
 
 - `log_level`: `debug`, `info` (default), `warning` or `error`.
+- `media_player`: one HA entity ID, for example `media_player.sovevaerelse`.
+  Required for playback. Used by Music and every alarm; the app updates
+  `input_text.clock_radio_player` without changing alarm times or enable choices.
+  An unavailable configured player never falls back to another speaker.
+  In read-only mode the helper is not changed and a mismatch is reported.
 - `read_only`: defaults to `false`; when enabled, the server refuses every
-  playback, grouping, alarm and clock-settings mutation, even direct API requests.
+  playback, alarm creation/editing and clock-settings mutation, even direct API requests.
 - `music_assistant_url`: optional HTTP(S) base address without credentials,
   query or fragment; empty enables Supervisor discovery.
 - `music_assistant_token`: optional MA read-only access token. Stored only in
@@ -204,6 +221,7 @@ Alarm source helper URLs are visible to users of this trusted-LAN editor.
 | --- | --- |
 | `SUPERVISOR_TOKEN` | Supplied by Supervisor; takes precedence over local credentials. |
 | `HA_URL`, `HA_TOKEN` | Real HA address/token for local runs only. |
+| `MEDIA_PLAYER` | One HA media-player entity; overrides the app's `media_player` option. |
 | `MA_URL`, `MA_TOKEN` | Optional MA base URL/read-only token for local browsing; override app options. |
 | `CONFIG_DIR` | Persistent dashboard folder; defaults to `/config`. |
 | `OPTIONS_FILE` | Optional app-options JSON file; default `/data/options.json`. An explicitly named file must exist. |
@@ -227,9 +245,9 @@ not a way to make `npm start` use mock data. Demo URLs never play real audio.
   keys are rejected to catch typos.
 - **Alarms unavailable:** install/load the alarm package in HA. Do not create a
   second set of helpers with alternative names; the editor targets the original
-  package's two profiles.
+  package's original profiles and numbered helpers created through Add alarm.
 - **Library unavailable:** check MA address/token, reachable port 8095 and the
-  read-only token's validity. Missing Party plugin is not a connection failure.
+  read-only token's validity.
 - **No next alarm:** enable a profile and choose weekdays, or select a valid
   timestamp entity. Alarms more than 24 hours away are hidden in clock faces.
 - **Port already used:** change the app's host port in Network settings, or use

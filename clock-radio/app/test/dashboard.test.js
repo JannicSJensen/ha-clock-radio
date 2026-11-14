@@ -53,6 +53,7 @@ test("payload is scoped and sanitized; disconnect disables commands and recovery
   let offline = false;
   const calls = [];
   const dashboard = new Dashboard({
+    mediaPlayer: "media_player.room",
     version: "0.1.0",
     configStore: { current: config, error: null, load() {} },
     logger: { warn() {} },
@@ -90,10 +91,10 @@ test("payload is scoped and sanitized; disconnect disables commands and recovery
 
 test("discovery allows media players only and reports missing configured players", async () => {
   const store = { current: parseConfig({}), load() {}, error: null };
-  const dashboard = new Dashboard({ configStore: store, ha: { states: async () => [{ entity_id: "media_player.one", state: "idle" }, { entity_id: "light.one", state: "on" }] } });
+  const dashboard = new Dashboard({ mediaPlayer: "media_player.one", configStore: store, ha: { states: async () => [{ entity_id: "media_player.one", state: "idle" }, { entity_id: "light.one", state: "on" }] } });
   await dashboard.refresh();
   assert.deepEqual(dashboard.payload().players.map((player) => player.entity_id), ["media_player.one"]);
-  store.current = parseConfig({ players: ["media_player.missing"] });
+  dashboard.mediaPlayer = "media_player.missing";
   assert.deepEqual(dashboard.payload().missing_players, ["media_player.missing"]);
   assert.deepEqual(dashboard.payload().players, []);
 });

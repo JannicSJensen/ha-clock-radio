@@ -15,14 +15,23 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
    analog and digital clocks, calendar, weather, date, date/calendar and
    full-screen faces. Includes seconds/sweep modes, locale/week-start settings,
    colors, next alarm and scheduled/entity/room-light night modes.
-2. **Music overview** - Dasher's speaker chips, grouping, swipeable Discover,
-   Radio, Albums, Artists, Podcasts, Playlists, Party and Search tabs, sticky
+2. **Music overview** - Dasher's layout with swipeable Discover,
+   Radio, Albums, Artists, Podcasts, Playlists and Search tabs, sticky
    now-playing bar and artwork player with seeking, shuffle, repeat and volume.
    Full library browsing needs a Music Assistant read-only token in app options.
-3. **Settings** - persistent clock appearance and the two existing HA alarm
+3. **Settings** - persistent clock appearance and existing HA alarm
    profiles: Music/Buzzer type, independent wake times, weekdays, volumes and
    wake timers. Install the [alarm package](examples/home-assistant/README.md)
-   once; the editor uses those helpers rather than creating duplicates.
+   once; **Add alarm** creates additional persistent HA helpers and timers.
+   New alarms start disabled; existing profiles are not duplicated.
+
+There is no menu. Swipe **up/down** between pages; scroll to the edge first in
+Music/Settings. Keyboard users can use **Page Up/Down**. On the split clock,
+swipe **left/right** within each panel to save its clock face or widget.
+Full-screen faces and hiding the widget remain Settings options.
+
+Set `media_player` in the HA app configuration: Music and every alarm use that
+one speaker, without player selection, grouping or Party.
 
 ## Foundation
 
@@ -36,7 +45,8 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
 
 Room-light mode reads an **HA illuminance sensor**, not an Android hardware
 sensor. Alarms run inside HA, even with the tablet closed. Opening the app does
-not enable alarms or reset existing helper values. Playback happens on your HA
+not enable alarms or reset their times. Changing the configured media player
+safely updates the shared HA speaker helper. Playback happens on your HA
 speaker, not the tablet. The artwork player opens only when requested, so alarm
 music does not take you away from the clock.
 

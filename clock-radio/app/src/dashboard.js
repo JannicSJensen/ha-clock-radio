@@ -1,7 +1,7 @@
 import { RequestError } from "./errors.js";
 import crypto from "node:crypto";
 import { ClockData } from "./clock-data.js";
-import { alarmEntities, alarmSnapshot, saveAlarm, validateAlarm, validatePlaybackSettings } from "./alarms.js";
+import { alarmEntities, alarmSnapshot, canCreateAlarm, provisionAlarm, saveAlarm, validateAlarm, validatePlaybackSettings } from "./alarms.js";
 import { availableTabs } from "./music.js";
 import { fetchImage } from "./images.js";
 export { RequestError } from "./errors.js";
@@ -51,8 +51,8 @@ export function validateCommand(body, { config, players, readOnly }) {
 }
 
 export class Dashboard {
-  constructor({ ha, configStore, music = null, radio = null, readOnly = false, demo = false, version, logger = console }) {
-    Object.assign(this, { ha, configStore, music, radio, readOnly, demo, version, logger });
+  constructor({ ha, configStore, music = null, radio = null, mediaPlayer = "", readOnly = false, demo = false, version, logger = console }) {
+    Object.assign(this, { ha, configStore, music, radio, mediaPlayer, readOnly, demo, version, logger });
     this.states = [];
     this.connected = false;
     this.connectionError = "Connecting to Home Assistant.";
@@ -91,14 +91,25 @@ export class Dashboard {
         this.logger.warn(this.timeZoneError);
       }
     }
+    const alarms = alarmSnapshot(this.states);
+    this.alarmPlayerError = null;
+    if (this.mediaPlayer && !alarms.playback_missing.length
+        && alarms.alarms.every((alarm) => alarm.available) && alarms.player !== this.mediaPlayer && !this.alarmWrites.size) {
+      if (this.readOnly) this.alarmPlayerError = "Read-only mode cannot apply the configured speaker to HA alarms. They still use the existing HA speaker helper.";
+      else {
+        try { await this.writeAlarmPlayback({ player: this.mediaPlayer }); }
+        catch (error) { this.alarmPlayerError = error.message; this.logger.warn(error.message); }
+        try { this.states = await this.ha.states(); }
+        catch (error) { this.connected = false; this.connectionError = `Home Assistant unavailable: ${error.message}`; this.logger.warn(this.connectionError); return; }
+      }
+    }
     await this.clockData.refresh(this.configStore.current, this.states, this.configStore.current.time_zone || this.haTimeZone);
     if (this.radio) await this.radio.refresh();
   }
 
   payload() {
     const config = this.configStore.current;
-    const states = this.states.filter((state) => /^media_player\.[a-z0-9_]+$/.test(state.entity_id)
-      && (!config.players.length || config.players.includes(state.entity_id)));
+    const states = this.states.filter((state) => state.entity_id === this.mediaPlayer);
     const players = states.map((state) => {
       const attributes = state.attributes ?? {};
       const safeAttributes = {};
@@ -123,6 +134,7 @@ export class Dashboard {
       };
     });
     const alarms = alarmSnapshot(this.states);
+    alarms.can_create = canCreateAlarm(alarms);
     const clock = this.clockData.payload(config, alarms, this.states, this.haTimeZone);
     clock.error = [clock.error, this.timeZoneError].filter(Boolean).join(" ") || null;
     const errors = [clock.error, clock.night_error].filter(Boolean).join(" ");
@@ -132,12 +144,13 @@ export class Dashboard {
     return {
       version: this.version, demo: this.demo, read_only: this.readOnly,
       connected: this.connected, updated_at: this.updatedAt,
-      connection_error: this.connectionError, config_error: this.configStore.error,
-      missing_players: config.players.filter((id) => !states.some((state) => state.entity_id === id)),
+      connection_error: this.connectionError,
+      config_error: [this.configStore.error, !this.mediaPlayer ? "Select media_player in the Home Assistant app configuration." : null, this.alarmPlayerError].filter(Boolean).join(" ") || null,
+      missing_players: this.mediaPlayer && !states.length ? [this.mediaPlayer] : [],
       config: {
         title: config.title, locale: config.locale, time_zone: config.time_zone,
         clock_24h: config.clock_24h, show_seconds: config.show_seconds,
-        default_player: config.default_player,
+        default_player: this.mediaPlayer,
         stations: config.stations.map(({ id, name }) => ({ id, name })),
         clock: config.clock,
       },
@@ -146,7 +159,7 @@ export class Dashboard {
         .map((state) => ({ entity_id: state.entity_id, name: state.attributes?.friendly_name || state.entity_id, device_class: state.attributes?.device_class ?? null })),
       music: {
         title: "Music overview", players: players.map((player) => player.entity_id),
-        default_player: config.default_player || (players.some((player) => player.entity_id === alarms.player) ? alarms.player : ""), stations,
+        default_player: this.mediaPlayer, stations,
         tabs: availableTabs(null, this.music?.configured === true),
         library: this.music?.configured === true, library_missing: this.music?.client.missing ?? "both",
         error: this.radio?.error ?? null,
@@ -188,7 +201,11 @@ export class Dashboard {
   async saveAlarm(body) {
     await this.mutationReady();
     const { id } = validateAlarm(body);
-    if (this.alarmWrites.has(id) || this.alarmWrites.has("playback")) throw new RequestError("This alarm is already being edited. Try again when the save finishes.", 409);
+    if (body.enabled) {
+      this.player(this.mediaPlayer);
+      if (alarmSnapshot(this.states).player !== this.mediaPlayer) throw new RequestError("Apply the configured HA app speaker before enabling alarms.", 409);
+    }
+    if (this.alarmWrites.has(id) || this.alarmWrites.has("playback") || this.alarmWrites.has("create")) throw new RequestError("An alarm is already being edited. Try again when the save finishes.", 409);
     this.alarmWrites.add(id);
     try {
       await saveAlarm(this.ha, body, this.states, this.logger);
@@ -198,9 +215,22 @@ export class Dashboard {
     }
   }
 
+  async createAlarm(body) {
+    await this.mutationReady();
+    if (this.alarmWrites.size) throw new RequestError("An alarm is already being edited. Wait for that save to finish.", 409);
+    this.alarmWrites.add("create");
+    try { return await provisionAlarm(this.ha, this.states, body, this.logger); }
+    finally { this.alarmWrites.delete("create"); await this.refresh(); }
+  }
+
   async saveAlarmPlayback(body) {
     await this.mutationReady();
     const settings = validatePlaybackSettings(body, this.payload().players.map((player) => player.entity_id));
+    try { await this.writeAlarmPlayback(settings); }
+    finally { await this.refresh(); }
+  }
+
+  async writeAlarmPlayback(settings) {
     const snapshot = alarmSnapshot(this.states);
     if (snapshot.playback_missing.length || snapshot.alarms.some((alarm) => !alarm.available)) throw new RequestError("Install the complete HA alarm package before saving playback settings.", 409);
     if (this.alarmWrites.size) throw new RequestError("An alarm is already being edited. Try again when the save finishes.", 409);
@@ -217,7 +247,6 @@ export class Dashboard {
       throw new RequestError("Alarm playback settings were not fully saved or restored. Check shared settings and both profiles before enabling alarms.", 502);
     } finally {
       this.alarmWrites.delete("playback");
-      await this.refresh();
     }
   }
 
@@ -246,20 +275,6 @@ export class Dashboard {
     this.player(body.entity_id);
     if (!this.music?.configured) throw new RequestError("Configure Music Assistant browsing first.", 503);
     await this.music.play(body.entity_id, body);
-    await this.refresh();
-  }
-
-  async groupPlayers(body) {
-    await this.mutationReady();
-    if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some((key) => !["leader", "add", "remove"].includes(key))) throw new RequestError("Invalid group request.");
-    const add = body.add ?? [], remove = body.remove ?? [];
-    if (!Array.isArray(add) || !Array.isArray(remove) || add.length + remove.length === 0 || add.length + remove.length > 50 || new Set([...add, ...remove]).size !== add.length + remove.length || [...add, ...remove].includes(body.leader)) throw new RequestError("Invalid group members.");
-    for (const id of [body.leader, ...add, ...remove]) {
-      const player = this.player(id);
-      if (!(player.supported_features & 524288)) throw new RequestError("This speaker does not support grouping.", 409);
-    }
-    if (remove.length) await this.ha.callService("media_player", "unjoin", { entity_id: remove });
-    if (add.length) await this.ha.callService("media_player", "join", { entity_id: body.leader, group_members: add });
     await this.refresh();
   }
 

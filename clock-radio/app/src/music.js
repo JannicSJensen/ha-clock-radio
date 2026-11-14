@@ -1,13 +1,12 @@
 import crypto from "node:crypto";
 import { MAClient, MAError, toCard, toDetail, toSearchGroups } from "./ma-api.js";
-import { PartyReader } from "./party.js";
 import { fetchImage } from "./images.js";
 import { RequestError } from "./errors.js";
 
-export const MUSIC_TABS = ["discover", "radio", "albums", "artists", "podcasts", "party", "playlists", "search"];
-export const DEFAULT_TABS = ["discover", "radio", "albums", "artists", "podcasts", "playlists", "party", "search"];
+export const MUSIC_TABS = ["discover", "radio", "albums", "artists", "podcasts", "playlists", "search"];
+export const DEFAULT_TABS = MUSIC_TABS;
 /** Tabs that need Music Assistant's own API (radio works through Home Assistant alone). */
-const LIBRARY_TABS = new Set(["discover", "albums", "artists", "podcasts", "party", "playlists", "search"]);
+const LIBRARY_TABS = new Set(["discover", "albums", "artists", "podcasts", "playlists", "search"]);
 
 const LIBRARY_TYPES = { albums: "album", artists: "artist", podcasts: "podcast", playlists: "playlist" };
 const ORDERS = { name: "sort_name", new: "timestamp_added_desc", random: "random" };
@@ -58,7 +57,6 @@ export class MusicService {
     this._imageBytes = 0;
     this._discover = null;
     this._playable = new Map();
-    this.partyReader = new PartyReader({ client: this.client, options: () => this.options });
   }
 
   get configured() {
@@ -123,15 +121,6 @@ export class MusicService {
     if (!Array.isArray(items)) throw new MAError("Music Assistant returned an invalid library list.");
     const cards = this.cards(items);
     return { items: cards, more: Array.isArray(items) && items.length >= args.limit };
-  }
-
-  /** The Party plugin's dashboard: guest link and the party queue. */
-  party() {
-    return this.partyReader.read();
-  }
-
-  partyQr() {
-    return this.partyReader.qr();
   }
 
   async discover() {

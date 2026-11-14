@@ -103,16 +103,21 @@ export function createSettingsPage(ctx) {
     }, "api/settings/clock", (model) => model.config.clock);
   clock.querySelector('[name="weather_entity"] option').textContent = "Not configured";
   clock.querySelector('[name="night_entity"] option').textContent = "Choose an entity";
-  clock.querySelector('[name="next_alarm_entity"] option').textContent = "Use the two Clock Radio alarms";
+  clock.querySelector('[name="next_alarm_entity"] option').textContent = "Use the Clock Radio alarms";
   const clockInfo = h("p", { class: "settings-hint" });
   clock.append(clockInfo);
 
   const alarmMessages = [];
-  const alarmForms = [1, 2].map((id) => {
+  const alarmForms = new Map();
+  function createAlarmForm(id) {
     const message = h("p", { class: "settings-hint" });
     const active = h("p", { class: "alarm-countdown", role: "status" });
-    alarmMessages.push({ id, message, active });
-    return createForm(`Alarm ${id}`,
+    const resume = h("button", { class: "btn", type: "button", hidden: true }, "Finish setup");
+    resume.addEventListener("click", async () => {
+      if (await ctx.write("api/alarm/create", { id })) ctx.toast(`Alarm ${id} setup finished. Check every field before enabling it.`);
+    });
+    alarmMessages.push({ id, message, active, resume });
+    const form = createForm(`Alarm ${id}`,
       [
         message, active,
         h("div", { class: "setting-grid" },
@@ -137,25 +142,37 @@ export function createSettingsPage(ctx) {
         return {
           ...alarm, ...alarm.days, time: alarm.hour === null || alarm.minute === null ? "" : `${pad(alarm.hour)}:${pad(alarm.minute)}`,
         };
-      }, (model) => model.alarms.alarms.find((alarm) => alarm.id === id).available);
-  });
+      }, (model) => {
+        const alarm = model.alarms.alarms.find((item) => item.id === id);
+        return alarm.available && alarm.setup_complete;
+      });
+    form.append(resume);
+    return form;
+  }
 
+  const speakerInfo = h("p", { class: "settings-hint" });
   const playback = createForm("Alarm playback",
     [
-      h("p", { class: "settings-hint" }, "Both profiles use this speaker. A new alarm replaces the previous one; each wake timer stops playback when it finishes."),
+      speakerInfo,
+      h("p", { class: "settings-hint" }, "All alarms use the HA app's configured speaker. A newer alarm replaces the previous one; each wake timer stops playback when it finishes."),
       h("div", { class: "setting-grid" },
-        field("Alarm speaker", select("player", [""])),
         field("Music source (Music Assistant URI or URL)", input("music_source", "text", { maxlength: 255, required: true })),
         field("Buzzer sound (absolute HTTP(S) URL)", input("buzzer_source", "text", { maxlength: 255, required: true }))),
     ],
-    (form) => Object.fromEntries(new FormData(form)), "api/settings/alarm-playback",
+    (form) => ({ ...Object.fromEntries(new FormData(form)), player: ctx.getModel().music.default_player }), "api/settings/alarm-playback",
     (model) => model.alarms, (model) => model.alarms.playback_missing.length === 0 && model.alarms.alarms.every((alarm) => alarm.available));
   const stop = h("button", { class: "btn", type: "button" }, "Stop active alarm");
   stop.addEventListener("click", () => ctx.write("api/alarm/stop", {}));
   const musicInfo = h("p", { class: "settings-hint" });
+  const alarmList = h("div", { class: "alarm-settings" });
+  const add = h("button", { class: "btn btn--primary", type: "button" }, "Add alarm");
+  add.addEventListener("click", async () => {
+    if (await ctx.write("api/alarm/create", {})) ctx.toast("Alarm added in HA. It starts disabled; choose its wake time and weekdays before enabling it.");
+  });
+  const addInfo = h("p", { class: "settings-hint" });
   const el = h("div", { class: "settings" },
-    h("header", { class: "settings-heading" }, h("h1", null, "Settings"), h("p", null, "A clock for the room. Alarms that stay in Home Assistant.")),
-    h("div", { class: "alarm-settings" }, ...alarmForms),
+    h("header", { class: "settings-heading" }, h("h1", null, "Settings"), h("p", null, "Swipe down at the top for Music, or up at the bottom for The Clock."), add, addInfo),
+    alarmList,
     playback, stop, clock,
     h("section", { class: "settings-card" }, h("h2", null, "Music Assistant"), musicInfo),
   );
@@ -171,22 +188,42 @@ export function createSettingsPage(ctx) {
     control.dataset.options = signature;
   }
   return { el, update(model, busy) {
+    const ids = model.alarms.alarms.map((alarm) => alarm.id);
+    for (const [id, form] of alarmForms) {
+      if (ids.includes(id)) continue;
+      form.remove();
+      forms.splice(forms.findIndex((record) => record.form === form), 1);
+      alarmMessages.splice(alarmMessages.findIndex((record) => record.id === id), 1);
+      alarmForms.delete(id);
+      ctx.toast(`Alarm ${id} was removed from Home Assistant.`);
+    }
+    for (const id of ids) {
+      if (!alarmForms.has(id)) {
+        const form = createAlarmForm(id);
+        alarmForms.set(id, form);
+        alarmList.append(form);
+      }
+    }
+    add.disabled = busy || !ctx.canControl() || !model.alarms.can_create;
+    addInfo.textContent = model.alarms.can_create ? "Creates persistent HA helpers and an independent wake timer. New alarms start disabled." : "Update the HA alarm package to the dynamic scheduler to enable Add alarm.";
+    speakerInfo.textContent = `Music and alarm speaker: ${model.music.default_player || "not configured"}. Change media_player in the Home Assistant app configuration.`;
     const entities = model.clock_entities;
     optionsFor(clock.elements.namedItem("weather_entity"), entities.filter((item) => item.entity_id.startsWith("weather.")), "Not configured", model.config.clock.weather_entity);
     optionsFor(clock.elements.namedItem("night_entity"), entities.filter((item) => !item.entity_id.startsWith("weather.")), "Choose an entity", model.config.clock.night_entity);
-    optionsFor(clock.elements.namedItem("next_alarm_entity"), entities.filter((item) => /^(sensor|input_datetime)\./.test(item.entity_id)), "Use the two Clock Radio alarms", model.config.clock.next_alarm_entity);
-    optionsFor(playback.elements.namedItem("player"), model.players, "Choose a speaker", model.alarms.player);
+    optionsFor(clock.elements.namedItem("next_alarm_entity"), entities.filter((item) => /^(sensor|input_datetime)\./.test(item.entity_id)), "Use the Clock Radio alarms", model.config.clock.next_alarm_entity);
     const language = clock.elements.namedItem("language");
     if (model.config.clock.language && ![...language.options].some((option) => option.value === model.config.clock.language)) language.add(new Option(model.config.clock.language, model.config.clock.language));
     for (const form of forms) form.update(model, busy);
-    for (const { id, message, active } of alarmMessages) {
+    for (const { id, message, active, resume } of alarmMessages) {
       const alarm = model.alarms.alarms.find((item) => item.id === id);
-      message.textContent = alarm.available ? "Edits the existing HA helpers. No duplicate alarm is created." : `Missing or unavailable helpers: ${alarm.missing.join(", ")}. Install examples/home-assistant/clock_radio_alarms.yaml in HA.`;
+      message.textContent = !alarm.setup_complete ? "Setup is incomplete. Finish setup and review the values before enabling this alarm." : alarm.available ? "Edits the existing HA helpers. No duplicate alarm is created." : `Missing or unavailable helpers: ${alarm.missing.join(", ")}. Install examples/home-assistant/clock_radio_alarms.yaml in HA.`;
       active.textContent = alarm.timer === "active" ? `Alarm is running${alarm.finishes_at ? ` until ${new Date(alarm.finishes_at).toLocaleTimeString()}` : ""}.` : "";
+      resume.hidden = id <= 2 || (alarm.available && alarm.setup_complete);
+      resume.disabled = busy || !ctx.canControl() || !model.alarms.can_create || alarm.enabled;
     }
     stop.hidden = !model.alarms.active_player;
     stop.disabled = busy || !ctx.canControl() || !model.alarms.can_stop;
     clockInfo.textContent = `Clock time zone: ${model.clock.timeZone || "this device"}. Alarm schedules always use Home Assistant's time zone. Room-light mode uses an HA illuminance sensor, with hysteresis; unavailable sensors retain their last state.`;
-    musicInfo.textContent = model.music.library ? "Music Assistant browsing is configured. The read-only access token stays on the server." : "For Discover, Albums, Artists, Podcasts, Playlists, Search and Party, set music_assistant_token in the HA app options (Music Assistant → Settings → Profile). Set music_assistant_url if it is not discovered automatically. Restart the app after changing these options. Radio presets work without library access.";
+    musicInfo.textContent = model.music.library ? "Music Assistant browsing is configured. The read-only access token stays on the server." : "For Discover, Albums, Artists, Podcasts, Playlists and Search, set music_assistant_token in the HA app options (Music Assistant → Settings → Profile). Set music_assistant_url if it is not discovered automatically. Restart the app after changing these options. Radio presets work without library access.";
   } };
 }

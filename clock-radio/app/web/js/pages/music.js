@@ -2,12 +2,12 @@ import { h } from "../core/h.js";
 import { icon } from "../core/icons.js";
 import { getPref, setPref } from "../core/prefs.js";
 import { createPlayerPanel } from "../components/player.js";
-import { neighbourTab, playRequest, swipeStep, TAB_ICONS } from "../lib/music.js";
+import { neighbourTab, playRequest, TAB_ICONS } from "../lib/music.js";
+import { onSwipe } from "../core/swipe.js";
 import { createDetailView } from "../views/detail.js";
 import { createDiscoverView } from "../views/discover.js";
 import { createLibraryView } from "../views/library.js";
 import { createRadioView } from "../views/radio.js";
-import { createPartyView } from "../views/party.js";
 import { createSearchView } from "../views/search.js";
 import { pressable } from "../tiles/common.js";
 
@@ -15,8 +15,8 @@ const PREF_TAB = "music.tab";
 const LIBRARY_TABS = new Set(["albums", "artists", "podcasts", "playlists"]);
 
 /**
- * The music page: speakers on top, swipeable tabs (discover, radio, albums, artists, podcasts,
- * search), the content of the chosen tab, and the "now playing" bar at the bottom.
+ * The music page: swipeable library tabs, the content of the chosen tab,
+ * and the configured speaker's "now playing" bar at the bottom.
  */
 export function createMusicPage(model, ctx) {
   const { t } = ctx;
@@ -73,7 +73,6 @@ export function createMusicPage(model, ctx) {
     if (tab === "discover") return createDiscoverView({ ctx, actions });
     if (LIBRARY_TABS.has(tab)) return createLibraryView({ tab, ctx, actions, scroller: content });
     if (tab === "search") return createSearchView({ ctx, actions });
-    if (tab === "party") return createPartyView({ ctx });
     return createRadioView({ model, ctx, panel });
   }
 
@@ -105,28 +104,13 @@ export function createMusicPage(model, ctx) {
   }
 
   // ---- swiping between tabs ---------------------------------------------------------------
-  let swipe = null;
-  content.addEventListener(
-    "pointerdown",
-    (e) => {
-      // Touch only; not inside horizontally scrolling rows, inputs or opened detail pages.
-      const ok = e.pointerType !== "mouse" && stack.length === 1 && !e.target.closest(".hrow, input, .slider");
-      swipe = ok ? { x: e.clientX, y: e.clientY, at: Date.now() } : null;
-    },
-    { capture: true },
-  );
-  content.addEventListener(
-    "pointerup",
-    (e) => {
-      if (!swipe) return;
-      const step = swipeStep(e.clientX - swipe.x, e.clientY - swipe.y, Date.now() - swipe.at);
-      swipe = null;
-      const next = step ? neighbourTab(tabs, current, step) : null;
+  const stopSwiping = onSwipe(content, {
+    ignore: ".hrow,input,select,textarea,.slider,[contenteditable]",
+    horizontal(step) {
+      const next = stack.length === 1 ? neighbourTab(tabs, current, step) : null;
       if (next) showTab(next, step);
     },
-    { capture: true },
-  );
-  content.addEventListener("pointercancel", () => (swipe = null), { capture: true });
+  });
 
   const el = h("div", { class: "music" }, panel.head, tabbar, content, panel.bar);
   showTab(current);
@@ -141,6 +125,7 @@ export function createMusicPage(model, ctx) {
     entities: model.players,
     update,
     destroy() {
+      stopSwiping();
       for (const { view } of stack) view.destroy?.();
       panel.destroy();
     },

@@ -55,16 +55,17 @@ export function createServer({ dashboard, webRoot, logger = console }) {
       const mutations = {
         "/api/command": "command", "/api/settings/clock": "saveClock",
         "/api/settings/alarm": "saveAlarm", "/api/settings/alarm-playback": "saveAlarmPlayback",
+        "/api/alarm/create": "createAlarm",
         "/api/alarm/stop": "stopAlarm", "/api/radio/play": "playRadio",
-        "/api/music/play": "playMusic", "/api/radio/group": "groupPlayers",
+        "/api/music/play": "playMusic",
       };
       if (Object.hasOwn(mutations, pathname)) {
         if (req.method !== "POST") {
           res.setHeader("Allow", "POST");
           throw new RequestError("Method not allowed.", 405);
         }
-        await dashboard[mutations[pathname]](await readJson(req));
-        return json(200, { ok: true });
+        const result = await dashboard[mutations[pathname]](await readJson(req));
+        return json(200, { ok: true, ...result });
       }
       if (!["GET", "HEAD"].includes(req.method)) {
         res.setHeader("Allow", "GET, HEAD");
@@ -94,8 +95,6 @@ export function createServer({ dashboard, webRoot, logger = console }) {
         if (pathname === "/api/music/discover") return json(200, await music.discover());
         if (pathname === "/api/music/search") return json(200, await music.search(params.q));
         if (pathname === "/api/music/item") return json(200, await music.detail(params.type, params.provider, params.id));
-        if (pathname === "/api/music/party") return json(200, await music.party());
-        if (pathname === "/api/music/party/qr") return imageResponse(await music.partyQr());
         if (/^\/api\/music\/image\/[a-f0-9]{12}$/.test(pathname)) return imageResponse(await music.image(path.basename(pathname)));
       }
       const asset = staticAsset(pathname);
