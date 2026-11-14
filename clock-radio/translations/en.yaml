@@ -1,0 +1,7 @@
+configuration:
+  log_level:
+    name: Log level
+    description: How much the app writes to its log. Restart after changing.
+  read_only:
+    name: Read-only
+    description: Show the clock and player states but reject all playback and volume commands. Restart after changing.

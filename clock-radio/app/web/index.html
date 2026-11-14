@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
+    <meta name="theme-color" content="#10191c">
+    <title>Clock Radio</title>
+    <link rel="icon" href="data:,">
+    <link rel="stylesheet" href="./styles.css">
+    <script type="module" src="./app.js"></script>
+  </head>
+  <body>
+    <main>
+      <header>
+        <div class="brand"><span class="brand-mark" aria-hidden="true">CR</span><h1 id="dashboard-title">Clock Radio</h1></div>
+        <div class="header-actions">
+          <span id="connection" role="status">Connecting</span>
+          <button id="night-mode" class="quiet" type="button" aria-pressed="false">Night mode</button>
+        </div>
+      </header>
+      <p id="demo-notice" class="notice" hidden>DEMO · Fictional speakers and radio stations. No audio is played.</p>
+      <p id="connection-error" class="notice" role="status" hidden></p>
+      <p id="config-error" class="notice" role="status" hidden></p>
+      <p id="missing-players" class="notice" role="status" hidden></p>
+      <section class="clock-panel" aria-label="Clock">
+        <p id="date" class="eyebrow"></p>
+        <time id="clock" aria-label="Current time">--:--</time>
+        <p id="time-zone" class="muted"></p>
+      </section>
+      <section class="radio-panel" aria-labelledby="radio-title">
+        <div class="section-heading">
+          <div><p class="eyebrow">YOUR SOUNDTRACK</p><h2 id="radio-title">A little music. A slower moment.</h2></div>
+          <label class="speaker-label" for="speaker">Speaker<select id="speaker"><option value="">Finding speakers...</option></select></label>
+        </div>
+        <div class="now-playing">
+          <div class="record" aria-hidden="true"><span></span></div>
+          <div class="track"><p id="player-state" class="eyebrow">READY WHEN YOU ARE</p><h3 id="track-title">Choose a station</h3><p id="track-artist" class="muted">Your radio, through Home Assistant.</p></div>
+          <div class="playback" aria-label="Playback controls">
+            <button id="play-pause" type="button" disabled>Play</button>
+            <button id="stop" type="button" class="quiet" disabled>Stop</button>
+          </div>
+        </div>
+        <div class="volume-row"><label for="volume">Volume</label><input id="volume" type="range" min="0" max="100" step="1" value="0" disabled><output id="volume-value" for="volume">--</output></div>
+        <div class="presets-heading"><h3>Radio presets</h3><span class="muted">One tap to tune in</span></div>
+        <div id="stations" class="stations"></div>
+        <p id="empty-stations" class="empty" hidden>No presets yet. Add your stations to dashboard.yaml in the app configuration folder.</p>
+        <p id="empty-players" class="empty" hidden>No speakers found. Add a media player in Home Assistant or check the players setting.</p>
+        <p id="read-only" class="notice" hidden>Read-only dashboard. Playback controls are disabled.</p>
+        <p id="command-error" class="notice" role="alert" hidden></p>
+        <p id="command-status" class="muted" role="status"></p>
+      </section>
+      <footer><span>HOME ASSISTANT · CLOCK RADIO</span><span id="version"></span></footer>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,20 @@
+title: Clock Radio
+locale: en-GB
+# Empty uses the tablet's time zone. Set e.g. Europe/Copenhagen to override.
+time_zone: ""
+clock_24h: true
+show_seconds: false
+
+# Empty discovers every media_player. Set an explicit list to limit control.
+players: []
+default_player: ""
+
+# Use stream URLs or Home Assistant media-source:// IDs.
+# Music Assistant library URIs also work with source: music_assistant.
+stations: []
+# stations:
+#   - id: favourite
+#     name: Favourite station
+#     media_content_id: "https://your-station.example/live.mp3"
+#     media_content_type: music
+#     source: home_assistant

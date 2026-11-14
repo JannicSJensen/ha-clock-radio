@@ -1,0 +1,29 @@
+name: Clock Radio
+version: "0.1.0"
+slug: clock_radio
+url: https://github.com/JannicSJensen/ha-clock-radio
+description: A calm clock and radio dashboard for bedside tablets
+arch:
+  - aarch64
+  - amd64
+init: false
+homeassistant_api: true
+ingress: true
+ingress_port: 8100
+ingress_stream: true
+panel_icon: mdi:radio
+panel_title: Clock Radio
+ports:
+  8100/tcp: 8100
+ports_description:
+  8100/tcp: Tablet clock radio dashboard (trusted LAN only)
+map:
+  - type: app_config
+    read_only: false
+    path: /config
+options:
+  log_level: info
+  read_only: false
+schema:
+  log_level: list(debug|info|warning|error)
+  read_only: bool
