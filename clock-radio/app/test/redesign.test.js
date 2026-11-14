@@ -155,6 +155,8 @@ test("four-page HTTP integration browses Dasher music, plays only registered ite
   assert.match(html, /id="page-alarms" class="page settings-page" aria-label="Alarm configuration" hidden/);
   const settings = await (await fetch(`${app.url}/js/pages/settings.js`)).text();
   assert.doesNotMatch(settings, /Alarm playback|api\/settings\/alarm-playback/);
+  assert.equal((await fetch(`${app.url}/js/pages/alarms.js`)).status, 200);
+  assert.equal((await fetch(`${app.url}/js/components/time-picker.js`)).status, 200);
   const state = await app.get("api/state");
   assert.equal(state.connected, true);
   assert.equal(state.alarms.alarms.length, 2);

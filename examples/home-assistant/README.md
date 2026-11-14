@@ -50,8 +50,11 @@ entities cards remain an alternative.
 | Alarm 1 | Music | 06:00 | Monday-Friday | 5 minutes | 50% | No |
 | Alarm 2 | Buzzer | 06:15 | Monday-Friday | 5 minutes | 50% | No |
 
-Each profile has its own enable switch, type selector, hour/minute sliders, wake
+Each profile has its own enable switch, type selector, hour/minute helpers, wake
 time display in Alarm configuration, seven weekday switches, volume, duration and countdown timer.
+The app presents these as a compact alarm list and a wheel-time editor with
+repeat-day buttons. List enable switches save immediately; editor changes use
+Save or Cancel. Cancel does not modify the HA helpers.
 Any profile can be Music or Buzzer. Playback sources and the speaker are
 shared settings. Values restore across restarts rather than being reset by YAML
 `initial` fields.

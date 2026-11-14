@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.6.0
+
+- Redesign Alarm configuration with a compact large-time list, immediate enable
+  switches, and a focused touch-friendly editor inspired by Apple alarm controls.
+- Add scroll-snap hour/minute wheels with keyboard support, 12/24-hour and AM/PM
+  conversion, circular weekday buttons, repeat presets, and grouped existing
+  Music/Buzzer, volume and wake-timer controls. No Label or Snooze fields are added.
+- Save edits explicitly; Cancel/Escape makes no HA changes. Preserve drafts
+  through polling, show save failures inside the editor, and retain setup
+  recovery, read-only/disconnect guards and Stop active alarm.
+
 ## 0.5.1
 
 - Remove the Alarm playback section from Alarm configuration. Keep profile

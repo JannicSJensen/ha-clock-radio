@@ -46,6 +46,7 @@ const ctx = {
     if (domain !== "media_player") throw new Error("Only scoped media controls are supported.");
     return write("api/command", { action, entity_id, ...data });
   },
+  writeError: () => $("command-error").textContent,
   write,
 };
 
@@ -62,6 +63,7 @@ new MutationObserver(policy).observe($("page-music"), { subtree: true, childList
 
 function navigate() {
   current = Object.hasOwn(PAGES, location.hash.slice(1)) ? location.hash.slice(1) : "clock";
+  if (current !== "alarms") settingsPages?.closeAlarmEditor();
   for (const page of Object.keys(PAGES)) $(`page-${page}`).hidden = page !== current;
   $(`page-${current}`).tabIndex = -1;
   $(`page-${current}`).focus({ preventScroll: true });

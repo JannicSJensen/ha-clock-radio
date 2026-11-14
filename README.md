@@ -21,7 +21,9 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
    Full library browsing needs a Music Assistant read-only token in app options.
 3. **Alarm configuration** - existing HA alarm
    profiles: Music/Buzzer type, independent wake times, weekdays, volumes and
-   wake timers. Install the [alarm package](examples/home-assistant/README.md)
+   wake timers. A compact list offers enable switches; tap a time to edit with
+   hour/minute wheels and circular repeat-day buttons. Install the
+   [alarm package](examples/home-assistant/README.md)
    once; **Add alarm** creates additional persistent HA helpers and timers.
    New alarms start disabled; existing profiles are not duplicated.
 4. **Settings** - persistent clock appearance, time/calendar, weather labels,
@@ -110,7 +112,7 @@ station URLs for real playback; they are fictional.
 ```sh
 npm run check
 npm test
-docker build --build-arg BUILD_VERSION=0.5.1 --build-arg BUILD_ARCH=amd64 ../
+docker build --build-arg BUILD_VERSION=0.6.0 --build-arg BUILD_ARCH=amd64 ../
 ```
 
 ## Layout and releases

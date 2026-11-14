@@ -1,6 +1,6 @@
 {
   "name": "ha-clock-radio",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "description": "Clock radio dashboard server for Home Assistant",

@@ -22,6 +22,25 @@ helpers. Missing/unavailable helpers are shown explicitly and cannot be saved.
 Configure the shared Music/Buzzer source helpers in Home Assistant as described
 in the alarm package setup; they are not editable in the app.
 
+Alarm configuration shows a compact list with large wake times and immediate
+enable switches. Tap an alarm to open its editor. Scroll the hour/minute wheels
+or use Arrow Up/Down, Home/End and Page Up/Down while a wheel is focused.
+The wheels follow the clock's 12/24-hour setting; 12-hour mode includes AM/PM.
+The displayed HA time zone always determines the schedule, not the tablet's zone.
+Choose circular repeat weekdays, or use **Every day** / **Weekdays** shortcuts.
+An enabled alarm requires at least one selected day; no days does not mean
+a one-shot alarm.
+
+The editor groups the existing Enabled, Music/Buzzer, volume (0-100%) and wake
+timer (1-120 minutes) controls. The wake timer stops playback and is **not Snooze**.
+No label or snooze helpers are introduced. **Save** applies changes and closes;
+**Cancel** or **Escape** discards the draft without writing to HA. Drafts survive
+polling; page swipes and keyboard page navigation are blocked while editing.
+Direct navigation away from `#alarms` closes the editor without saving.
+Save errors remain visible in the editor, with **Reload saved values** to inspect
+HA's actual state. Missing, invalid or incomplete helpers cannot be edited or
+enabled; additional incomplete profiles still offer **Finish setup**.
+
 Saving a profile temporarily disables its schedule while the individual HA
 helpers are updated, then applies the requested enabled state. If a write
 fails, the app reports that the edit was incomplete; inspect the profile before
@@ -36,7 +55,9 @@ restoring timer using HA's admin-only helper APIs. Fresh profiles default to
 Music, 06:00, Monday-Friday, 50% and five minutes, **disabled**. Find this action
 and profile controls on **Alarm configuration**. **Settings** contains
 clock appearance and Music Assistant guidance. Direct links `#alarms` and
-`#settings` open the respective pages; unsaved form edits survive page changes.
+`#settings` open the respective pages; unsaved clock-form edits survive page changes.
+Add alarm creates the disabled HA profile immediately and opens its editor.
+Cancel leaves that new profile in HA, disabled, without applying draft edits.
 The dynamic HA
 package must expose `sensor.clock_radio_alarm_scheduler_version` >= 2 and have
 available playback/stop scripts before creation is offered. Updating its scripts/automations/templates is sufficient
