@@ -4,6 +4,7 @@ import { ClockData } from "./clock-data.js";
 import { alarmEntities, alarmSnapshot, canCreateAlarm, provisionAlarm, saveAlarm, validateAlarm, validatePlaybackSettings } from "./alarms.js";
 import { availableTabs } from "./music.js";
 import { fetchImage } from "./images.js";
+import { parseClockOptions } from "../web/js/lib/clock-options.js";
 export { RequestError } from "./errors.js";
 
 const extraFields = { play_station: "station_id", volume_set: "volume_level", media_seek: "seek_position", shuffle_set: "shuffle", repeat_set: "repeat" };
@@ -51,8 +52,8 @@ export function validateCommand(body, { config, players, readOnly }) {
 }
 
 export class Dashboard {
-  constructor({ ha, configStore, music = null, radio = null, mediaPlayer = "", readOnly = false, demo = false, version, logger = console }) {
-    Object.assign(this, { ha, configStore, music, radio, mediaPlayer, readOnly, demo, version, logger });
+  constructor({ ha, configStore, music = null, radio = null, mediaPlayer = "", weatherEntity = "", readOnly = false, demo = false, version, logger = console }) {
+    Object.assign(this, { ha, configStore, music, radio, mediaPlayer, weatherEntity, readOnly, demo, version, logger });
     this.states = [];
     this.connected = false;
     this.connectionError = "Connecting to Home Assistant.";
@@ -61,6 +62,11 @@ export class Dashboard {
     this.haTimeZone = "";
     this.timeZoneError = null;
     this.alarmWrites = new Set();
+  }
+
+  get config() {
+    const config = this.configStore.current;
+    return { ...config, clock: { ...config.clock, weather_entity: this.weatherEntity } };
   }
 
   refresh() {
@@ -103,12 +109,13 @@ export class Dashboard {
         catch (error) { this.connected = false; this.connectionError = `Home Assistant unavailable: ${error.message}`; this.logger.warn(this.connectionError); return; }
       }
     }
-    await this.clockData.refresh(this.configStore.current, this.states, this.configStore.current.time_zone || this.haTimeZone);
+    const config = this.config;
+    await this.clockData.refresh(config, this.states, config.time_zone || this.haTimeZone);
     if (this.radio) await this.radio.refresh();
   }
 
   payload() {
-    const config = this.configStore.current;
+    const config = this.config;
     const states = this.states.filter((state) => state.entity_id === this.mediaPlayer);
     const players = states.map((state) => {
       const attributes = state.attributes ?? {};
@@ -190,7 +197,13 @@ export class Dashboard {
 
   async saveClock(body) {
     await this.mutationReady();
-    try { this.configStore.saveClock(body); }
+    try {
+      const clock = parseClockOptions(body);
+      if (body.weather_entity !== undefined && clock.weather_entity !== this.weatherEntity) {
+        throw new RequestError("Configure weather_entity in the Home Assistant app configuration and restart the app.");
+      }
+      this.configStore.saveClock({ ...clock, weather_entity: this.configStore.current.clock.weather_entity });
+    }
     catch (error) {
       if (error.code) throw error;
       throw new RequestError(error.message);

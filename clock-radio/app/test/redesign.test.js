@@ -38,7 +38,7 @@ async function setup(t, options = {}) {
   const ha = new HAClient({ url: haUrl, token: DEMO_HA_TOKEN });
   const music = new MusicService({ ha, logger: quiet, url: `${haUrl}/ma`, token: DEMO_MA_TOKEN });
   const radio = new RadioLibrary({ ha, music, logger: quiet });
-  const dashboard = new Dashboard({ ha, configStore: store, music, radio, mediaPlayer: "media_player.bedroom", logger: quiet, version: "test" });
+  const dashboard = new Dashboard({ ha, configStore: store, music, radio, mediaPlayer: "media_player.bedroom", weatherEntity: "weather.bedroom", logger: quiet, version: "test" });
   await dashboard.refresh();
   const server = createServer({ dashboard, webRoot: path.join(root, "web"), logger: quiet });
   const url = await listen(server);
@@ -227,6 +227,47 @@ test("clock configuration saves preserve comments, unrelated YAML and invalid us
   fs.writeFileSync(app.store.file, invalid);
   assert.throws(() => app.store.saveClock(CLOCK_DEFAULTS));
   assert.equal(fs.readFileSync(app.store.file, "utf8"), invalid);
+});
+
+test("weather comes only from HA app options, including after appearance saves and restart", async (t) => {
+  const app = await setup(t);
+  fs.writeFileSync(app.store.file, "# Legacy weather\nclock:\n  weather_entity: weather.legacy\n");
+  await app.dashboard.refresh();
+  let state = await app.get("api/state");
+  assert.equal(state.config.clock.weather_entity, "weather.bedroom");
+  assert.equal(state.clock.weatherConfigured, true);
+  assert.equal(state.clock.weatherTemperature, 18);
+  assert.equal(state.clock.weatherHigh, 22);
+  assert.equal(state.clock.weatherLow, 11);
+
+  const before = fs.readFileSync(app.store.file, "utf8");
+  const rejected = await app.post("api/settings/clock", { ...state.config.clock, weather_entity: "weather.legacy" });
+  assert.equal(rejected.status, 400);
+  assert.match((await rejected.json()).error, /Home Assistant app configuration/);
+  assert.equal(fs.readFileSync(app.store.file, "utf8"), before);
+  assert.equal((await app.post("api/settings/clock", { ...state.config.clock, face: "digital" })).status, 200);
+  const reopened = new ConfigStore({ dir: path.dirname(app.store.file), example: path.join(root, "examples/dashboard.yaml"), logger: quiet });
+  assert.equal(reopened.current.clock.weather_entity, "weather.legacy");
+  assert.equal(reopened.current.clock.face, "digital");
+  assert.match(fs.readFileSync(app.store.file, "utf8"), /^# Legacy weather/);
+  const restarted = new Dashboard({ ha: app.ha, configStore: reopened, weatherEntity: "weather.bedroom", logger: quiet });
+  await restarted.refresh();
+  assert.equal(restarted.payload().clock.weatherHigh, 22);
+
+  app.dashboard.weatherEntity = "weather.missing";
+  await app.dashboard.refresh();
+  state = await app.get("api/state");
+  assert.equal(state.config.clock.weather_entity, "weather.missing");
+  assert.equal(state.clock.weatherTemperature, null);
+  assert.match(state.clock.error, /missing or unavailable/);
+
+  app.dashboard.weatherEntity = "";
+  await app.dashboard.refresh();
+  state = await app.get("api/state");
+  assert.equal(state.config.clock.weather_entity, "");
+  assert.equal(state.clock.weatherConfigured, false);
+  assert.equal(state.clock.weatherHigh, null);
+  assert.equal(state.clock.error, null);
 });
 
 test("removed Party routes are unavailable", async (t) => {

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.4.1
+
+- Add weather entity configuration to the HA app options for weather widgets
+  and full-screen clocks, with startup validation and clear setup instructions.
+- Remove the dashboard weather entity selector. Existing `clock.weather_entity`
+  YAML is accepted but ignored; copy it to the HA app option and restart.
+
 ## 0.4.0
 
 - Replace the menu with vertical page swipes and keyboard Page Up/Down navigation.

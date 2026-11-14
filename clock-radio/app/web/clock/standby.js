@@ -105,10 +105,10 @@
     high: ['H:', 'H:', 'H:', 'Máx:', 'Max:', 'Máx:', 'H:'],
     low: ['L:', 'B:', 'T:', 'Mín:', 'Min:', 'Mín:', 'L:'],
     weather: ['Weather', 'Météo', 'Wetter', 'Tiempo', 'Meteo', 'Tempo', 'Weer'],
-    choose: ['Choose a weather entity in the plugin settings.', 'Choisissez une entité météo dans les réglages du plugin.',
-      'Wählen Sie eine Wetter-Entität in den Plugin-Einstellungen.', 'Elija una entidad meteorológica en los ajustes del plugin.',
-      'Scegli un\'entità meteo nelle impostazioni del plugin.', 'Escolha uma entidade de tempo nas definições do plugin.',
-      'Kies een weerentiteit in de plugin-instellingen.']
+    choose: ['Set weather_entity in the Home Assistant app configuration.', 'Définissez weather_entity dans la configuration de l\'application Home Assistant.',
+      'Legen Sie weather_entity in der Home-Assistant-App-Konfiguration fest.', 'Configure weather_entity en la configuración de la aplicación Home Assistant.',
+      'Imposta weather_entity nella configurazione dell\'app Home Assistant.', 'Defina weather_entity na configuração da aplicação Home Assistant.',
+      'Stel weather_entity in de Home Assistant-appconfiguratie in.']
   };
   var languageIndex = Math.max(0, LANGUAGES.indexOf(language));
   function word(key) { return WORDS[key][languageIndex]; }

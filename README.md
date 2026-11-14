@@ -32,6 +32,8 @@ Full-screen faces and hiding the widget remain Settings options.
 
 Set `media_player` in the HA app configuration: Music and every alarm use that
 one speaker, without player selection, grouping or Party.
+Set `weather_entity` there as well and restart the app to enable weather in
+the widget and full-screen clock. Weather selection is not in dashboard Settings.
 
 ## Foundation
 
@@ -104,7 +106,7 @@ station URLs for real playback; they are fictional.
 ```sh
 npm run check
 npm test
-docker build --build-arg BUILD_VERSION=0.3.0 --build-arg BUILD_ARCH=amd64 ../
+docker build --build-arg BUILD_VERSION=0.4.1 --build-arg BUILD_ARCH=amd64 ../
 ```
 
 ## Layout and releases

@@ -64,6 +64,7 @@ export function createSettingsPage(ctx) {
     return form;
   }
 
+  const weatherInfo = h("p", { class: "settings-hint" });
   const clock = createForm("Clock appearance",
     [
       group("View",
@@ -83,7 +84,7 @@ export function createSettingsPage(ctx) {
         field("Primary", input("primary", "color")), field("Accent", input("accent", "color")),
         field("Seconds", input("seconds_color", "color")), field("Background", input("background", "color"))),
       group("Weather and next alarm",
-        field("Weather entity", select("weather_entity", [""])),
+        weatherInfo,
         field("Place name (optional)", input("weather_name", "text", { maxlength: 256 })),
         field("Next alarm", select("next_alarm_entity", [""]))),
       group("Night mode",
@@ -97,11 +98,11 @@ export function createSettingsPage(ctx) {
     ],
     (form) => {
       const values = Object.fromEntries(new FormData(form));
+      values.weather_entity = ctx.getModel().config.clock.weather_entity;
       values.seconds = form.elements.namedItem("seconds").checked;
       for (const key of ["night_start", "night_end", "night_threshold", "night_brightness"]) values[key] = Number(values[key]);
       return parseClockOptions(values);
     }, "api/settings/clock", (model) => model.config.clock);
-  clock.querySelector('[name="weather_entity"] option').textContent = "Not configured";
   clock.querySelector('[name="night_entity"] option').textContent = "Choose an entity";
   clock.querySelector('[name="next_alarm_entity"] option').textContent = "Use the Clock Radio alarms";
   const clockInfo = h("p", { class: "settings-hint" });
@@ -208,7 +209,7 @@ export function createSettingsPage(ctx) {
     addInfo.textContent = model.alarms.can_create ? "Creates persistent HA helpers and an independent wake timer. New alarms start disabled." : "Update the HA alarm package to the dynamic scheduler to enable Add alarm.";
     speakerInfo.textContent = `Music and alarm speaker: ${model.music.default_player || "not configured"}. Change media_player in the Home Assistant app configuration.`;
     const entities = model.clock_entities;
-    optionsFor(clock.elements.namedItem("weather_entity"), entities.filter((item) => item.entity_id.startsWith("weather.")), "Not configured", model.config.clock.weather_entity);
+    weatherInfo.textContent = `Weather entity: ${model.config.clock.weather_entity || "not configured"}. Set weather_entity in the Home Assistant app configuration and restart the app.`;
     optionsFor(clock.elements.namedItem("night_entity"), entities.filter((item) => !item.entity_id.startsWith("weather.")), "Choose an entity", model.config.clock.night_entity);
     optionsFor(clock.elements.namedItem("next_alarm_entity"), entities.filter((item) => /^(sensor|input_datetime)\./.test(item.entity_id)), "Use the Clock Radio alarms", model.config.clock.next_alarm_entity);
     const language = clock.elements.namedItem("language");

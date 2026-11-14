@@ -107,12 +107,20 @@ uses oversized digits with date/weather and the next alarm.
 | `language` | Empty: device locale; `en`, `fr`, `de`, `es`, `it`, `pt`, `nl` or a valid locale. Existing `locale` is inherited when this key is absent. |
 | `week_start` | `automatic` (default), `monday`, `sunday`, `saturday` |
 | `primary`, `accent`, `seconds_color`, `background` | Six-digit hex colors; defaults `#ffffff`, `#ff3b30`, `#ff9f0a`, `#000000` |
-| `weather_entity`, `weather_name` | HA weather entity and optional place label; empty by default |
+| `weather_name` | Optional place label; empty uses the HA entity's friendly name |
+| `weather_entity` | Legacy key accepted for compatibility but ignored; use the HA app option |
 | `next_alarm_entity` | Optional timestamp sensor or `input_datetime`; time-only helpers are daily. Empty derives the next enabled Clock Radio alarm. |
 | `night_mode` | `off` (default), `always`, `schedule`, `entity`, `illuminance` |
 | `night_start`, `night_end` | Hours 0-23; defaults 22 and 7; overnight schedules supported |
 | `night_entity`, `night_threshold` | HA night entity / room illuminance sensor and threshold; defaults empty and 5 |
 | `night_color`, `night_brightness` | Night color and brightness 20-100%; defaults `#ff2a1f` and 70 |
+
+Set `weather_entity` in **Settings > Apps > Clock Radio > Configuration**, save
+and restart the app. This is the only weather entity selector; the dashboard
+Settings page edits the optional place label, not the weather source.
+When upgrading from 0.4.0 or earlier, copy any existing `clock.weather_entity`
+from `dashboard.yaml` into the HA app option. Legacy YAML still loads but cannot
+enable or override weather. An empty app option disables weather.
 
 Weather uses current HA conditions and today's daily high/low from the legacy
 forecast attribute or `weather.get_forecasts`, refreshed every 30 minutes
@@ -180,6 +188,10 @@ Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
   `input_text.clock_radio_player` without changing alarm times or enable choices.
   An unavailable configured player never falls back to another speaker.
   In read-only mode the helper is not changed and a mismatch is reported.
+- `weather_entity`: optional HA weather entity ID, for example
+  `weather.forecast_home`. The sole weather source for widgets and full-screen
+  clocks. Empty disables weather; missing/unavailable entities show an error
+  and never fall back to another source.
 - `read_only`: defaults to `false`; when enabled, the server refuses every
   playback, alarm creation/editing and clock-settings mutation, even direct API requests.
 - `music_assistant_url`: optional HTTP(S) base address without credentials,
@@ -250,5 +262,7 @@ not a way to make `npm start` use mock data. Demo URLs never play real audio.
   read-only token's validity.
 - **No next alarm:** enable a profile and choose weekdays, or select a valid
   timestamp entity. Alarms more than 24 hours away are hidden in clock faces.
+- **Weather asks for configuration:** set `weather_entity` in the HA app's
+  Configuration tab, save and restart. The entity must have the `weather.` domain.
 - **Port already used:** change the app's host port in Network settings, or use
   `PORT=8101` locally. Ingress still uses the container's port 8100.

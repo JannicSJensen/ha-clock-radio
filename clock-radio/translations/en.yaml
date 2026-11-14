@@ -2,6 +2,9 @@ configuration:
   media_player:
     name: Music and alarm speaker
     description: One HA media_player entity ID, for example media_player.sovevaerelse. Used for music and every alarm. Restart after changing; enabled schedules are paused while the HA speaker helper is updated, then restored.
+  weather_entity:
+    name: Weather entity
+    description: Optional HA weather entity ID, for example weather.forecast_home. Used by the weather widget and full-screen clock. Empty disables weather; configure this only here, not in dashboard settings. Restart after changing.
   log_level:
     name: Log level
     description: How much the app writes to its log. Restart after changing.

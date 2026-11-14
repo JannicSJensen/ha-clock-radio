@@ -3,7 +3,7 @@ import fs from "node:fs";
 import http from "node:http";
 import os from "node:os";
 import path from "node:path";
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { once } from "node:events";
 import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
@@ -42,6 +42,9 @@ test("demo starts without real credentials, stays connected and shuts down clean
   assert.equal(initial.demo, true);
   assert.equal(initial.connected, true);
   assert.equal(initial.config.stations.length, 4);
+  assert.equal(initial.config.clock.weather_entity, "weather.bedroom");
+  assert.equal(initial.clock.weatherConfigured, true);
+  assert.equal(initial.clock.weatherHigh, 22);
   const response = await fetch(`http://127.0.0.1:${port}/api/command`, {
     method: "POST", headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ action: "media_pause", entity_id: "media_player.bedroom" }),
@@ -53,4 +56,21 @@ test("demo starts without real credentials, stays connected and shuts down clean
     assert.equal((await state()).connected, true, output);
   }
   assert.ok(!output.includes("WARN"), output);
+});
+
+test("startup rejects invalid HA weather options before connecting", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "clock-radio-weather-options-"));
+  t.after(() => fs.rmSync(dir, { recursive: true }));
+  const optionsFile = path.join(dir, "options.json");
+  for (const weather_entity of [null, 123, [], {}, "light.room", "weather.", "weather.room,weather.other", "weather.Room", " weather.room"]) {
+    fs.writeFileSync(optionsFile, JSON.stringify({ weather_entity }));
+    const child = spawnSync(process.execPath, ["src/index.js"], {
+      cwd: fileURLToPath(new URL("../", import.meta.url)),
+      env: { ...process.env, OPTIONS_FILE: optionsFile, CONFIG_DIR: dir },
+      encoding: "utf8", timeout: 5000,
+    });
+    assert.ifError(child.error);
+    assert.equal(child.status, 1, child.stderr);
+    assert.match(child.stderr, /weather_entity must be a single Home Assistant weather entity ID/);
+  }
 });

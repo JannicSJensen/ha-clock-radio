@@ -8,14 +8,13 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const configDir = process.env.CONFIG_DIR ?? path.join(root, "dev/config");
 fs.mkdirSync(configDir, { recursive: true });
 const optionsFile = process.env.OPTIONS_FILE ?? path.join(configDir, "options.json");
-if (!process.env.OPTIONS_FILE && !fs.existsSync(optionsFile)) fs.writeFileSync(optionsFile, "{}\n");
+if (!process.env.OPTIONS_FILE && !fs.existsSync(optionsFile)) fs.writeFileSync(optionsFile, '{"weather_entity":"weather.bedroom"}\n');
 const file = path.join(configDir, "dashboard.yaml");
 if (!fs.existsSync(file)) {
   fs.writeFileSync(file, `title: Clock Radio
 locale: en-GB
 time_zone: Europe/Copenhagen
 clock:
-  weather_entity: weather.bedroom
   weather_name: Copenhagen
 players: [media_player.bedroom, media_player.kitchen]
 default_player: media_player.bedroom

@@ -21,6 +21,8 @@ if (!options || typeof options !== "object" || Array.isArray(options)) throw new
 if (options.read_only !== undefined && typeof options.read_only !== "boolean") throw new Error("read_only must be a boolean.");
 const mediaPlayer = process.env.MEDIA_PLAYER ?? options.media_player ?? "";
 if (typeof mediaPlayer !== "string" || (mediaPlayer && !/^media_player\.[a-z0-9_]+$/.test(mediaPlayer))) throw new Error("media_player must be a single Home Assistant media_player entity ID.");
+const weatherEntity = options.weather_entity === undefined ? "" : options.weather_entity;
+if (typeof weatherEntity !== "string" || (weatherEntity && !/^weather\.[a-z0-9_]+$/.test(weatherEntity))) throw new Error("weather_entity must be a single Home Assistant weather entity ID.");
 const levels = { debug: 0, info: 1, warning: 2, error: 3 };
 const level = options.log_level ?? "info";
 if (!Object.hasOwn(levels, level)) throw new Error("Invalid log_level.");
@@ -52,7 +54,7 @@ if (!musicUrl && token && musicToken) {
 }
 const music = new MusicService({ ha, logger, url: musicUrl, token: musicToken });
 const radio = new RadioLibrary({ ha, music, logger });
-const dashboard = new Dashboard({ ha, configStore, music, radio, mediaPlayer, readOnly: options.read_only === true, demo: process.env.DEMO === "1", version, logger });
+const dashboard = new Dashboard({ ha, configStore, music, radio, mediaPlayer, weatherEntity, readOnly: options.read_only === true, demo: process.env.DEMO === "1", version, logger });
 const server = createServer({ dashboard, webRoot: path.join(root, "web"), logger });
 await dashboard.refresh();
 const timer = setInterval(() => dashboard.refresh(), 5000);
