@@ -71,17 +71,62 @@ export function demoStates() {
   }
   for (const [key, state] of Object.entries({
     player: "media_player.bedroom", music_source: "library://radio/1",
-    buzzer_source: "https://example.com/sounds/wakeup.mp3", active_player: "",
+    buzzer_source: "https://example.com/sounds/wakeup.mp3", active_player: "", active_alarm: "", snoozed_alarm: "",
   })) states.push({ entity_id: `input_text.clock_radio_${key}`, state, attributes: {} });
   states.push({ entity_id: "script.clock_radio_stop", state: "off", attributes: {} });
   states.push({ entity_id: "script.clock_radio_play_alarm", state: "off", attributes: {} });
-  states.push({ entity_id: "sensor.clock_radio_alarm_scheduler_version", state: "2", attributes: {} });
+  states.push({ entity_id: "script.clock_radio_snooze", state: "off", attributes: {} });
+  states.push({ entity_id: "script.clock_radio_resume_snooze", state: "off", attributes: {} });
+  states.push({ entity_id: "input_datetime.clock_radio_snooze_until", state: "2000-01-01 00:00:00", attributes: { timestamp: 946684800 } });
+  states.push({ entity_id: "sensor.clock_radio_alarm_scheduler_version", state: "3", attributes: {} });
   return states;
 }
 
 export function createDemoAPI({ states = demoStates(), library = demoLibrary(), party = true } = {}) {
   const calls = [];
   const helperRequests = [];
+  const entity = (id) => states.find((state) => state.entity_id === id);
+  let previous = null;
+  function cleanupAlarm() {
+    const player = entity(entity("input_text.clock_radio_active_player")?.state);
+    if (player) {
+      player.state = "idle";
+      if (previous) Object.assign(player.attributes, previous);
+    }
+    previous = null;
+    entity("input_text.clock_radio_active_player").state = "";
+    entity("input_text.clock_radio_active_alarm").state = "";
+    for (const state of states) if (/^timer\.clock_radio_alarm_[1-9]\d*$/.test(state.entity_id)) {
+      state.state = "idle";
+      delete state.attributes.finishes_at;
+    }
+  }
+  function startAlarm(id, type = entity(`input_select.clock_radio_alarm_${id}_type`)?.state, now = Date.now()) {
+    if (!["Music", "Buzzer"].includes(type) || !entity(`timer.clock_radio_alarm_${id}`)) throw new Error("Invalid demo alarm.");
+    cleanupAlarm();
+    entity("input_text.clock_radio_snoozed_alarm").state = "";
+    const player = entity(entity("input_text.clock_radio_player").state);
+    previous = { volume_level: player.attributes.volume_level, repeat: player.attributes.repeat };
+    player.state = "playing";
+    player.attributes.repeat = type === "Buzzer" ? "one" : "off";
+    player.attributes.volume_level = Number(entity(`input_number.clock_radio_alarm_${id}_volume`).state) / 100;
+    entity("input_text.clock_radio_active_player").state = player.entity_id;
+    entity("input_text.clock_radio_active_alarm").state = JSON.stringify({ id, type, started_at: new Date(now).toISOString() });
+    const timer = entity(`timer.clock_radio_alarm_${id}`);
+    timer.state = "active";
+    timer.attributes.finishes_at = new Date(now + Number(entity(`input_number.clock_radio_alarm_${id}_duration`).state) * 60000).toISOString();
+  }
+  function advanceAlarms(now = Date.now()) {
+    const snoozed = entity("input_text.clock_radio_snoozed_alarm")?.state;
+    const until = entity("input_datetime.clock_radio_snooze_until")?.attributes.timestamp;
+    if (snoozed && Number.isFinite(until) && until * 1000 <= now) {
+      const alarm = JSON.parse(snoozed);
+      startAlarm(alarm.id, alarm.type, now);
+      return;
+    }
+    if (states.some((state) => /^timer\.clock_radio_alarm_[1-9]\d*$/.test(state.entity_id)
+      && state.state === "active" && Date.parse(state.attributes.finishes_at) <= now)) cleanupAlarm();
+  }
   const server = http.createServer(async (req, res) => {
     const url = new URL(req.url, "http://localhost");
     const reply = (status, data) => {
@@ -95,7 +140,10 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
     }
     if (req.headers.authorization !== `Bearer ${url.pathname.startsWith("/ma/") ? DEMO_MA_TOKEN : DEMO_HA_TOKEN}`) return reply(401, { error: "Invalid demo token." });
     try {
-      if (req.method === "GET" && url.pathname === "/api/states") return reply(200, states);
+      if (req.method === "GET" && url.pathname === "/api/states") {
+        advanceAlarms();
+        return reply(200, states);
+      }
       if (req.method === "GET" && url.pathname === "/api/config") return reply(200, { time_zone: "Europe/Copenhagen" });
       if (req.method === "GET" && url.pathname.startsWith("/api/media_player_proxy/")) {
         res.writeHead(200, { "Content-Type": "image/svg+xml" });
@@ -121,8 +169,22 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
       }
       if (domain === "music_assistant" && service === "get_library") return reply(200, { service_response: { items: library.radio, count: library.radio.length } });
       if (domain === "script" && service === "turn_on" && data.entity_id === "script.clock_radio_stop") {
-        states.find((state) => state.entity_id === "input_text.clock_radio_active_player").state = "";
-        for (const state of states) if (state.entity_id.startsWith("timer.clock_radio_alarm_")) state.state = "idle";
+        cleanupAlarm();
+        entity("input_text.clock_radio_snoozed_alarm").state = "";
+        return reply(200, []);
+      }
+      if (domain === "script" && service === "clock_radio_snooze") {
+        const active = entity("input_text.clock_radio_active_alarm").state;
+        if (!active) return reply(409, { error: "No ringing alarm." });
+        cleanupAlarm();
+        entity("input_text.clock_radio_snoozed_alarm").state = active;
+        const until = entity("input_datetime.clock_radio_snooze_until");
+        until.attributes.timestamp = Math.floor(Date.now() / 1000) + 600;
+        until.state = new Date(until.attributes.timestamp * 1000).toISOString();
+        return reply(200, []);
+      }
+      if (domain === "script" && service === "turn_on" && data.entity_id === "script.clock_radio_play_alarm") {
+        startAlarm(Number(data.variables?.alarm), data.variables?.alarm_type);
         return reply(200, []);
       }
       const targets = Array.isArray(data.entity_id) ? data.entity_id : [data.entity_id];
@@ -227,5 +289,5 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
       }
     });
   });
-  return { server, ws, states, calls, helperRequests, library };
+  return { server, ws, states, calls, helperRequests, library, startAlarm, advanceAlarms };
 }

@@ -33,7 +33,7 @@ a one-shot alarm.
 
 The editor groups the existing Enabled, Music/Buzzer, volume (0-100%) and wake
 timer (1-120 minutes) controls. The wake timer stops playback and is **not Snooze**.
-No label or snooze helpers are introduced. **Save** applies changes and closes;
+No label or per-profile snooze fields are added. **Save** applies changes and closes;
 **Cancel** or **Escape** discards the draft without writing to HA. Drafts survive
 polling; page swipes and keyboard page navigation are blocked while editing.
 Direct navigation away from `#alarms` closes the editor without saving.
@@ -66,6 +66,42 @@ Partial setup is explicitly reported and can be resumed with **Finish setup**;
 existing helper edits are not overwritten. Review resumed values before enabling.
 An incomplete profile is never scheduled. Helpers, times and timers remain in
 HA after app restarts and work with the tablet/app closed.
+
+## Ringing alarms and Snooze
+
+A dedicated screen automatically takes over when an HA alarm rings, including
+when opening the app during an alarm. Buzzer alarms show a large clock and
+orange **Snooze** button. Music alarms also show a compact artwork/metadata
+player with supported play/pause, previous/next and volume controls. The time
+uses the clock's locale, time zone and 12/24-hour setting.
+Ordinary music playback never opens this screen.
+
+Drag the **slide to stop** knob at least 90% across and release to stop the
+alarm. Partial/cancelled gestures reset; tapping the track does not stop it.
+Keyboard users can press End (or Arrow Right repeatedly), then Enter/Space.
+Stop uses the HA alarm script, cancelling timers and restoring volume/repeat,
+not merely pausing the speaker. The screen stays until HA confirms the alarm
+ended; failures are shown on-screen. Read-only/disconnected controls are disabled.
+Page navigation and Escape cannot dismiss a ringing alarm. When it ends, the
+previous page returns; an interrupted alarm-editor draft is discarded.
+
+**Snooze** silences either alarm type and rings again in **10 minutes**, even
+with the app/tablet closed. A pending snooze appears in Alarm configuration
+with **Cancel snoozed alarm** and contributes to the clock's next-alarm display.
+A new alarm replaces a pending snooze. Resuming uses the captured Music/Buzzer
+type with the profile's current duration/volume and current shared speaker/source.
+No schedule is enabled or disabled by snoozing.
+
+For reliable captured ringing state and Snooze, replace the installed HA package
+with the current version (scheduler version **3**), including the new text and
+date/time helpers. Check configuration and reload helpers, scripts, templates
+and automations; restart HA if `input_datetime` was not previously loaded.
+Do not rerun/reset initialization flags. Older packages still support the
+ringing screen when exactly one alarm timer and an active speaker identify it,
+but Snooze is disabled with an upgrade message.
+The Snooze deadline survives HA restarts: future snoozes remain pending, and
+an overdue snooze rings once when HA starts again. Ordinary alarms missed while
+HA was down are not replayed.
 
 ## First start
 

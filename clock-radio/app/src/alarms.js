@@ -48,12 +48,56 @@ export function alarmSnapshot(states) {
     const value = index.get(`input_text.clock_radio_${name}`)?.state;
     return value && !["unknown", "unavailable"].includes(value) ? value : "";
   };
+  const scriptAvailable = (name) => index.has(`script.clock_radio_${name}`)
+    && !["unknown", "unavailable"].includes(index.get(`script.clock_radio_${name}`).state);
+  let activeError = null;
+  const context = (name) => {
+    const value = text(name);
+    if (!value) return null;
+    let parsed;
+    try { parsed = JSON.parse(value); }
+    catch (error) {
+      if (!(error instanceof SyntaxError)) throw error;
+      activeError = "Invalid running/snoozed alarm data. Check the HA alarm package helpers.";
+      return null;
+    }
+    if (!parsed || !Number.isSafeInteger(parsed.id) || parsed.id < 1 || !["Music", "Buzzer"].includes(parsed.type)) {
+      activeError = "Invalid running/snoozed alarm data. Check the HA alarm package helpers.";
+      return null;
+    }
+    return parsed;
+  };
+  const captured = context("active_alarm");
+  const running = alarms.filter((alarm) => alarm.timer === "active");
+  // Older packages have no captured context, but an alarm timer plus active speaker is authoritative.
+  const legacy = !index.has("input_text.clock_radio_active_alarm") && running.length === 1
+    && ["Music", "Buzzer"].includes(running[0].type) ? running[0] : null;
+  // Cleanup cancels timers first; captured state clears only after speaker cleanup succeeds.
+  const profile = captured ? alarms.find((alarm) => alarm.id === captured.id) : legacy;
+  const active = profile && /^media_player\.[a-z0-9_]+$/.test(text("active_player")) ? {
+    id: profile.id, type: captured?.type ?? profile.type, player: text("active_player"),
+    started_at: typeof captured?.started_at === "string" ? captured.started_at : null,
+    finishes_at: profile.finishes_at,
+  } : null;
+  const snoozedContext = context("snoozed_alarm");
+  const snoozeAt = index.get("input_datetime.clock_radio_snooze_until")?.attributes?.timestamp;
+  const snoozed = snoozedContext && typeof snoozeAt === "number" && Number.isFinite(snoozeAt)
+    && Math.abs(snoozeAt) < 8.64e12 ? {
+      id: snoozedContext.id, type: snoozedContext.type, until: new Date(snoozeAt * 1000).toISOString(),
+    } : null;
+  if (snoozedContext && !snoozed) activeError = "Invalid snooze deadline. Check the HA snooze date/time helper.";
   return {
     scheduler_version: index.get("sensor.clock_radio_alarm_scheduler_version")?.state ?? null,
     alarms, player: text("player"), music_source: text("music_source"),
     buzzer_source: text("buzzer_source"), active_player: text("active_player"),
-    can_stop: index.has("script.clock_radio_stop") && !["unknown", "unavailable"].includes(index.get("script.clock_radio_stop").state),
-    can_play: index.has("script.clock_radio_play_alarm") && !["unknown", "unavailable"].includes(index.get("script.clock_radio_play_alarm").state),
+    active, snoozed, active_error: activeError,
+    can_snooze: Boolean(active && captured && profile.timer === "active" && !activeError && scriptAvailable("snooze")
+      && scriptAvailable("resume_snooze") && index.has("input_text.clock_radio_snoozed_alarm")
+      && !["unknown", "unavailable"].includes(index.get("input_text.clock_radio_snoozed_alarm").state)
+      && typeof snoozeAt === "number" && Number.isFinite(snoozeAt)
+      && !["unknown", "unavailable"].includes(index.get("input_datetime.clock_radio_snooze_until")?.state)),
+    can_stop: scriptAvailable("stop"),
+    can_play: scriptAvailable("play_alarm"),
     playback_missing: ["player", "music_source", "buzzer_source"].filter((name) => {
       const state = index.get(`input_text.clock_radio_${name}`);
       return !state || ["unknown", "unavailable"].includes(state.state);

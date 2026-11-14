@@ -295,7 +295,8 @@ export function createAlarmPage(ctx) {
         : !alarm.setup_complete ? "Setup is incomplete. Finish setup before enabling."
         : !alarm.available ? `Missing or unavailable helpers: ${alarm.missing.join(", ")}.`
         : !canEditAlarm(alarm) ? "Invalid alarm settings. Check the Home Assistant helper values."
-        : alarm.timer === "active" ? `Alarm is running${alarm.finishes_at ? ` until ${new Date(alarm.finishes_at).toLocaleTimeString()}` : ""}.` : "");
+        : alarm.timer === "active" ? `Alarm is running${alarm.finishes_at ? ` until ${new Date(alarm.finishes_at).toLocaleTimeString()}` : ""}.`
+        : model.alarms.snoozed?.id === alarm.id ? `Snoozed until ${new Date(model.alarms.snoozed.until).toLocaleTimeString()}.` : "");
       record.resume.hidden = alarm.id <= 2 || (alarm.available && alarm.setup_complete);
       record.resume.disabled = busy || !ctx.canControl() || !model.alarms.can_create || alarm.enabled;
     }
@@ -304,8 +305,10 @@ export function createAlarmPage(ctx) {
     addInfo.textContent = incomplete ? "Finish setting up the incomplete alarm before adding another."
       : model.alarms.can_create ? "Alarms run in Home Assistant. New alarms start disabled."
       : "Update the HA alarm package to the dynamic scheduler to enable Add alarm.";
-    stop.hidden = !model.alarms.active_player;
+    stop.hidden = !model.alarms.active_player && !model.alarms.snoozed;
+    stop.textContent = model.alarms.snoozed ? "Cancel snoozed alarm" : "Stop active alarm";
     stop.disabled = busy || !ctx.canControl() || !model.alarms.can_stop;
+    if (model.alarms.active_error) pageStatus.textContent = model.alarms.active_error;
     updateEditor(model, busy);
   }
   return { el, update, closeEditor };

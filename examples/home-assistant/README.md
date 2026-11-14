@@ -18,7 +18,7 @@ entities cards remain an alternative.
 
 2. Copy `clock_radio_alarms.yaml` into that `packages` directory. Do not overwrite
    another package or duplicate an existing `homeassistant:` section.
-3. Check configuration. Reload input booleans, numbers, selects, text, timers,
+3. Check configuration. Reload input booleans, numbers, selects, text, date/time, timers,
    templates, scripts and automations; restart HA if a required integration has
    not previously been loaded.
 4. Run `script.clock_radio_initialize` once. It is guarded by
@@ -72,6 +72,35 @@ with `script.clock_radio_stop`; disabling its schedule only prevents future
 starts. Automatic/manual stop restores the speaker's previous volume and repeat
 setting, but does **not** restore an interrupted queue or resume previous music.
 
+## Ringing screen and 10-minute Snooze
+
+The app automatically shows a dedicated ringing screen, not the ordinary music
+artwork player. Both alarm types offer **Snooze** and **slide to stop**; Music
+also has a mini player. Drag the stop knob to the right and release (at least
+90% travel), or press End then Enter. Escape/page navigation does not dismiss
+the screen. It returns to the previous page when HA confirms the alarm ended.
+The wake countdown remains separate from the fixed **10-minute** snooze.
+
+For an existing installation, replace this package including its new helpers,
+check configuration and reload the affected integrations. It now exposes
+`sensor.clock_radio_alarm_scheduler_version: 3`. Add
+`input_text.clock_radio_active_alarm`, `input_text.clock_radio_snoozed_alarm`
+and `input_datetime.clock_radio_snooze_until`; do not reset existing profile or
+initialization helpers. Restart HA if date/time helpers were not loaded before.
+Older packages retain Stop and the ringing screen, but cannot Snooze.
+
+`script.clock_radio_snooze` captures the ringing profile/type, stops playback
+and restores the speaker, then persists a deadline 600 seconds away.
+`script.clock_radio_resume_snooze` starts it once when due, even if its schedule
+is disabled. The captured type is preserved through edits; current
+volume/duration and shared speaker/source settings are used when it resumes.
+The app may be closed. Future deadlines survive HA restarts; overdue snoozes
+resume once during startup. A new alarm or `script.clock_radio_stop` cancels a
+pending snooze. The app exposes **Cancel snoozed alarm** in Alarm configuration
+and shows the snooze deadline as the next alarm when earlier than the schedule.
+Do not manually edit the captured JSON helper values.
+
 Countdowns restore on HA restart, and startup cleanup stops any alarm that was
-active before the restart. For critical wake-ups, keep an independent backup:
+active before the restart without cancelling a pending snooze.
+For critical wake-ups, keep an independent backup:
 HA, Music Assistant, the network and speaker must all be available.

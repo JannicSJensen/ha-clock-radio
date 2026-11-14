@@ -271,6 +271,20 @@ export class Dashboard {
     await this.refresh();
   }
 
+  async snoozeAlarm(body) {
+    await this.mutationReady();
+    if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length) throw new RequestError("Snooze alarm takes an empty object.");
+    if (!alarmSnapshot(this.states).can_snooze) throw new RequestError("No alarm can be snoozed. Update the HA alarm package and check that an alarm is ringing.", 409);
+    try {
+      await this.ha.callService("script", "clock_radio_snooze", {});
+    } catch (error) {
+      this.logger.warn(`Alarm snooze failed: ${error.message}`);
+      await this.refresh();
+      throw new RequestError("The alarm could not be snoozed. Check the HA snooze script and try again.", 502);
+    }
+    await this.refresh();
+  }
+
   async playRadio(body) {
     await this.mutationReady();
     if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some((key) => !["entity_id", "station_id"].includes(key))) throw new RequestError("Invalid radio request.");

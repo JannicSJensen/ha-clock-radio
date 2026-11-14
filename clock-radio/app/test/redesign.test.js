@@ -210,7 +210,7 @@ test("four-page HTTP integration browses Dasher music, plays only registered ite
 
 test("every new mutation rejects read-only and cross-site requests before touching HA or YAML", async (t) => {
   const app = await setup(t);
-  const routes = ["api/settings/clock", "api/settings/alarm", "api/settings/alarm-playback", "api/alarm/stop", "api/radio/play", "api/music/play", "api/alarm/create"];
+  const routes = ["api/settings/clock", "api/settings/alarm", "api/settings/alarm-playback", "api/alarm/stop", "api/alarm/snooze", "api/radio/play", "api/music/play", "api/alarm/create"];
   const before = fs.readFileSync(app.store.file, "utf8");
   const count = app.calls.length;
   app.dashboard.readOnly = true;
@@ -220,6 +220,70 @@ test("every new mutation rejects read-only and cross-site requests before touchi
   assert.equal(app.calls.length, count);
   assert.equal(fs.readFileSync(app.store.file, "utf8"), before);
   assert.equal((await fetch(`${app.url}/api/settings/alarm`)).status, 405);
+});
+
+test("ringing alarm API snoozes both types for 600 seconds, exposes the next wake and cancels cleanly", async (t) => {
+  const app = await setup(t);
+  assert.equal((await app.post("api/alarm/snooze", {})).status, 409);
+  for (const [id, type] of [[1, "Music"], [2, "Buzzer"]]) {
+    app.startAlarm(id);
+    await app.dashboard.refresh();
+    const before = Date.now();
+    assert.equal((await app.get("api/state")).alarms.active.type, type);
+    assert.equal((await app.post("api/alarm/snooze", { minutes: 10 })).status, 400);
+    assert.equal((await app.post("api/alarm/snooze", {})).status, 200);
+    const state = await app.get("api/state");
+    assert.equal(state.alarms.active, null);
+    assert.equal(state.alarms.active_player, "");
+    assert.equal(state.alarms.snoozed.type, type);
+    assert.equal(state.alarms.snoozed.id, id);
+    assert.ok(Math.abs(Date.parse(state.alarms.snoozed.until) - before - 600000) < 1500);
+    assert.equal(state.clock.alarm, state.alarms.snoozed.until);
+    assert.equal(state.players[0].state, "idle");
+    assert.equal(state.players[0].volume_level, 0.3);
+    assert.equal(state.players[0].attributes.repeat, "off");
+    assert.equal(app.calls.at(-1).service, "clock_radio_snooze");
+    const restarted = new Dashboard({ ha: app.ha, configStore: app.store, mediaPlayer: "media_player.bedroom", logger: quiet });
+    await restarted.refresh();
+    assert.deepEqual(restarted.payload().alarms.snoozed, state.alarms.snoozed);
+    app.states.find((item) => item.entity_id === `input_select.clock_radio_alarm_${id}_type`).state = type === "Music" ? "Buzzer" : "Music";
+    app.advanceAlarms(Date.parse(state.alarms.snoozed.until));
+    await app.dashboard.refresh();
+    const resumed = (await app.get("api/state")).alarms;
+    assert.equal(resumed.active.type, type, "Snooze resumes the captured type, not an edited profile type");
+    assert.equal(resumed.snoozed, null);
+    assert.equal((await app.post("api/alarm/snooze", {})).status, 200);
+    assert.equal((await app.post("api/alarm/stop", {})).status, 200);
+    assert.equal((await app.get("api/state")).alarms.snoozed, null);
+  }
+  app.startAlarm(1);
+  await app.dashboard.refresh();
+  assert.equal((await app.post("api/alarm/stop", {})).status, 200);
+  const stopped = (await app.get("api/state")).alarms;
+  assert.equal(stopped.active, null);
+  assert.equal(stopped.active_player, "");
+  assert.ok(stopped.alarms.every((alarm) => alarm.timer === "idle"));
+});
+
+test("snooze failures and disconnected HA return explicit errors without inventing a successful stop", async (t) => {
+  const app = await setup(t);
+  app.startAlarm(2);
+  await app.dashboard.refresh();
+  const original = app.ha.callService.bind(app.ha);
+  app.ha.callService = async (domain, service, data) => {
+    if (service === "clock_radio_snooze") {
+      app.states.find((state) => state.entity_id === "timer.clock_radio_alarm_2").state = "idle";
+      throw new Error("Snooze speaker cleanup failed after cancelling the timer");
+    }
+    return original(domain, service, data);
+  };
+  const failed = await app.post("api/alarm/snooze", {});
+  assert.equal(failed.status, 502);
+  assert.match((await failed.json()).error, /could not be snoozed/);
+  assert.equal((await app.get("api/state")).alarms.active.type, "Buzzer");
+  assert.equal((await app.get("api/state")).alarms.can_snooze, false);
+  app.ha.states = async () => { throw new Error("HA offline"); };
+  assert.equal((await app.post("api/alarm/snooze", {})).status, 503);
 });
 
 test("clock configuration saves preserve comments, unrelated YAML and invalid user edits", async (t) => {

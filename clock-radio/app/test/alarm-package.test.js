@@ -24,7 +24,7 @@ test("alarm package contains independent persistent Music/Buzzer profiles", () =
     assert.equal(config.timer[prefix].restore, true);
     assert.ok(config.template[0].sensor.some((sensor) => sensor.unique_id === `${prefix}_wake_time`));
   }
-  for (const domain of ["input_boolean", "input_number", "input_select", "input_text"]) {
+  for (const domain of ["input_boolean", "input_number", "input_select", "input_text", "input_datetime"]) {
     for (const helper of Object.values(config[domain])) {
       assert.ok(!Object.hasOwn(helper, "initial"), "User choices must survive restarts");
     }
@@ -43,7 +43,7 @@ test("initialization is guarded, schedules use weekdays and HH:MM, and timer/sta
   assert.deepEqual(config.script.clock_radio_play_alarm.fields.alarm.selector, { text: { multiline: false } },
     "HA package merging must retain the selector type instead of dropping an empty mapping");
   assert.match(config.script.clock_radio_cleanup.sequence[0].target.entity_id, /states.timer/);
-  assert.equal(config.template[0].sensor.find((sensor) => sensor.unique_id === "clock_radio_alarm_scheduler_version").state, "2");
+  assert.equal(config.template[0].sensor.find((sensor) => sensor.unique_id === "clock_radio_alarm_scheduler_version").state, "3");
   for (const required of ["_enabled", "weekday", "_hour", "_minute", "is_number"]) {
     assert.ok(loop.sequence[1].if.includes(required));
   }
@@ -54,6 +54,36 @@ test("initialization is guarded, schedules use weekdays and HH:MM, and timer/sta
   assert.ok(play.find((item) => item.action === "music_assistant.play_media"));
   assert.ok(play.find((item) => item.wait_template));
   assert.ok(play.at(-1).then.some((item) => item.action === "persistent_notification.create"));
+});
+
+test("ringing context is captured, 10-minute snooze survives restart and stop/new alarms cancel it", () => {
+  for (const helper of ["clock_radio_active_alarm", "clock_radio_snoozed_alarm"]) assert.equal(config.input_text[helper].max, 255);
+  assert.deepEqual(config.input_datetime.clock_radio_snooze_until, {
+    name: "Clock Radio snooze until", has_date: true, has_time: true,
+  });
+  const play = config.script.clock_radio_play_alarm.sequence;
+  const capture = play.find((step) => step.target?.entity_id === "input_text.clock_radio_active_alarm");
+  assert.match(capture.data.value, /'id': alarm/);
+  assert.match(capture.data.value, /'type': kind/);
+  assert.match(capture.data.value, /started_at/);
+  assert.ok(play.indexOf(capture) > play.findIndex((step) => step.action === "timer.start"));
+  const snooze = config.script.clock_radio_snooze.sequence;
+  assert.equal(snooze.find((step) => step.action === "script.clock_radio_cleanup").action, "script.clock_radio_cleanup");
+  assert.equal(snooze.find((step) => step.action === "input_datetime.set_datetime").data.timestamp, "{{ as_timestamp(now()) + 600 }}");
+  assert.equal(snooze.at(-1).target.entity_id, "input_text.clock_radio_snoozed_alarm");
+  assert.match(snooze[1].if, /'active'/);
+  assert.equal(snooze[1].then[0].error, true);
+  const resume = config.script.clock_radio_resume_snooze.sequence;
+  assert.match(resume[1].value_template, /<= as_timestamp\(now\(\)\)/);
+  assert.equal(resume.at(-1).data.variables.alarm_type, "{{ snoozed['type'] }}");
+  assert.equal(resume.at(-2).target.entity_id, "input_text.clock_radio_snoozed_alarm");
+  assert.equal(config.automation.find((item) => item.id === "clock_radio_snooze_finished").triggers[0].at, "input_datetime.clock_radio_snooze_until");
+  assert.equal(config.automation.find((item) => item.id === "clock_radio_startup").actions.at(-1).action, "script.clock_radio_resume_snooze");
+  const clearsPending = (step) => step.target?.entity_id === "input_text.clock_radio_snoozed_alarm" && step.data?.value === "";
+  assert.ok(config.script.clock_radio_stop.sequence.some(clearsPending));
+  assert.ok(play.some(clearsPending));
+  assert.ok(!config.script.clock_radio_cleanup.sequence.some(clearsPending), "Startup cleanup must preserve a future snooze");
+  assert.match(config.automation.find((item) => item.id === "clock_radio_auto_stop").conditions[0].value_template, /clock_radio_active_alarm/);
 });
 
 test("native alarm cards reference only entities supplied by the package", () => {

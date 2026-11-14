@@ -33,7 +33,12 @@ stations:
     media_content_id: https://example.com/night.mp3
 `);
 }
-const { server: mock, ws } = createDemoAPI();
+const demo = createDemoAPI();
+if (process.env.DEMO_ALARM) {
+  if (!["Music", "Buzzer"].includes(process.env.DEMO_ALARM)) throw new Error("DEMO_ALARM must be Music or Buzzer.");
+  demo.startAlarm(process.env.DEMO_ALARM === "Music" ? 1 : 2);
+}
+const { server: mock, ws } = demo;
 // Keep mock connections alive longer than the dashboard's five-second poll.
 mock.keepAliveTimeout = 60_000;
 mock.headersTimeout = 65_000;

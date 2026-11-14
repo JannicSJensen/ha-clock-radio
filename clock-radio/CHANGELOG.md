@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0
+
+- Automatically show a dedicated ringing-alarm screen with large time, an
+  Apple-inspired buzzer layout, and an artwork/metadata mini player for Music.
+- Add deliberate slide-to-stop with pointer cancellation, keyboard confirmation,
+  explicit failures, HA-confirmed dismissal and previous-page restoration.
+  Ordinary music never triggers the alarm screen.
+- Add HA-backed 10-minute Snooze for both types, persistent through app/HA
+  restarts, plus pending-snooze cancellation and next-alarm display.
+- Capture the actual ringing profile/type in HA package version 3. Update the
+  package including its new text/date-time helpers to enable Snooze; older
+  packages retain the ringing screen and Stop without Snooze.
+
 ## 0.6.0
 
 - Redesign Alarm configuration with a compact large-time list, immediate enable

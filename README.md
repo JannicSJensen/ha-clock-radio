@@ -54,8 +54,11 @@ Room-light mode reads an **HA illuminance sensor**, not an Android hardware
 sensor. Alarms run inside HA, even with the tablet closed. Opening the app does
 not enable alarms or reset their times. Changing the configured media player
 safely updates the shared HA speaker helper. Playback happens on your HA
-speaker, not the tablet. The artwork player opens only when requested, so alarm
-music does not take you away from the clock.
+speaker, not the tablet. The ordinary artwork player opens only when requested.
+Ringing alarms automatically open a dedicated large-time screen: Music adds a
+mini player, and both types offer slide-to-stop and HA-backed 10-minute Snooze.
+Install/update the [HA alarm package](examples/home-assistant/README.md) for Snooze;
+the previous page returns when the alarm ends.
 
 ## Install
 
@@ -95,6 +98,8 @@ The demo creates ignored configuration under `clock-radio/app/dev/config/`.
 It starts fictional HA and Music Assistant APIs on a free loopback port and
 stops them when the app exits. Both demo alarms start disabled.
 `PORT=8101 npm run dev` selects another dashboard port.
+`DEMO_ALARM=Buzzer npm run dev` or `DEMO_ALARM=Music npm run dev` starts a
+fictional ringing alarm for testing the dedicated screen and Snooze.
 
 For real Home Assistant development:
 

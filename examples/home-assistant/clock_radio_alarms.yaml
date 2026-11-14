@@ -124,6 +124,18 @@ input_text:
   clock_radio_active_player:
     name: Clock Radio active speaker
     max: 100
+  clock_radio_active_alarm:
+    name: Clock Radio ringing alarm
+    max: 255
+  clock_radio_snoozed_alarm:
+    name: Clock Radio snoozed alarm
+    max: 255
+
+input_datetime:
+  clock_radio_snooze_until:
+    name: Clock Radio snooze until
+    has_date: true
+    has_time: true
 
 timer:
   clock_radio_alarm_1:
@@ -137,7 +149,7 @@ template:
   - sensor:
       - name: Clock Radio Alarm Scheduler Version
         unique_id: clock_radio_alarm_scheduler_version
-        state: "2"
+        state: "3"
       - name: Clock Radio Alarm 1 Wake Time
         unique_id: clock_radio_alarm_1_wake_time
         icon: mdi:eye
@@ -252,11 +264,13 @@ script:
               entity_id: "{{ player }}"
             data:
               volume_level: "{{ states('input_number.clock_radio_previous_volume') | float / 100 }}"
-          - action: input_text.set_value
-            target:
-              entity_id: input_text.clock_radio_active_player
-            data:
-              value: ""
+      - action: input_text.set_value
+        target:
+          entity_id:
+            - input_text.clock_radio_active_player
+            - input_text.clock_radio_active_alarm
+        data:
+          value: ""
 
   clock_radio_stop:
     alias: Clock Radio - stop alarm
@@ -265,8 +279,71 @@ script:
     sequence:
       - action: script.turn_off
         target:
+          entity_id:
+            - script.clock_radio_play_alarm
+            - script.clock_radio_snooze
+            - script.clock_radio_resume_snooze
+      - action: script.clock_radio_cleanup
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.clock_radio_snoozed_alarm
+        data:
+          value: ""
+
+  clock_radio_snooze:
+    alias: Clock Radio - snooze alarm for 10 minutes
+    icon: mdi:alarm-snooze
+    mode: single
+    sequence:
+      - variables:
+          ringing: "{{ states('input_text.clock_radio_active_alarm') | from_json({}) }}"
+      - if: >-
+          {{ not ((ringing.get('id', '') | string) is match('^[1-9][0-9]*$'))
+             or ringing.get('type') not in ['Music', 'Buzzer']
+             or not is_state('timer.clock_radio_alarm_' ~ ringing.get('id', ''), 'active')
+             or not (states('input_text.clock_radio_active_player') is match('^media_player\\.[a-z0-9_]+$')) }}
+        then:
+          - stop: No ringing Clock Radio alarm to snooze.
+            error: true
+      - action: script.turn_off
+        target:
           entity_id: script.clock_radio_play_alarm
       - action: script.clock_radio_cleanup
+      - action: input_datetime.set_datetime
+        target:
+          entity_id: input_datetime.clock_radio_snooze_until
+        data:
+          timestamp: "{{ as_timestamp(now()) + 600 }}"
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.clock_radio_snoozed_alarm
+        data:
+          value: "{{ ringing | to_json }}"
+
+  clock_radio_resume_snooze:
+    alias: Clock Radio - resume a due snooze
+    mode: single
+    sequence:
+      - variables:
+          snoozed: "{{ states('input_text.clock_radio_snoozed_alarm') | from_json({}) }}"
+      - condition: template
+        value_template: >-
+          {{ (snoozed.get('id', '') | string) is match('^[1-9][0-9]*$')
+             and snoozed.get('type') in ['Music', 'Buzzer']
+             and state_attr('input_datetime.clock_radio_snooze_until', 'timestamp') is number
+             and state_attr('input_datetime.clock_radio_snooze_until', 'timestamp') <= as_timestamp(now()) }}
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.clock_radio_snoozed_alarm
+        data:
+          value: ""
+      - action: script.turn_on
+        target:
+          entity_id: script.clock_radio_play_alarm
+        data:
+          variables:
+            alarm: "{{ snoozed['id'] }}"
+            alarm_type: "{{ snoozed['type'] }}"
 
   clock_radio_play_alarm:
     alias: Clock Radio - play alarm
@@ -280,6 +357,11 @@ script:
           # Package merging drops empty selector mappings.
           text:
             multiline: false
+      alarm_type:
+        name: Captured alarm type (snooze only)
+        selector:
+          select:
+            options: [Music, Buzzer]
     sequence:
       - if: "{{ not ((alarm | default('') | string) is match('^[1-9][0-9]*$')) }}"
         then:
@@ -288,7 +370,7 @@ script:
       - variables:
           prefix: "{{ 'clock_radio_alarm_' ~ alarm }}"
           player: "{{ states('input_text.clock_radio_player') }}"
-          kind: "{{ states('input_select.' ~ prefix ~ '_type') }}"
+          kind: "{{ alarm_type | default(states('input_select.' ~ prefix ~ '_type')) }}"
           source: >-
             {{ states('input_text.clock_radio_music_source' if kind == 'Music'
                       else 'input_text.clock_radio_buzzer_source') }}
@@ -308,6 +390,14 @@ script:
               message: Check the speaker, Music/Buzzer source, volume and duration helpers.
           - stop: Invalid Clock Radio configuration. See the persistent notification.
             error: true
+      - action: script.turn_off
+        target:
+          entity_id: script.clock_radio_snooze
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.clock_radio_snoozed_alarm
+        data:
+          value: ""
       - action: script.clock_radio_cleanup
       - action: input_number.set_value
         target:
@@ -329,6 +419,11 @@ script:
           entity_id: "{{ 'timer.' ~ prefix }}"
         data:
           duration: "{{ (states('input_number.' ~ prefix ~ '_duration') | int) * 60 }}"
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.clock_radio_active_alarm
+        data:
+          value: "{{ {'id': alarm | int, 'type': kind, 'started_at': now().isoformat()} | to_json }}"
       - action: media_player.repeat_set
         target:
           entity_id: "{{ player }}"
@@ -401,9 +496,18 @@ automation:
         event_type: timer.finished
     conditions:
       - condition: template
-        value_template: "{{ trigger.event.data.entity_id is match('^timer[.]clock_radio_alarm_[1-9][0-9]*$') }}"
+        value_template: >-
+          {{ trigger.event.data.entity_id == 'timer.clock_radio_alarm_' ~
+             (states('input_text.clock_radio_active_alarm') | from_json({})).get('id', '') }}
     actions:
       - action: script.clock_radio_stop
+  - id: clock_radio_snooze_finished
+    alias: Clock Radio - ring after snooze
+    triggers:
+      - trigger: time
+        at: input_datetime.clock_radio_snooze_until
+    actions:
+      - action: script.clock_radio_resume_snooze
   - id: clock_radio_startup
     alias: Clock Radio - initialize and clean up after restart
     triggers:
@@ -412,3 +516,4 @@ automation:
     actions:
       - action: script.clock_radio_initialize
       - action: script.clock_radio_cleanup
+      - action: script.clock_radio_resume_snooze

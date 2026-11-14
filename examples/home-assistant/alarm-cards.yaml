@@ -75,4 +75,5 @@ cards:
       - input_text.clock_radio_player
       - input_text.clock_radio_music_source
       - input_text.clock_radio_buzzer_source
+      - script.clock_radio_snooze
       - script.clock_radio_stop

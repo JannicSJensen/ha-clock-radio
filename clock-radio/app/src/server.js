@@ -56,7 +56,7 @@ export function createServer({ dashboard, webRoot, logger = console }) {
         "/api/command": "command", "/api/settings/clock": "saveClock",
         "/api/settings/alarm": "saveAlarm", "/api/settings/alarm-playback": "saveAlarmPlayback",
         "/api/alarm/create": "createAlarm",
-        "/api/alarm/stop": "stopAlarm", "/api/radio/play": "playRadio",
+        "/api/alarm/stop": "stopAlarm", "/api/alarm/snooze": "snoozeAlarm", "/api/radio/play": "playRadio",
         "/api/music/play": "playMusic",
       };
       if (Object.hasOwn(mutations, pathname)) {

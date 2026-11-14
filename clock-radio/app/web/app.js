@@ -5,6 +5,7 @@ import { makeTranslator } from "./js/lib/i18n.js";
 import { createMusicPage } from "./js/pages/music.js";
 import { createNowPlayingScreen } from "./js/components/nowplaying-screen.js";
 import { createSettingsPages } from "./js/pages/settings.js";
+import { createAlarmScreen } from "./js/components/alarm-screen.js";
 
 const $ = (id) => document.getElementById(id);
 const frame = $("clock-frame");
@@ -15,6 +16,7 @@ let musicPage = null;
 let musicSignature = "";
 let settingsPages = null;
 let nowPlaying = null;
+let alarmScreen = null;
 let clockSignature = "";
 let clockRevision = 0;
 let clockDataSignature = "";
@@ -39,7 +41,7 @@ const ctx = {
   musicPlayers: () => model?.music.players ?? [],
   stations: () => model?.music.stations ?? [],
   navigate: (page) => { location.hash = page; },
-  openNowPlaying: (id) => nowPlaying?.open(id),
+  openNowPlaying: (id) => !alarmScreen?.isOpen && nowPlaying?.open(id),
   playRadio: (entity_id, station_id) => write("api/radio/play", { entity_id, station_id }),
   playMusic: (entity_id, request) => write("api/music/play", { ...request, entity_id }),
   call: (domain, action, entity_id, data = {}) => {
@@ -62,6 +64,10 @@ function policy() {
 new MutationObserver(policy).observe($("page-music"), { subtree: true, childList: true });
 
 function navigate() {
+  if (alarmScreen?.isOpen) {
+    history.replaceState(null, "", `#${current}`);
+    return;
+  }
   current = Object.hasOwn(PAGES, location.hash.slice(1)) ? location.hash.slice(1) : "clock";
   if (current !== "alarms") settingsPages?.closeAlarmEditor();
   for (const page of Object.keys(PAGES)) $(`page-${page}`).hidden = page !== current;
@@ -81,7 +87,7 @@ function changePage(step) {
 }
 
 function changeClockView(panel, step) {
-  if (!model || current !== "clock" || !["face", "widget"].includes(panel)) return;
+  if (!model || alarmScreen?.isOpen || current !== "clock" || !["face", "widget"].includes(panel)) return;
   if (pending) return toast("Please wait for the current save to finish.");
   const views = panel === "face" ? ["analog", "analog-round", "digital"] : ["calendar", "weather", "date", "date-calendar"];
   const value = views[(Math.max(0, views.indexOf(model.config.clock[panel])) + step + views.length) % views.length];
@@ -140,6 +146,19 @@ function render() {
   musicPage.update();
   nowPlaying.update();
   settingsPages.update(model, pending > 0);
+  if (!alarmScreen) {
+    alarmScreen = createAlarmScreen(ctx, {
+      onOpen: () => {
+        settingsPages.closeAlarmEditor();
+        nowPlaying.close({ dismiss: true });
+        document.body.classList.remove("is-night");
+        frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: false }, location.origin);
+      },
+      onClose: navigate,
+    });
+    document.body.append(alarmScreen.el);
+  }
+  alarmScreen.update(model, pending > 0);
   policy();
   if (!getPref("touch-navigation-hint")) {
     toast("Swipe up/down between pages (scroll to the edge first). Swipe left/right within clock panels. Keyboard: Page Up/Down.");
@@ -173,6 +192,7 @@ async function write(url, data) {
   pending++;
   notice("command-error", "");
   settingsPages?.update(model, true);
+  alarmScreen?.update(model, true);
   try {
     await postJson(url, data);
     await poll();
@@ -185,16 +205,17 @@ async function write(url, data) {
   } finally {
     pending--;
     settingsPages?.update(model, pending > 0);
+    alarmScreen?.update(model, pending > 0);
   }
 }
 
 frame.addEventListener("load", () => {
-  frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" }, location.origin);
+  frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" && !alarmScreen?.isOpen }, location.origin);
   if (model) frame.contentWindow?.postMessage({ type: "clock-radio-data", options: model.clock }, location.origin);
 });
 addEventListener("message", (event) => {
   if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
-  if (event.data?.type === "clock-radio-night") document.body.classList.toggle("is-night", current === "clock" && event.data.active === true);
+  if (event.data?.type === "clock-radio-night") document.body.classList.toggle("is-night", current === "clock" && !alarmScreen?.isOpen && event.data.active === true);
   if (![1, -1].includes(event.data?.step)) return;
   if (event.data.type === "clock-radio-page") changePage(event.data.step);
   if (event.data.type === "clock-radio-view") changeClockView(event.data.panel, event.data.step);

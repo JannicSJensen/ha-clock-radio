@@ -129,6 +129,8 @@ export class ClockData {
         catch (error) { alarmError = error.message; }
       }
     } else alarm = nextAlarmAt(alarms.alarms, haZone || zone, this.now());
+    const snooze = alarms.snoozed?.until;
+    if (snooze && Date.parse(snooze) > this.now() && (!alarm || Date.parse(snooze) < Date.parse(alarm))) alarm = snooze;
     const weatherAvailable = weather && !["unknown", "unavailable"].includes(weather.state);
     return {
       layout: settings.layout, clock: settings.layout === "full" ? settings.full_face : settings.face,
