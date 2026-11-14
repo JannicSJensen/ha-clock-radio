@@ -10,6 +10,12 @@ input_boolean:
   clock_radio_alarm_2_enabled:
     name: Clock Radio Alarm 2
     icon: mdi:alarm
+  clock_radio_alarm_1_deleted:
+    name: Clock Radio Alarm 1 deleted
+    icon: mdi:delete
+  clock_radio_alarm_2_deleted:
+    name: Clock Radio Alarm 2 deleted
+    icon: mdi:delete
   clock_radio_alarm_1_monday:
     name: Alarm 1 Monday
   clock_radio_alarm_1_tuesday:
@@ -130,6 +136,9 @@ input_text:
   clock_radio_snoozed_alarm:
     name: Clock Radio snoozed alarm
     max: 255
+  clock_radio_deleting_alarm:
+    name: Clock Radio alarm deletion in progress
+    max: 20
 
 input_datetime:
   clock_radio_snooze_until:
@@ -149,7 +158,7 @@ template:
   - sensor:
       - name: Clock Radio Alarm Scheduler Version
         unique_id: clock_radio_alarm_scheduler_version
-        state: "3"
+        state: "4"
       - name: Clock Radio Alarm 1 Wake Time
         unique_id: clock_radio_alarm_1_wake_time
         icon: mdi:eye
@@ -332,11 +341,25 @@ script:
              and snoozed.get('type') in ['Music', 'Buzzer']
              and state_attr('input_datetime.clock_radio_snooze_until', 'timestamp') is number
              and state_attr('input_datetime.clock_radio_snooze_until', 'timestamp') <= as_timestamp(now()) }}
+      - if: >-
+          {{ not has_value('input_text.clock_radio_deleting_alarm')
+             or not (states('input_text.clock_radio_deleting_alarm') == ''
+                     or states('input_text.clock_radio_deleting_alarm') is match('^[1-9][0-9]*$'))
+             or (snoozed['id'] | int <= 2
+                 and states('input_boolean.clock_radio_alarm_' ~ snoozed['id'] ~ '_deleted') not in ['on', 'off']) }}
+        then:
+          - stop: Invalid alarm deletion helpers. Repair them before resuming Snooze.
+            error: true
       - action: input_text.set_value
         target:
           entity_id: input_text.clock_radio_snoozed_alarm
         data:
           value: ""
+      - if: >-
+          {{ states('input_text.clock_radio_deleting_alarm') == snoozed['id'] | string
+             or is_state('input_boolean.clock_radio_alarm_' ~ snoozed['id'] ~ '_deleted', 'on') }}
+        then:
+          - stop: A deleted alarm cannot resume its snooze.
       - action: script.turn_on
         target:
           entity_id: script.clock_radio_play_alarm
@@ -344,6 +367,79 @@ script:
           variables:
             alarm: "{{ snoozed['id'] }}"
             alarm_type: "{{ snoozed['type'] }}"
+
+  clock_radio_prepare_delete:
+    alias: Clock Radio - prepare safe alarm deletion
+    mode: single
+    fields:
+      alarm:
+        name: Alarm number
+        required: true
+        selector:
+          text:
+            multiline: false
+    sequence:
+      - if: >-
+          {{ not ((alarm | default('') | string) is match('^[1-9][0-9]*$'))
+             or not has_value('input_text.clock_radio_deleting_alarm')
+             or states('input_text.clock_radio_deleting_alarm') not in ['', alarm | string] }}
+        then:
+          - stop: Invalid alarm or another alarm deletion is unfinished.
+            error: true
+      - variables:
+          prefix: "{{ 'clock_radio_alarm_' ~ alarm }}"
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.clock_radio_deleting_alarm
+        data:
+          value: "{{ alarm | string }}"
+      - if: "{{ has_value('input_boolean.' ~ prefix ~ '_enabled') }}"
+        then:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: "{{ 'input_boolean.' ~ prefix ~ '_enabled' }}"
+      - if: "{{ has_value('input_boolean.' ~ prefix ~ '_initialized') }}"
+        then:
+          - action: input_boolean.turn_off
+            target:
+              entity_id: "{{ 'input_boolean.' ~ prefix ~ '_initialized' }}"
+      - wait_template: >-
+          {{ not is_state('script.clock_radio_play_alarm', 'on')
+             and not is_state('script.clock_radio_snooze', 'on')
+             and not is_state('script.clock_radio_resume_snooze', 'on') }}
+        timeout: "00:00:30"
+        continue_on_timeout: false
+      - variables:
+          active: "{{ states('input_text.clock_radio_active_alarm') | from_json({}) }}"
+          snoozed: "{{ states('input_text.clock_radio_snoozed_alarm') | from_json({}) }}"
+      - if: >-
+          {{ (states('input_text.clock_radio_active_alarm') != ''
+              and (active is not mapping or not ((active.get('id', '') | string) is match('^[1-9][0-9]*$'))))
+             or (states('input_text.clock_radio_snoozed_alarm') != ''
+              and (snoozed is not mapping or not ((snoozed.get('id', '') | string) is match('^[1-9][0-9]*$')))) }}
+        then:
+          - stop: Invalid ringing or snoozed alarm data. Repair the HA helpers before deleting.
+            error: true
+      - if: "{{ active.get('id', '') | string == alarm | string }}"
+        then:
+          - if: "{{ not (states('input_text.clock_radio_active_player') is match('^media_player\\.[a-z0-9_]+$')) }}"
+            then:
+              - stop: The ringing alarm has no valid captured speaker.
+                error: true
+          - action: script.clock_radio_cleanup
+      - if: "{{ snoozed.get('id', '') | string == alarm | string }}"
+        then:
+          - action: input_text.set_value
+            target:
+              entity_id: input_text.clock_radio_snoozed_alarm
+            data:
+              value: ""
+      - if: >-
+          {{ states.timer | selectattr('entity_id', 'eq', 'timer.' ~ prefix) | list | count > 0 }}
+        then:
+          - action: timer.cancel
+            target:
+              entity_id: "{{ 'timer.' ~ prefix }}"
 
   clock_radio_play_alarm:
     alias: Clock Radio - play alarm
@@ -375,6 +471,16 @@ script:
             {{ states('input_text.clock_radio_music_source' if kind == 'Music'
                       else 'input_text.clock_radio_buzzer_source') }}
       - if: >-
+          {{ not has_value('input_text.clock_radio_deleting_alarm')
+             or not (states('input_text.clock_radio_deleting_alarm') == ''
+                     or states('input_text.clock_radio_deleting_alarm') is match('^[1-9][0-9]*$'))
+             or states('input_text.clock_radio_deleting_alarm') == alarm | string
+             or is_state('input_boolean.' ~ prefix ~ '_deleted', 'on')
+             or (alarm | int <= 2 and not is_state('input_boolean.' ~ prefix ~ '_deleted', 'off')) }}
+        then:
+          - stop: This alarm is deleted or deletion is in progress.
+            error: true
+      - if: >-
           {{ not (player is match('^media_player\\.[a-z0-9_]+$'))
              or states(player) in ['unknown', 'unavailable']
              or kind not in ['Music', 'Buzzer']
@@ -399,6 +505,12 @@ script:
         data:
           value: ""
       - action: script.clock_radio_cleanup
+      - if: >-
+          {{ states('input_text.clock_radio_deleting_alarm') == alarm | string
+             or is_state('input_boolean.' ~ prefix ~ '_deleted', 'on') }}
+        then:
+          - stop: Alarm deletion started before playback.
+            error: true
       - action: input_number.set_value
         target:
           entity_id: input_number.clock_radio_previous_volume
@@ -476,6 +588,12 @@ automation:
                 weekday: "{{ ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'][now().weekday()] }}"
             - if: >-
                 {{ is_state('input_boolean.' ~ prefix ~ '_enabled', 'on')
+                   and has_value('input_text.clock_radio_deleting_alarm')
+                   and (states('input_text.clock_radio_deleting_alarm') == ''
+                        or states('input_text.clock_radio_deleting_alarm') is match('^[1-9][0-9]*$'))
+                   and states('input_text.clock_radio_deleting_alarm') != repeat.item
+                   and not is_state('input_boolean.' ~ prefix ~ '_deleted', 'on')
+                   and (repeat.item | int > 2 or is_state('input_boolean.' ~ prefix ~ '_deleted', 'off'))
                    and (repeat.item | int <= 2 or is_state('input_boolean.' ~ prefix ~ '_initialized', 'on'))
                    and is_state('input_boolean.' ~ prefix ~ '_' ~ weekday, 'on')
                    and is_number(states('input_number.' ~ prefix ~ '_hour'))

@@ -25,7 +25,9 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
    hour/minute wheels and circular repeat-day buttons. Install the
    [alarm package](examples/home-assistant/README.md)
    once; **Add alarm** creates additional persistent HA helpers and timers.
-   New alarms start disabled; existing profiles are not duplicated.
+   New alarms start disabled; existing profiles are not duplicated. **Delete**
+   confirms removal and stops/cancels that alarm. Bundled YAML profiles are
+   disabled/hidden; app-created native helpers are removed.
 4. **Settings** - persistent clock appearance, time/calendar, weather labels,
    night mode and Music Assistant connection guidance.
 
@@ -41,6 +43,21 @@ Set `weather_entity` there as well and restart the app to enable weather in
 the widget and full-screen clock. Weather selection is not in dashboard Settings.
 For automatic night colors, select **Sun (below horizon)** in Settings' Night
 mode. It follows HA's `sun.sun` entity without an automation or fixed schedule.
+
+## Screenshots
+
+These landscape screendumps show the app with configured, fictional demo data.
+No real Home Assistant data, credentials or audio are used. Your entities,
+station logos and clock appearance may differ.
+
+| The Clock: analog face and calendar | Music overview: Radio and now-playing bar |
+| --- | --- |
+| ![The Clock with an analog face and calendar widget](docs/screenshots/clock.png) | ![Music overview with radio station artwork and playback controls](docs/screenshots/music.png) |
+| **Alarm configuration: independent profiles** | **Settings: clock appearance** |
+| ![Alarm configuration with Music and Buzzer profiles](docs/screenshots/alarms.png) | ![Settings with clock layout, time, colors and weather guidance](docs/screenshots/settings.png) |
+
+The [illustrated configuration guide](clock-radio/DOCS.md) also shows the alarm
+editor, both ringing-alarm screens, Sun night-mode settings and artwork player.
 
 ## Foundation
 
@@ -103,6 +120,11 @@ stops them when the app exits. Both demo alarms start disabled.
 `DEMO_ALARM=Buzzer npm run dev` or `DEMO_ALARM=Music npm run dev` starts a
 fictional ringing alarm for testing the dedicated screen and Snooze.
 
+Documentation images live in `docs/screenshots/`. Retake them with the demo
+after UI changes, using a consistent landscape viewport and waiting for fonts
+and artwork to load. Use only fictional demo data, never a real HA installation
+or credentials.
+
 For real Home Assistant development:
 
 ```sh
@@ -136,6 +158,7 @@ clock-radio/
     examples/dashboard.yaml      first-run configuration
     dev/, test/                  fake HA and automated tests
 .github/workflows/ci.yaml         tests, app linter and Docker build
+docs/screenshots/                fictional demo screendumps for documentation
 ```
 
 For user-visible changes, run `npm version <version> --no-git-tag-version` in

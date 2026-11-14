@@ -12,12 +12,12 @@ export class HAClient {
     this.fetch = fetchImpl;
   }
 
-  async request(apiPath, body) {
+  async request(apiPath, body, { timeout = 8000 } = {}) {
     const response = await this.fetch(`${this.url}/api/${apiPath}`, {
       method: body === undefined ? "GET" : "POST",
       headers: { Authorization: `Bearer ${this.token}`, ...(body === undefined ? {} : { "Content-Type": "application/json" }) },
       body: body === undefined ? undefined : JSON.stringify(body),
-      signal: AbortSignal.timeout(8000),
+      signal: AbortSignal.timeout(timeout),
       redirect: "error",
     });
     if (!response.ok) throw new Error(`Home Assistant request failed (HTTP ${response.status}).`);
@@ -32,8 +32,8 @@ export class HAClient {
     return states;
   }
 
-  callService(domain, service, data) {
-    return this.request(`services/${domain}/${service}`, data);
+  callService(domain, service, data, options) {
+    return this.request(`services/${domain}/${service}`, data, options);
   }
 
   async callServiceWithResponse(domain, service, data) {

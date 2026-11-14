@@ -55,7 +55,7 @@ export function createServer({ dashboard, webRoot, logger = console }) {
       const mutations = {
         "/api/command": "command", "/api/settings/clock": "saveClock",
         "/api/settings/alarm": "saveAlarm", "/api/settings/alarm-playback": "saveAlarmPlayback",
-        "/api/alarm/create": "createAlarm",
+        "/api/alarm/create": "createAlarm", "/api/alarm/delete": "deleteAlarm",
         "/api/alarm/stop": "stopAlarm", "/api/alarm/snooze": "snoozeAlarm", "/api/radio/play": "playRadio",
         "/api/music/play": "playMusic",
       };

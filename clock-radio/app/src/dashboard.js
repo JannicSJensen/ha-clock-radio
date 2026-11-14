@@ -1,7 +1,7 @@
 import { RequestError } from "./errors.js";
 import crypto from "node:crypto";
 import { ClockData } from "./clock-data.js";
-import { alarmEntities, alarmSnapshot, canCreateAlarm, provisionAlarm, saveAlarm, validateAlarm, validatePlaybackSettings } from "./alarms.js";
+import { alarmEntities, alarmSnapshot, canCreateAlarm, deleteAlarm, provisionAlarm, saveAlarm, validateAlarm, validateDeleteAlarm, validatePlaybackSettings } from "./alarms.js";
 import { availableTabs } from "./music.js";
 import { fetchImage } from "./images.js";
 import { parseClockOptions } from "../web/js/lib/clock-options.js";
@@ -224,7 +224,7 @@ export class Dashboard {
       this.player(this.mediaPlayer);
       if (alarmSnapshot(this.states).player !== this.mediaPlayer) throw new RequestError("Apply the configured HA app speaker before enabling alarms.", 409);
     }
-    if (this.alarmWrites.has(id) || this.alarmWrites.has("playback") || this.alarmWrites.has("create")) throw new RequestError("An alarm is already being edited. Try again when the save finishes.", 409);
+    if (this.alarmWrites.has(id) || this.alarmWrites.has("playback") || this.alarmWrites.has("create") || this.alarmWrites.has("delete")) throw new RequestError("An alarm is already being edited. Try again when the save finishes.", 409);
     this.alarmWrites.add(id);
     try {
       await saveAlarm(this.ha, body, this.states, this.logger);
@@ -240,6 +240,20 @@ export class Dashboard {
     this.alarmWrites.add("create");
     try { return await provisionAlarm(this.ha, this.states, body, this.logger); }
     finally { this.alarmWrites.delete("create"); await this.refresh(); }
+  }
+
+  async deleteAlarm(body) {
+    await this.mutationReady();
+    validateDeleteAlarm(body);
+    if (this.alarmWrites.size) throw new RequestError("An alarm operation is already in progress. Wait for it to finish.", 409);
+    this.alarmWrites.add("delete");
+    try { return await deleteAlarm(this.ha, this.states, body, this.logger); }
+    finally {
+      try {
+        if (this.loading) await this.loading;
+        await this.refresh();
+      } finally { this.alarmWrites.delete("delete"); }
+    }
   }
 
   async saveAlarmPlayback(body) {
@@ -271,6 +285,7 @@ export class Dashboard {
 
   async stopAlarm(body) {
     await this.mutationReady();
+    if (this.alarmWrites.has("delete")) throw new RequestError("Wait for the alarm deletion to finish.", 409);
     if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length) throw new RequestError("Stop alarm takes an empty object.");
     if (!alarmSnapshot(this.states).can_stop) throw new RequestError("The alarm stop script is unavailable.", 409);
     await this.ha.callService("script", "turn_on", { entity_id: "script.clock_radio_stop" });
@@ -279,6 +294,7 @@ export class Dashboard {
 
   async snoozeAlarm(body) {
     await this.mutationReady();
+    if (this.alarmWrites.has("delete")) throw new RequestError("Wait for the alarm deletion to finish.", 409);
     if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length) throw new RequestError("Snooze alarm takes an empty object.");
     if (!alarmSnapshot(this.states).can_snooze) throw new RequestError("No alarm can be snoozed. Update the HA alarm package and check that an alarm is ringing.", 409);
     try {

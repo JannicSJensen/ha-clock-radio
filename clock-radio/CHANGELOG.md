@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.9.0
+
+- Add confirmed Delete actions to alarm rows and the editor, including incomplete
+  profiles. Keep alarm/Escape cancel without changing HA or an editor draft.
+- Stop/cancel only the selected profile's ringing playback, timer and Snooze.
+  Remove app-created native helpers; persistently disable/hide bundled YAML
+  profiles while retaining their definitions.
+- Require HA scheduler package version 4. Freeze deletions in a restoring helper,
+  verify cleanup, serialize conflicting writes and expose partial failures for
+  safe retry without recreating deleted helpers.
+- Add a screenshot gallery and illustrated configuration/deletion documentation
+  using fictional demo data only.
+
 ## 0.8.1
 
 - Accept the ready-made radio artwork URLs returned by Home Assistant's Music

@@ -27,6 +27,18 @@ test("HA failures and malformed state lists are explicit", async () => {
   }
 });
 
+test("deletion preparation extends its timeout without changing ordinary HA requests", async (t) => {
+  const timeouts = [];
+  t.mock.method(AbortSignal, "timeout", (timeout) => {
+    timeouts.push(timeout);
+    return new AbortController().signal;
+  });
+  const ha = new HAClient({ url: "http://ha", token: "test", fetchImpl: async () => new Response("[]") });
+  await ha.states();
+  await ha.callService("script", "clock_radio_prepare_delete", { alarm: 3 }, { timeout: 60000 });
+  assert.deepEqual(timeouts, [8000, 60000]);
+});
+
 test("HA connection rejects missing credentials and unsafe URLs", () => {
   for (const url of ["ftp://host", "http://user:pass@host", "http://host/?token=secret", undefined]) {
     assert.throws(() => new HAClient({ url, token: "test" }));

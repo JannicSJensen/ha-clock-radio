@@ -43,7 +43,7 @@ test("initialization is guarded, schedules use weekdays and HH:MM, and timer/sta
   assert.deepEqual(config.script.clock_radio_play_alarm.fields.alarm.selector, { text: { multiline: false } },
     "HA package merging must retain the selector type instead of dropping an empty mapping");
   assert.match(config.script.clock_radio_cleanup.sequence[0].target.entity_id, /states.timer/);
-  assert.equal(config.template[0].sensor.find((sensor) => sensor.unique_id === "clock_radio_alarm_scheduler_version").state, "3");
+  assert.equal(config.template[0].sensor.find((sensor) => sensor.unique_id === "clock_radio_alarm_scheduler_version").state, "4");
   for (const required of ["_enabled", "weekday", "_hour", "_minute", "is_number"]) {
     assert.ok(loop.sequence[1].if.includes(required));
   }
@@ -76,7 +76,7 @@ test("ringing context is captured, 10-minute snooze survives restart and stop/ne
   const resume = config.script.clock_radio_resume_snooze.sequence;
   assert.match(resume[1].value_template, /<= as_timestamp\(now\(\)\)/);
   assert.equal(resume.at(-1).data.variables.alarm_type, "{{ snoozed['type'] }}");
-  assert.equal(resume.at(-2).target.entity_id, "input_text.clock_radio_snoozed_alarm");
+  assert.ok(resume.some((step) => step.target?.entity_id === "input_text.clock_radio_snoozed_alarm"));
   assert.equal(config.automation.find((item) => item.id === "clock_radio_snooze_finished").triggers[0].at, "input_datetime.clock_radio_snooze_until");
   assert.equal(config.automation.find((item) => item.id === "clock_radio_startup").actions.at(-1).action, "script.clock_radio_resume_snooze");
   const clearsPending = (step) => step.target?.entity_id === "input_text.clock_radio_snoozed_alarm" && step.data?.value === "";
@@ -84,6 +84,33 @@ test("ringing context is captured, 10-minute snooze survives restart and stop/ne
   assert.ok(play.some(clearsPending));
   assert.ok(!config.script.clock_radio_cleanup.sequence.some(clearsPending), "Startup cleanup must preserve a future snooze");
   assert.match(config.automation.find((item) => item.id === "clock_radio_auto_stop").conditions[0].value_template, /clock_radio_active_alarm/);
+});
+
+test("deletion freezes a profile before cleanup and preserves a recoverable HA-backed marker", () => {
+  assert.equal(config.input_text.clock_radio_deleting_alarm.max, 20);
+  for (const id of [1, 2]) assert.ok(config.input_boolean[`clock_radio_alarm_${id}_deleted`]);
+  const prepare = config.script.clock_radio_prepare_delete.sequence;
+  const freeze = prepare.findIndex((step) => step.target?.entity_id === "input_text.clock_radio_deleting_alarm");
+  const wait = prepare.findIndex((step) => step.wait_template);
+  assert.ok(freeze >= 0 && freeze < wait);
+  assert.equal(prepare[wait].continue_on_timeout, false);
+  assert.match(prepare[wait].wait_template, /clock_radio_play_alarm/);
+  assert.match(prepare[wait].wait_template, /clock_radio_snooze/);
+  assert.match(prepare[wait].wait_template, /clock_radio_resume_snooze/);
+  assert.ok(prepare.some((step) => step.if?.includes("active.get") && step.then.some((action) => action.action === "script.clock_radio_cleanup")));
+  assert.ok(!prepare.some((step) => step.action === "script.clock_radio_stop"), "Deleting another profile must not stop an unrelated alarm");
+  const schedule = config.automation.find((item) => item.id === "clock_radio_schedule").actions[0].repeat.sequence[1].if;
+  assert.match(schedule, /clock_radio_deleting_alarm/);
+  assert.match(schedule, /_deleted/);
+  const guarded = config.script.clock_radio_play_alarm.sequence.filter((step) => step.if?.includes("clock_radio_deleting_alarm"));
+  assert.equal(guarded.length, 2, "Recheck deletion after asynchronous speaker cleanup");
+  const resume = config.script.clock_radio_resume_snooze.sequence;
+  const invalidDeletion = resume.findIndex((step) => step.if?.includes("has_value('input_text.clock_radio_deleting_alarm')"));
+  const clearSnooze = resume.findIndex((step) => step.target?.entity_id === "input_text.clock_radio_snoozed_alarm");
+  assert.ok(invalidDeletion >= 0 && invalidDeletion < clearSnooze, "Invalid deletion helpers must not discard a pending snooze");
+  assert.equal(resume[invalidDeletion].then[0].error, true);
+  assert.ok(!config.script.clock_radio_initialize.sequence.some((step) => JSON.stringify(step).includes("_deleted")));
+  assert.ok(!config.script.clock_radio_cleanup.sequence.some((step) => JSON.stringify(step).includes("clock_radio_deleting_alarm")), "Startup cleanup must not lose a partial deletion");
 });
 
 test("native alarm cards reference only entities supplied by the package", () => {

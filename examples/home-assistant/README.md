@@ -4,7 +4,8 @@ The optional [package](clock_radio_alarms.yaml) runs alarms in Home Assistant,
 independently of an open tablet or the Clock Radio app process. It requires the
 Music Assistant integration and a Music Assistant speaker with volume and repeat
 support. After installing it, Clock Radio's **Alarm configuration** page edits
-these same profiles directly; **Add alarm** creates additional persistent profiles. Native HA
+these same profiles directly; **Add alarm** creates additional persistent profiles
+and **Delete** removes or disables/hides them after confirmation. Native HA
 entities cards remain an alternative.
 
 ## Install
@@ -83,9 +84,10 @@ The wake countdown remains separate from the fixed **10-minute** snooze.
 
 For an existing installation, replace this package including its new helpers,
 check configuration and reload the affected integrations. It now exposes
-`sensor.clock_radio_alarm_scheduler_version: 3`. Add
+`sensor.clock_radio_alarm_scheduler_version: 4`. Add
 `input_text.clock_radio_active_alarm`, `input_text.clock_radio_snoozed_alarm`
-and `input_datetime.clock_radio_snooze_until`; do not reset existing profile or
+and `input_datetime.clock_radio_snooze_until`, plus the deletion helpers below;
+do not reset existing profile or
 initialization helpers. Restart HA if date/time helpers were not loaded before.
 Older packages retain Stop and the ringing screen, but cannot Snooze.
 
@@ -99,6 +101,31 @@ resume once during startup. A new alarm or `script.clock_radio_stop` cancels a
 pending snooze. The app exposes **Cancel snoozed alarm** in Alarm configuration
 and shows the snooze deadline as the next alarm when earlier than the schedule.
 Do not manually edit the captured JSON helper values.
+
+## Alarm deletion and recovery
+
+Version 4 adds `script.clock_radio_prepare_delete`,
+`input_text.clock_radio_deleting_alarm`, and
+`input_boolean.clock_radio_alarm_1_deleted` /
+`input_boolean.clock_radio_alarm_2_deleted`. Replace the installed package
+including these helpers, scripts, template and automations; check configuration
+and reload the affected integrations. Keep all existing settings and
+initialization flags. New deletion helpers intentionally restore their values.
+
+Delete in the app confirms the action, freezes the selected profile, waits for
+in-flight alarm scripts and stops/cancels only its own ringing playback/timer or
+Snooze. Other alarms and ordinary music are left alone. The app then removes
+app-created native helpers using HA's admin-only APIs. Bundled profiles 1/2
+instead have their restoring deleted flags enabled; their YAML definitions and
+saved helper values remain, but neither scheduling, manual playback nor Snooze
+can start them. Native entities cards may still display those retained helpers.
+
+The deletion marker clears only after successful removal. If a helper deletion
+or speaker cleanup fails, the app reports it and keeps the profile disabled and
+visible for **retry Delete**. Finish that deletion before adding another profile
+or deleting a different one. Do not manually clear the coordination marker or
+reset initialization: that would bypass recovery for a partially removed profile.
+Opening/restarting the app or HA does not undo a completed or pending deletion.
 
 Countdowns restore on HA restart, and startup cleanup stops any alarm that was
 active before the restart without cancelling a pending snooze.

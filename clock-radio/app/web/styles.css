@@ -32,6 +32,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .area__back { display: flex; align-items: center; gap: 8px; padding: 10px; color: var(--accent); }
 .btn, .notice__btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 42px; border-radius: 10px; padding: 10px 16px; background: #282c2e; font-size: 12px; }
 .btn--primary { color: #061e1a; background: var(--accent); }
+.btn--danger { color: #fff; background: #b3261e; min-height: 44px; }
 .slider { --knob: 20px; position: relative; touch-action: none; cursor: pointer; }
 .slider__track { position: absolute; border-radius: 99px; background: #3a3a3d; overflow: hidden; }
 .slider__fill { position: absolute; background: #3ecfb4; }
@@ -112,6 +113,12 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .alarm-page__heading p { margin-bottom: 0; }
 .alarm-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; flex: none; border-radius: 50%; background: #36363a; font-size: 26px; }
 .alarm-icon-button--accent { color: #181818; background: var(--alarm-accent); }
+.alarm-icon-button--danger { color: #ff453a; }
+.alarm-editor__delete { width: 100%; min-height: 44px; color: #ff453a; margin-top: 12px; }
+.alarm-delete h2 { margin-top: 0; font-size: 20px; }
+.alarm-delete p { font-size: 14px; line-height: 1.6; }
+.alarm-delete__actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; }
+.alarm-delete__actions .btn { min-height: 44px; }
 .alarm-list { margin: 24px 0; }
 .alarm-row { padding: 18px 0; border-bottom: 1px solid #333337; }
 .alarm-row__main { display: flex; align-items: center; gap: 20px; }

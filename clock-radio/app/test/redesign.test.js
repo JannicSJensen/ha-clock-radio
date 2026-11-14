@@ -49,6 +49,256 @@ async function setup(t, options = {}) {
   return { ...mock, ha, store, music, radio, dashboard, get, post, url };
 }
 
+test("Delete removes native profiles, preserves unrelated helpers and persistently hides both bundled alarms", async (t) => {
+  const app = await setup(t);
+  for (const id of [3, 4]) assert.equal((await (await app.post("api/alarm/create", {})).json()).alarm_id, id);
+  await app.ha.requestWs({ type: "input_boolean/create", name: "Unrelated switch" });
+  const other = (await app.get("api/state")).alarms.alarms.find((alarm) => alarm.id === 4);
+  const ordinaryPlayer = JSON.stringify(app.states.find((state) => state.entity_id === "media_player.bedroom"));
+  for (const id of [1, 2, 3]) {
+    const response = await app.post("api/alarm/delete", { id });
+    assert.equal(response.status, 200);
+    assert.deepEqual(await response.json(), { ok: true, deleted_alarm_id: id });
+    assert.ok(!(await app.get("api/state")).alarms.alarms.some((alarm) => alarm.id === id));
+  }
+  assert.equal(app.helperDeletions.length, 15);
+  assert.ok(app.helperDeletions.every((request) => Object.values(request).some((value) => typeof value === "string" && /^clock_radio_alarm_3(?:_|$)/.test(value))));
+  assert.ok(app.states.some((state) => state.entity_id === "input_boolean.unrelated_switch"));
+  assert.deepEqual((await app.get("api/state")).alarms.alarms.find((alarm) => alarm.id === 4), other);
+  assert.equal(JSON.stringify(app.states.find((state) => state.entity_id === "media_player.bedroom")), ordinaryPlayer);
+  for (const id of [1, 2]) {
+    assert.equal(app.states.find((state) => state.entity_id === `input_boolean.clock_radio_alarm_${id}_deleted`).state, "on");
+    assert.ok(app.states.some((state) => state.entity_id === `input_number.clock_radio_alarm_${id}_hour`));
+  }
+  assert.ok(!alarmSnapshot(JSON.parse(JSON.stringify(app.states))).alarms.some((alarm) => alarm.id <= 2), "Deletion survives a fresh HA snapshot, not just browser state");
+  assert.equal((await app.post("api/alarm/delete", { id: 4 })).status, 200);
+  assert.deepEqual((await app.get("api/state")).alarms.alarms, []);
+  const added = await (await app.post("api/alarm/create", {})).json();
+  assert.equal(added.alarm_id, 3, "Adding after deleting every profile still uses a valid, unoccupied native ID");
+  const fresh = (await app.get("api/state")).alarms.alarms[0];
+  assert.equal(fresh.enabled, false);
+  assert.equal(fresh.hour, 6);
+  assert.equal(fresh.volume, 50);
+});
+
+test("deleting ringing Music and Buzzer alarms restores the speaker and removes their timers", async (t) => {
+  const app = await setup(t);
+  const player = app.states.find((state) => state.entity_id === "media_player.bedroom");
+  const previous = { volume: player.attributes.volume_level, repeat: player.attributes.repeat };
+  for (const type of ["Music", "Buzzer"]) {
+    const id = (await (await app.post("api/alarm/create", {})).json()).alarm_id;
+    app.startAlarm(id, type);
+    await app.dashboard.refresh();
+    assert.equal((await app.get("api/state")).alarms.active.type, type);
+    assert.equal((await app.post("api/alarm/delete", { id })).status, 200);
+    assert.equal(player.state, "idle");
+    assert.equal(player.attributes.volume_level, previous.volume);
+    assert.equal(player.attributes.repeat, previous.repeat);
+    const state = await app.get("api/state");
+    assert.equal(state.alarms.active, null);
+    assert.equal(state.alarms.snoozed, null);
+    assert.ok(!app.states.some((item) => item.entity_id === `timer.clock_radio_alarm_${id}`));
+    assert.throws(() => app.startAlarm(id, type), /Invalid demo alarm/);
+  }
+});
+
+test("deleting a snoozed alarm cancels its deadline while deleting another profile leaves ringing/snoozed alarms alone", async (t) => {
+  const app = await setup(t);
+  let id = (await (await app.post("api/alarm/create", {})).json()).alarm_id;
+  app.startAlarm(id);
+  await app.dashboard.refresh();
+  assert.equal((await app.post("api/alarm/snooze", {})).status, 200);
+  assert.equal((await app.post("api/alarm/delete", { id })).status, 200);
+  app.advanceAlarms(Date.now() + 700000);
+  assert.equal(alarmSnapshot(app.states).active, null);
+  assert.equal(alarmSnapshot(app.states).snoozed, null);
+  id = (await (await app.post("api/alarm/create", {})).json()).alarm_id;
+  app.startAlarm(1);
+  await app.dashboard.refresh();
+  const ringing = JSON.stringify(alarmSnapshot(app.states).active);
+  assert.equal((await app.post("api/alarm/delete", { id })).status, 200);
+  assert.equal(JSON.stringify(alarmSnapshot(app.states).active), ringing);
+  assert.equal(app.states.find((state) => state.entity_id === "media_player.bedroom").state, "playing");
+  id = (await (await app.post("api/alarm/create", {})).json()).alarm_id;
+  assert.equal((await app.post("api/alarm/snooze", {})).status, 200);
+  const snoozed = JSON.stringify(alarmSnapshot(app.states).snoozed);
+  assert.equal((await app.post("api/alarm/delete", { id })).status, 200);
+  assert.equal(JSON.stringify(alarmSnapshot(app.states).snoozed), snoozed);
+  app.advanceAlarms(Date.now() + 700000);
+  assert.equal(alarmSnapshot(app.states).active.id, 1);
+});
+
+test("partial native helper deletion stays visible and disabled, blocks resurrection and resumes without re-deleting helpers", async (t) => {
+  const app = await setup(t);
+  await app.post("api/alarm/create", {});
+  const saved = (await app.get("api/state")).alarms.alarms.find((alarm) => alarm.id === 3);
+  const ws = app.ha.requestWs.bind(app.ha);
+  let requests = 0;
+  app.ha.requestWs = async (message) => {
+    if (message.type.endsWith("/delete") && ++requests === 3) throw new Error("Simulated native helper deletion failure");
+    return ws(message);
+  };
+  const failed = await app.post("api/alarm/delete", { id: 3 });
+  assert.equal(failed.status, 502);
+  assert.match((await failed.json()).error, /retry Delete/);
+  let state = await app.get("api/state");
+  const pending = state.alarms.alarms.find((alarm) => alarm.id === 3);
+  assert.equal(state.alarms.deleting, 3);
+  assert.equal(pending.deletion_pending, true);
+  assert.equal(pending.enabled, false);
+  assert.equal(pending.available, false);
+  assert.equal(state.alarms.can_create, false);
+  const values = { id: 3, enabled: true, type: saved.type, hour: saved.hour, minute: saved.minute, volume: saved.volume, duration: saved.duration, days: saved.days };
+  assert.equal((await app.post("api/settings/alarm", values)).status, 409);
+  assert.equal((await app.post("api/alarm/create", {})).status, 409);
+  assert.equal((await app.post("api/alarm/delete", { id: 1 })).status, 409);
+  assert.equal((await app.post("api/alarm/delete", { id: 3 })).status, 200);
+  state = await app.get("api/state");
+  assert.equal(state.alarms.deleting, null);
+  assert.ok(!state.alarms.alarms.some((alarm) => alarm.id === 3));
+  assert.equal(app.helperDeletions.length, 15, "Only the remaining helpers are deleted on retry");
+});
+
+test("Delete will not remove helpers after incomplete speaker cleanup or a success-shaped no-op preparation", async (t) => {
+  const app = await setup(t);
+  await app.post("api/alarm/create", {});
+  app.startAlarm(3);
+  await app.dashboard.refresh();
+  const call = app.ha.callService.bind(app.ha);
+  let failure = "cleanup";
+  app.ha.callService = async (...args) => {
+    if (args[0] === "script" && args[1] === "clock_radio_prepare_delete") {
+      assert.deepEqual(args[3], { timeout: 60000 }, "The bounded HA preparation wait must not inherit the ordinary eight-second HTTP timeout");
+      if (failure === "cleanup") {
+        app.states.find((state) => state.entity_id === "input_text.clock_radio_deleting_alarm").state = "3";
+        app.states.find((state) => state.entity_id === "timer.clock_radio_alarm_3").state = "idle";
+        throw new Error("Speaker cleanup failed");
+      }
+      if (failure === "noop") return [];
+    }
+    return call(...args);
+  };
+  assert.equal((await app.post("api/alarm/delete", { id: 3 })).status, 502);
+  assert.equal(app.helperDeletions.length, 0);
+  assert.equal((await app.get("api/state")).alarms.active.id, 3, "Idle timer is not proof that the speaker was stopped");
+  failure = "noop";
+  assert.equal((await app.post("api/alarm/delete", { id: 3 })).status, 502);
+  assert.equal(app.helperDeletions.length, 0);
+  failure = null;
+  assert.equal((await app.post("api/alarm/delete", { id: 3 })).status, 200);
+  assert.equal(app.helperDeletions.length, 15);
+});
+
+test("a failed bundled deletion commit remains recoverable even after its deleted flag was set", async (t) => {
+  const app = await setup(t);
+  const call = app.ha.callService.bind(app.ha);
+  let fail = true;
+  app.ha.callService = (...args) => {
+    if (fail && args[0] === "input_text" && args[2].entity_id === "input_text.clock_radio_deleting_alarm" && args[2].value === "") {
+      fail = false;
+      throw new Error("Could not finish deletion");
+    }
+    return call(...args);
+  };
+  assert.equal((await app.post("api/alarm/delete", { id: 1 })).status, 502);
+  const pending = (await app.get("api/state")).alarms.alarms.find((alarm) => alarm.id === 1);
+  assert.equal(pending.deletion_pending, true);
+  assert.equal(app.states.find((state) => state.entity_id === "input_boolean.clock_radio_alarm_1_deleted").state, "on");
+  assert.equal((await app.post("api/alarm/delete", { id: 1 })).status, 200);
+  assert.ok(!(await app.get("api/state")).alarms.alarms.some((alarm) => alarm.id === 1));
+});
+
+test("native deletion uses registry storage IDs rather than guessing IDs from entity names", async (t) => {
+  const app = await setup(t);
+  await app.post("api/alarm/create", {});
+  const ws = app.ha.requestWs.bind(app.ha);
+  const seen = [];
+  app.ha.requestWs = async (message) => {
+    if (message.type.endsWith("/delete")) {
+      const domain = message.type.split("/")[0];
+      const key = `${domain}_id`;
+      seen.push(message[key]);
+      return ws({ ...message, [key]: message[key].slice("storage-".length) });
+    }
+    const result = await ws(message);
+    if (message.type === "config/entity_registry/list") return result.map((entry) => entry.entity_id.includes("clock_radio_alarm_3") ? { ...entry, unique_id: `storage-${entry.unique_id}` } : entry);
+    if (message.type.endsWith("/list") && message.type !== "config/entity_registry/list") return result.map((item) => ({ ...item, id: `storage-${item.id}` }));
+    return result;
+  };
+  assert.equal((await app.post("api/alarm/delete", { id: 3 })).status, 200);
+  assert.equal(seen.length, 15);
+  assert.ok(seen.every((id) => id.startsWith("storage-")));
+});
+
+test("Delete validates IDs/methods, gates old packages and rejects malformed helper metadata before mutation", async (t) => {
+  const app = await setup(t);
+  assert.equal((await fetch(`${app.url}/api/alarm/delete`)).status, 405);
+  for (const body of [{}, [], null, { id: 0 }, { id: -1 }, { id: "1" }, { id: 1.5 }, { id: 1, extra: true }, { id: Number.MAX_SAFE_INTEGER + 1 }]) assert.equal((await app.post("api/alarm/delete", body)).status, 400);
+  assert.equal((await app.post("api/alarm/delete", { id: 999 })).status, 404);
+  const version = app.states.find((state) => state.entity_id === "sensor.clock_radio_alarm_scheduler_version");
+  version.state = "3";
+  assert.equal((await app.post("api/alarm/delete", { id: 1 })).status, 409);
+  version.state = "4";
+  app.states.find((state) => state.entity_id === "input_text.clock_radio_deleting_alarm").state = "invalid";
+  const invalid = await app.post("api/alarm/delete", { id: 1 });
+  assert.equal(invalid.status, 409);
+  assert.match((await invalid.json()).error, /deletion state/);
+  app.states.find((state) => state.entity_id === "input_text.clock_radio_deleting_alarm").state = "";
+  await app.post("api/alarm/create", {});
+  const ws = app.ha.requestWs.bind(app.ha);
+  for (const items of [[{}], [null]]) {
+    app.ha.requestWs = (message) => message.type === "input_boolean/list" ? Promise.resolve(items) : ws(message);
+    const invalid = await app.post("api/alarm/delete", { id: 3 });
+    assert.equal(invalid.status, 502);
+    assert.match((await invalid.json()).error, /invalid input_boolean helper list/);
+  }
+  app.ha.requestWs = (message) => message.type === "config/entity_registry/list" ? Promise.resolve([null]) : ws(message);
+  const registry = await app.post("api/alarm/delete", { id: 3 });
+  assert.equal(registry.status, 502);
+  assert.match((await registry.json()).error, /invalid entity registry/);
+  assert.equal(app.helperDeletions.length, 0);
+  assert.equal(app.states.find((state) => state.entity_id === "input_text.clock_radio_deleting_alarm").state, "");
+});
+
+test("Delete serializes against edits, creation, shared playback and stop/snooze commands", async (t) => {
+  const app = await setup(t);
+  await app.post("api/alarm/create", {});
+  const call = app.ha.callService.bind(app.ha);
+  let release;
+  let entered;
+  const gate = new Promise((resolve) => { release = resolve; });
+  const started = new Promise((resolve) => { entered = resolve; });
+  app.ha.callService = async (...args) => {
+    if (args[1] === "clock_radio_prepare_delete") {
+      assert.deepEqual(args[3], { timeout: 60000 });
+      entered();
+      await gate;
+    }
+    return call(...args);
+  };
+  const refresh = app.dashboard.refresh.bind(app.dashboard);
+  let checkedFinalRefresh = false;
+  app.dashboard.refresh = () => {
+    if (app.helperDeletions.length === 15) {
+      assert.ok(app.dashboard.alarmWrites.has("delete"), "Deletion remains locked through the final fresh snapshot");
+      checkedFinalRefresh = true;
+    }
+    return refresh();
+  };
+  const operation = app.post("api/alarm/delete", { id: 3 });
+  await started;
+  try {
+    for (const [route, body] of [["api/alarm/delete", { id: 1 }], ["api/alarm/create", {}], ["api/alarm/stop", {}], ["api/alarm/snooze", {}]]) assert.equal((await app.post(route, body)).status, 409);
+    const alarm = (await app.get("api/state")).alarms.alarms[0];
+    const values = { id: alarm.id, enabled: false, type: alarm.type, hour: alarm.hour, minute: alarm.minute, volume: alarm.volume, duration: alarm.duration, days: alarm.days };
+    assert.equal((await app.post("api/settings/alarm", values)).status, 409);
+    assert.equal((await app.post("api/settings/alarm-playback", { player: "media_player.bedroom", music_source: "library://radio/1", buzzer_source: "https://example.com/beep.mp3" })).status, 409);
+  } finally { release(); }
+  assert.equal((await operation).status, 200);
+  assert.equal(checkedFinalRefresh, true);
+  assert.equal(app.dashboard.alarmWrites.size, 0);
+});
+
 test("all clock layouts and options validate; legacy YAML stays compatible", () => {
   for (const face of ["analog", "analog-round", "digital"]) {
     for (const widget of ["calendar", "weather", "date", "date-calendar", "none"]) {
@@ -340,7 +590,7 @@ test("four-page HTTP integration browses Dasher music, plays only registered ite
 
 test("every new mutation rejects read-only and cross-site requests before touching HA or YAML", async (t) => {
   const app = await setup(t);
-  const routes = ["api/settings/clock", "api/settings/alarm", "api/settings/alarm-playback", "api/alarm/stop", "api/alarm/snooze", "api/radio/play", "api/music/play", "api/alarm/create"];
+  const routes = ["api/settings/clock", "api/settings/alarm", "api/settings/alarm-playback", "api/alarm/stop", "api/alarm/snooze", "api/radio/play", "api/music/play", "api/alarm/create", "api/alarm/delete"];
   const before = fs.readFileSync(app.store.file, "utf8");
   const count = app.calls.length;
   app.dashboard.readOnly = true;

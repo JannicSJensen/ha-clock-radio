@@ -59,7 +59,7 @@ test("invalid or incomplete HA helpers never become editable control defaults", 
   const alarm = { available: true, setup_complete: true, hour: 0, minute: 59, type: "Music", volume: 0, duration: 120 };
   assert.equal(canEditAlarm(alarm), true);
   for (const change of [
-    { available: false }, { setup_complete: false }, { hour: null }, { hour: 24 },
+    { available: false }, { setup_complete: false }, { deletion_pending: true }, { hour: null }, { hour: 24 },
     { minute: -1 }, { type: "Other" }, { volume: null }, { volume: "50" },
     { volume: 101 }, { volume: 0.5 }, { duration: null }, { duration: 0 }, { duration: 121 },
   ]) assert.equal(canEditAlarm({ ...alarm, ...change }), false);

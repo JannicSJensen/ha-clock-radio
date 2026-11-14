@@ -12,6 +12,10 @@ round analog and digital faces; the right panel cycles calendar, weather, date
 and date/calendar. These selections save to YAML. Full-screen faces and hiding
 the widget remain Settings options. Swipes cannot save views in read-only mode.
 
+See the [four-page screenshot gallery](../README.md#screenshots) for the Clock,
+Music overview, Alarm configuration and Settings. All screendumps below use
+fictional demo data, not a real HA installation.
+
 See the [Home Assistant alarm package](../examples/home-assistant/README.md) for
 two independent Music/Buzzer alarm profiles and native entities cards. Install
 that package separately in Home Assistant. Alarm configuration edits the existing
@@ -31,6 +35,8 @@ Choose circular repeat weekdays, or use **Every day** / **Weekdays** shortcuts.
 An enabled alarm requires at least one selected day; no days does not mean
 a one-shot alarm.
 
+![Alarm list with a daily Music alarm enabled and a weekday Buzzer alarm disabled](../docs/screenshots/alarms.png)
+
 The editor groups the existing Enabled, Music/Buzzer, volume (0-100%) and wake
 timer (1-120 minutes) controls. The wake timer stops playback and is **not Snooze**.
 No label or per-profile snooze fields are added. **Save** applies changes and closes;
@@ -40,6 +46,11 @@ Direct navigation away from `#alarms` closes the editor without saving.
 Save errors remain visible in the editor, with **Reload saved values** to inspect
 HA's actual state. Missing, invalid or incomplete helpers cannot be edited or
 enabled; additional incomplete profiles still offer **Finish setup**.
+
+The editor shows the time wheels, repeat-day shortcuts and existing profile
+controls. Scroll inside the editor if controls do not fit your screen.
+
+![Alarm editor with time wheels, daily repeat, alarm type, volume and wake timer](../docs/screenshots/alarm-editor.png)
 
 Saving a profile temporarily disables its schedule while the individual HA
 helpers are updated, then applies the requested enabled state. If a write
@@ -67,6 +78,35 @@ existing helper edits are not overwritten. Review resumed values before enabling
 An incomplete profile is never scheduled. Helpers, times and timers remain in
 HA after app restarts and work with the tablet/app closed.
 
+## Deleting alarms
+
+Use the red trash button on an alarm row or **Delete alarm** in its editor.
+The confirmation defaults to **Keep alarm**. Keep alarm or Escape cancels
+without changing HA or losing an editor draft. Incomplete profiles can also
+be deleted. Read-only, disconnected and conflicting busy controls are disabled.
+
+![Delete confirmation explaining that bundled YAML helpers are retained](../docs/screenshots/alarm-delete.png)
+
+Deletion stops/cancels only that profile's ringing playback, wake timer or
+pending Snooze; it does not stop ordinary music or another profile's alarm.
+For **app-created profiles**, HA's admin-only native helper APIs remove the
+profile's settings, initialization flag and timer. For **bundled Alarm 1/2**,
+their YAML definitions cannot be removed through runtime helper APIs: deletion
+persistently disables and hides them instead. Their YAML helpers remain in HA,
+but scheduled/manual starts and Snooze resumption are blocked.
+
+Install/reload the current [HA package](../examples/home-assistant/README.md),
+including scheduler version **4**, its deletion helpers and preparation script.
+Existing saved settings and initialization flags must not be reset.
+Older packages retain their existing controls but cannot Delete.
+
+If a deletion fails, its profile remains visible and disabled with a pending
+deletion message. Check the reported HA permissions/helper or speaker error
+and **retry Delete**. Do not use Finish setup to resurrect a partial deletion.
+Complete the pending deletion before adding or deleting another profile.
+The HA deletion marker restores across restarts so a partially removed profile
+cannot begin playing before recovery.
+
 ## Ringing alarms and Snooze
 
 A dedicated screen automatically takes over when an HA alarm rings, including
@@ -75,6 +115,10 @@ orange **Snooze** button. Music alarms also show a compact artwork/metadata
 player with supported play/pause, previous/next and volume controls. The time
 uses the clock's locale, time zone and 12/24-hour setting.
 Ordinary music playback never opens this screen.
+
+| Buzzer alarm | Music alarm with mini player |
+| --- | --- |
+| ![Ringing Buzzer alarm with a large clock, Snooze and slide-to-stop](../docs/screenshots/ringing-buzzer.png) | ![Ringing Music alarm with artwork, playback controls, Snooze and slide-to-stop](../docs/screenshots/ringing-music.png) |
 
 Drag the **slide to stop** knob at least 90% across and release to stop the
 alarm. Partial/cancelled gestures reset; tapping the track does not stop it.
@@ -93,7 +137,7 @@ type with the profile's current duration/volume and current shared speaker/sourc
 No schedule is enabled or disabled by snoozing.
 
 For reliable captured ringing state and Snooze, replace the installed HA package
-with the current version (scheduler version **3**), including the new text and
+with the current version (scheduler version **4**), including the new text and
 date/time helpers. Check configuration and reload helpers, scripts, templates
 and automations; restart HA if `input_datetime` was not previously loaded.
 Do not rerun/reset initialization flags. Older packages still support the
@@ -190,6 +234,11 @@ If the sun entity is missing, unavailable or invalid, a visible warning appears
 and the last known night state is retained (daytime on first start).
 Sun mode is opt-in; existing night modes and settings are unchanged.
 
+The Settings page can be scrolled to the Night mode controls. In Sun mode,
+the entity selector, hours and sensor threshold shown below are not used.
+
+![Settings scrolled to Sun night mode, night color and brightness controls](../docs/screenshots/night-mode.png)
+
 Set `weather_entity` in **Settings > Apps > Clock Radio > Configuration**, save
 and restart the app. This is the only weather entity selector; the dashboard
 Settings page edits the optional place label, not the weather source.
@@ -258,6 +307,11 @@ Seeking/previous/next/shuffle/repeat/volume depend on player capabilities.
 The artwork player opens on request, never automatically over the clock.
 The HA app's configured media player is the only playback/volume target.
 Old per-device speaker preferences cannot override it.
+
+Tap the now-playing artwork or title to open this full-screen player. It is
+separate from the automatic ringing-alarm screen.
+
+![Full-screen artwork player with track information, seeking and playback controls](../docs/screenshots/music-player.png)
 
 ## App options
 

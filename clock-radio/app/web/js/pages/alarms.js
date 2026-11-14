@@ -8,7 +8,7 @@ const pad = (value) => String(value).padStart(2, "0");
 const validTime = (alarm) => Number.isInteger(alarm.hour) && alarm.hour >= 0 && alarm.hour <= 23
   && Number.isInteger(alarm.minute) && alarm.minute >= 0 && alarm.minute <= 59;
 export function canEditAlarm(alarm) {
-  return alarm.available && alarm.setup_complete && validTime(alarm) && ["Music", "Buzzer"].includes(alarm.type)
+  return !alarm.deletion_pending && alarm.available && alarm.setup_complete && validTime(alarm) && ["Music", "Buzzer"].includes(alarm.type)
     && Number.isInteger(alarm.volume) && alarm.volume >= 0 && alarm.volume <= 100
     && Number.isInteger(alarm.duration) && alarm.duration >= 1 && alarm.duration <= 120;
 }
@@ -46,6 +46,9 @@ export function createAlarmPage(ctx) {
   let activeId = null;
   let dirty = false;
   let saving = false;
+  let pageBusy = false;
+  let deleting = false;
+  let deleteId = null;
   let selectedDays = {};
   let picker = null;
   const pageStatus = h("p", { class: "form-status", role: "alert" });
@@ -71,6 +74,76 @@ export function createAlarmPage(ctx) {
   const status = h("p", { class: "form-status", role: "status" });
   const hint = h("p", { class: "alarm-editor__hint" });
   const reload = h("button", { class: "btn", type: "button", hidden: true }, "Reload saved values");
+  const remove = h("button", { class: "btn alarm-editor__delete", type: "button" }, "Delete alarm");
+  const deleteTitle = h("h2", { id: "alarm-delete-title" });
+  const deleteMessage = h("p", { id: "alarm-delete-message" });
+  const deleteStatus = h("p", { class: "form-status", role: "status" });
+  const keep = h("button", { class: "btn", type: "button" }, "Keep alarm");
+  const confirm = h("button", { class: "btn btn--danger", type: "button" }, "Delete alarm");
+  const deleteDialog = h("dialog", { class: "alarm-editor alarm-delete", role: "dialog", "aria-labelledby": "alarm-delete-title", "aria-describedby": "alarm-delete-message" },
+    deleteTitle, deleteMessage, deleteStatus, h("div", { class: "alarm-delete__actions" }, keep, confirm));
+
+  function deletionAllowed(model, id, busy) {
+    return !busy && !saving && !deleting && ctx.canControl() && model.alarms.can_delete
+      && (!model.alarms.deleting || model.alarms.deleting === id);
+  }
+  function openDelete(id) {
+    const model = ctx.getModel();
+    if (!deletionAllowed(model, id, pageBusy)) {
+      ctx.toast("Deletion is unavailable. Check the HA package, connection and pending alarm operations.");
+      return;
+    }
+    if (!model.alarms.alarms.some((alarm) => alarm.id === id)) {
+      ctx.toast("This alarm is no longer configured.");
+      return;
+    }
+    deleteId = id;
+    deleteTitle.textContent = `Delete Alarm ${id}?`;
+    deleteMessage.textContent = "This cannot be undone. Any ringing playback or snooze for this alarm will be stopped/cancelled. "
+      + (id <= 2 ? "The bundled profile will be disabled and hidden; its YAML helpers remain in HA." : "This alarm's helpers will be removed from HA.");
+    deleteStatus.textContent = "";
+    deleteDialog.setAttribute("aria-modal", "true");
+    deleteDialog.showModal();
+    update(model, pageBusy);
+    keep.focus();
+  }
+  remove.addEventListener("click", () => openDelete(activeId));
+  keep.addEventListener("click", () => deleteDialog.close());
+  deleteDialog.addEventListener("keydown", (event) => {
+    if (event.key !== "Escape") return;
+    event.preventDefault();
+    event.stopPropagation();
+    if (!deleting) deleteDialog.close();
+  });
+  deleteDialog.addEventListener("cancel", (event) => { if (deleting) event.preventDefault(); });
+  deleteDialog.addEventListener("close", () => {
+    deleteDialog.removeAttribute("aria-modal");
+    deleteId = null;
+  });
+  confirm.addEventListener("click", async () => {
+    if (deleteId === null || confirm.disabled || deleting) return;
+    const id = deleteId;
+    deleting = true;
+    deleteStatus.textContent = "Deleting...";
+    pageStatus.textContent = "";
+    update(ctx.getModel(), true);
+    try {
+      if (await ctx.write("api/alarm/delete", { id })) {
+        if (activeId === id) closeEditor();
+        if (deleteDialog.open) deleteDialog.close();
+        ctx.toast(`Alarm ${id} deleted.`);
+      } else {
+        deleteStatus.textContent = ctx.writeError() || "The alarm was not deleted. Check HA and retry.";
+        pageStatus.textContent = deleteStatus.textContent;
+      }
+    } catch (error) {
+      deleteStatus.textContent = error.message;
+      pageStatus.textContent = error.message;
+    } finally {
+      deleting = false;
+      update(ctx.getModel(), false);
+    }
+  });
 
   function markDirty() {
     if (activeId === null) return;
@@ -110,7 +183,7 @@ export function createAlarmPage(ctx) {
     hint, reload);
   const form = h("form", { "aria-label": "Alarm editor" },
     h("header", { class: "alarm-editor__header" }, cancel, title, save),
-    fieldset, status);
+    fieldset, status, remove);
   const dialog = h("dialog", { class: "alarm-editor", role: "dialog", "aria-labelledby": "alarm-editor-title" }, form);
 
   function loadEditor(alarm) {
@@ -125,6 +198,7 @@ export function createAlarmPage(ctx) {
     for (const [day, button] of dayButtons) button.setAttribute("aria-pressed", String(selectedDays[day]));
   }
   function closeEditor() {
+    if (deleteDialog.open) deleteDialog.close();
     if (dialog.open) dialog.close();
   }
   dialog.addEventListener("close", () => {
@@ -146,16 +220,17 @@ export function createAlarmPage(ctx) {
   function updateEditor(model, busy) {
     if (activeId === null) return;
     const alarm = model.alarms.alarms.find((item) => item.id === activeId);
-    if (!alarm) { closeEditor(); ctx.toast("This alarm was removed from Home Assistant."); return; }
+    if (!alarm) { closeEditor(); ctx.toast("This alarm is no longer configured."); return; }
     const available = canEditAlarm(alarm);
-    const disabled = busy || saving || !ctx.canControl() || !available;
+    const disabled = busy || saving || !ctx.canControl() || !available || Boolean(model.alarms.delete_error);
     fieldset.disabled = disabled;
     save.disabled = disabled;
     cancel.disabled = saving;
+    remove.disabled = !deletionAllowed(model, activeId, busy);
     picker.setDisabled(disabled);
     if (!dirty && available) loadEditor(alarm);
-    hint.textContent = !available ? "The HA alarm helpers are missing, unavailable, invalid or incomplete."
-      : !ctx.canControl() ? "Read-only or disconnected. Changes cannot be saved." : "";
+    hint.textContent = model.alarms.delete_error || (!available ? "The HA alarm helpers are missing, unavailable, invalid or incomplete."
+      : !ctx.canControl() ? "Read-only or disconnected. Changes cannot be saved." : "");
   }
   function openEditor(id, created = false) {
     const model = ctx.getModel();
@@ -222,9 +297,11 @@ export function createAlarmPage(ctx) {
     const toggle = switchControl(`Enable Alarm ${id}`);
     const message = h("p", { class: "alarm-row__status", role: "status" });
     const resume = h("button", { class: "btn", type: "button", hidden: true }, "Finish setup");
-    const record = { edit, toggle: toggle.control, time, period, summary, message, resume, error: null, saving: false };
+    const remove = h("button", { class: "alarm-icon-button alarm-icon-button--danger", type: "button", "aria-label": `Delete Alarm ${id}`, title: `Delete Alarm ${id}` }, icon("delete"));
+    remove.addEventListener("click", () => openDelete(id));
+    const record = { edit, toggle: toggle.control, time, period, summary, message, resume, remove, error: null, saving: false };
     record.el = h("article", { class: "alarm-row", "aria-label": `Alarm ${id}` },
-      h("div", { class: "alarm-row__main" }, edit, toggle.el), message, resume);
+      h("div", { class: "alarm-row__main" }, edit, toggle.el, remove), message, resume);
     toggle.control.addEventListener("change", async () => {
       const model = ctx.getModel();
       const alarm = model.alarms.alarms.find((item) => item.id === id);
@@ -261,16 +338,17 @@ export function createAlarmPage(ctx) {
   const el = h("div", { class: "settings alarm-page" },
     h("header", { class: "settings-heading alarm-page__heading" },
       h("div", null, h("h1", null, "Alarm configuration"), h("p", null, "Tap an alarm to edit. Swipe down for Music or up for Settings.")), add),
-    addInfo, pageStatus, list, stop, dialog);
+    addInfo, pageStatus, list, stop, dialog, deleteDialog);
 
   function update(model, busy) {
+    pageBusy = busy;
     const alarms = model.alarms.alarms;
     const ids = alarms.map((alarm) => alarm.id);
     for (const [id, record] of rows) {
       if (ids.includes(id)) continue;
       record.el.remove();
       rows.delete(id);
-      ctx.toast(`Alarm ${id} was removed from Home Assistant.`);
+      ctx.toast(`Alarm ${id} is no longer configured.`);
     }
     const hour12 = hour12For(model);
     for (const alarm of alarms) {
@@ -288,27 +366,34 @@ export function createAlarmPage(ctx) {
       } else { record.time.textContent = "--:--"; record.period.textContent = ""; }
       record.summary.textContent = `Alarm ${alarm.id} · ${alarm.type || "Unavailable"} · ${repeatLabel(alarm.days)}`;
       record.edit.disabled = busy || !available;
-      record.toggle.disabled = busy || record.saving || !ctx.canControl() || !available;
+      record.toggle.disabled = busy || record.saving || !ctx.canControl() || !available || Boolean(model.alarms.delete_error);
+      record.remove.disabled = record.saving || !deletionAllowed(model, alarm.id, busy);
       if (!record.saving) record.toggle.checked = alarm.enabled;
       record.el.classList.toggle("is-enabled", alarm.enabled);
-      record.message.textContent = record.error || (record.saving ? "Saving..."
+      record.message.textContent = record.error || (alarm.deletion_pending ? "Deletion is unfinished. Retry Delete to remove the remaining helpers safely."
+        : record.saving ? "Saving..."
         : !alarm.setup_complete ? "Setup is incomplete. Finish setup before enabling."
         : !alarm.available ? `Missing or unavailable helpers: ${alarm.missing.join(", ")}.`
         : !canEditAlarm(alarm) ? "Invalid alarm settings. Check the Home Assistant helper values."
         : alarm.timer === "active" ? `Alarm is running${alarm.finishes_at ? ` until ${new Date(alarm.finishes_at).toLocaleTimeString()}` : ""}.`
         : model.alarms.snoozed?.id === alarm.id ? `Snoozed until ${new Date(model.alarms.snoozed.until).toLocaleTimeString()}.` : "");
-      record.resume.hidden = alarm.id <= 2 || (alarm.available && alarm.setup_complete);
+      record.resume.hidden = alarm.deletion_pending || alarm.id <= 2 || (alarm.available && alarm.setup_complete);
       record.resume.disabled = busy || !ctx.canControl() || !model.alarms.can_create || alarm.enabled;
     }
     const incomplete = alarms.some((alarm) => alarm.id > 2 && (!alarm.available || !alarm.setup_complete));
     add.disabled = busy || !ctx.canControl() || !model.alarms.can_create || incomplete;
-    addInfo.textContent = incomplete ? "Finish setting up the incomplete alarm before adding another."
+    addInfo.textContent = model.alarms.deleting ? "Finish the pending deletion before adding or deleting another alarm."
+      : incomplete ? "Finish setting up the incomplete alarm before adding another."
       : model.alarms.can_create ? "Alarms run in Home Assistant. New alarms start disabled."
       : "Update the HA alarm package to the dynamic scheduler to enable Add alarm.";
+    if (!model.alarms.can_delete) addInfo.textContent += " Delete requires the version 4 HA package and available deletion helpers/scripts.";
     stop.hidden = !model.alarms.active_player && !model.alarms.snoozed;
     stop.textContent = model.alarms.snoozed ? "Cancel snoozed alarm" : "Stop active alarm";
     stop.disabled = busy || !ctx.canControl() || !model.alarms.can_stop;
-    if (model.alarms.active_error) pageStatus.textContent = model.alarms.active_error;
+    if (model.alarms.active_error || model.alarms.delete_error) pageStatus.textContent = model.alarms.active_error || model.alarms.delete_error;
+    keep.disabled = deleting;
+    confirm.disabled = deleteId === null || !deletionAllowed(model, deleteId, busy);
+    if (deleteId !== null && !alarms.some((alarm) => alarm.id === deleteId) && !deleting) deleteDialog.close();
     updateEditor(model, busy);
   }
   return { el, update, closeEditor };

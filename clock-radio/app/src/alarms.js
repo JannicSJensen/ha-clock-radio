@@ -21,17 +21,22 @@ export function alarmIds(states) {
     const match = /^(?:input_boolean|input_number|input_select|timer|sensor)\.clock_radio_alarm_([1-9]\d*)(?:$|_(?:enabled|initialized|type|hour|minute|volume|duration|monday|tuesday|wednesday|thursday|friday|saturday|sunday|wake_time)$)/.exec(state.entity_id);
     if (match && Number.isSafeInteger(Number(match[1]))) ids.add(Number(match[1]));
   }
-  return [...ids].sort((a, b) => a - b);
+  return [...ids].filter((id) => !states.some((state) => state.entity_id === `input_boolean.${prefix(id)}_deleted` && state.state === "on")).sort((a, b) => a - b);
 }
 
 export function alarmSnapshot(states) {
   const index = new Map(states.map((state) => [state.entity_id, state]));
-  const alarms = alarmIds(states).map((id) => {
+  const deletionState = index.get("input_text.clock_radio_deleting_alarm");
+  const deletionValid = !deletionState || deletionState.state === ""
+    || /^[1-9]\d*$/.test(deletionState.state) && Number.isSafeInteger(Number(deletionState.state));
+  const deleting = deletionState && deletionValid && deletionState.state !== "" ? Number(deletionState.state) : null;
+  const deleteError = deletionValid ? null : "HA alarm deletion state is invalid or unavailable. Check input_text.clock_radio_deleting_alarm.";
+  const alarms = [...new Set([...alarmIds(states), ...(deleting ? [deleting] : [])])].sort((a, b) => a - b).map((id) => {
     const entities = alarmEntities(id);
     const missing = Object.values(entities).filter((entity) => !index.has(entity) || ["unknown", "unavailable"].includes(index.get(entity).state));
     const value = (key) => index.get(entities[key]);
     return {
-      id, missing, available: missing.length === 0,
+      id, missing, available: missing.length === 0, deletion_pending: deleting === id,
       setup_complete: id <= 2 || index.get(`input_boolean.${prefix(id)}_initialized`)?.state === "on",
       enabled: value("enabled")?.state === "on",
       type: value("type")?.state ?? null,
@@ -90,7 +95,12 @@ export function alarmSnapshot(states) {
     scheduler_version: index.get("sensor.clock_radio_alarm_scheduler_version")?.state ?? null,
     alarms, player: text("player"), music_source: text("music_source"),
     buzzer_source: text("buzzer_source"), active_player: text("active_player"),
-    active, snoozed, active_error: activeError,
+    active, active_id: captured?.id ?? legacy?.id ?? null, snoozed, active_error: activeError,
+    deleting, delete_error: deleteError,
+    can_delete: Boolean(Number(index.get("sensor.clock_radio_alarm_scheduler_version")?.state) >= 4
+      && deletionState && deletionValid && !deleteError && scriptAvailable("prepare_delete")
+      && scriptAvailable("cleanup") && scriptAvailable("play_alarm")
+      && [1, 2].every((id) => ["on", "off"].includes(index.get(`input_boolean.${prefix(id)}_deleted`)?.state))),
     can_snooze: Boolean(active && captured && profile.timer === "active" && !activeError && scriptAvailable("snooze")
       && scriptAvailable("resume_snooze") && index.has("input_text.clock_radio_snoozed_alarm")
       && !["unknown", "unavailable"].includes(index.get("input_text.clock_radio_snoozed_alarm").state)
@@ -126,7 +136,10 @@ export function validateAlarm(body) {
 
 export async function saveAlarm(ha, body, states, logger) {
   const setting = validateAlarm(body);
-  const profile = alarmSnapshot(states).alarms.find((alarm) => alarm.id === setting.id);
+  const snapshot = alarmSnapshot(states);
+  if (snapshot.delete_error) throw new RequestError(snapshot.delete_error, 409);
+  const profile = snapshot.alarms.find((alarm) => alarm.id === setting.id);
+  if (profile?.deletion_pending) throw new RequestError("Finish deleting this alarm before changing its settings.", 409);
   if (!profile?.available || !profile.setup_complete) throw new RequestError("The alarm helpers are missing, unavailable or incomplete. Install the HA package or finish setup first.", 409);
   const entities = alarmEntities(setting.id);
   const call = (domain, service, entity, data = {}) => ha.callService(domain, service, { entity_id: entity, ...data });
@@ -144,7 +157,7 @@ export async function saveAlarm(ha, body, states, logger) {
 }
 
 export function canCreateAlarm(snapshot) {
-  return Number(snapshot.scheduler_version) >= 2 && snapshot.can_stop && snapshot.can_play && !snapshot.playback_missing.length
+  return !snapshot.deleting && !snapshot.delete_error && Number(snapshot.scheduler_version) >= 2 && snapshot.can_stop && snapshot.can_play && !snapshot.playback_missing.length
     && snapshot.alarms.filter((alarm) => alarm.id <= 2).every((alarm) => alarm.available);
 }
 
@@ -157,7 +170,7 @@ export async function provisionAlarm(ha, states, body, logger) {
     let id = body.id;
     if (id === undefined) {
       if (snapshot.alarms.some((alarm) => alarm.id > 2 && (!alarm.available || !alarm.setup_complete))) throw new RequestError("Finish setting up the incomplete alarm before adding another.", 409);
-      id = Math.max(...alarmIds([...states, ...registry])) + 1;
+      id = Math.max(2, ...alarmIds([...states, ...registry])) + 1;
     }
     if (!Number.isSafeInteger(id) || id < 3) throw new RequestError("New alarm ID must be a safe integer greater than 2.");
     const existing = snapshot.alarms.find((alarm) => alarm.id === id);
@@ -200,6 +213,58 @@ export async function provisionAlarm(ha, states, body, logger) {
       logger.warn(`Alarm ${id} creation failed: ${error.message}`);
       throw new RequestError(`Alarm ${id} setup failed: ${error.message} No alarm was enabled. Use Finish setup on the incomplete profile, or inspect its helpers in HA.`, 502);
     }
+}
+
+export function validateDeleteAlarm(body) {
+  if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length !== 1
+      || !Number.isSafeInteger(body.id) || body.id < 1) throw new RequestError("Delete alarm takes only a positive safe integer id.");
+  return body.id;
+}
+
+export async function deleteAlarm(ha, states, body, logger) {
+  const id = validateDeleteAlarm(body);
+  const snapshot = alarmSnapshot(states);
+  if (snapshot.delete_error) throw new RequestError(snapshot.delete_error, 409);
+  if (!snapshot.can_delete) throw new RequestError("Update the HA alarm package to version 4 and load its deletion helpers/scripts before deleting alarms.", 409);
+  if (snapshot.active_error) throw new RequestError(snapshot.active_error, 409);
+  if (snapshot.deleting && snapshot.deleting !== id) throw new RequestError("Finish the pending alarm deletion first.", 409);
+  if (!snapshot.alarms.some((alarm) => alarm.id === id)) throw new RequestError("This alarm is not configured.", 404);
+  const owned = new Set([...Object.values(alarmEntities(id)), `timer.${prefix(id)}`, `input_boolean.${prefix(id)}_initialized`]);
+  try {
+    const plan = [];
+    if (id > 2) {
+      const registry = await ha.requestWs({ type: "config/entity_registry/list" });
+      if (!Array.isArray(registry) || !registry.every((entry) => entry && typeof entry.entity_id === "string")) throw new Error("HA returned an invalid entity registry.");
+      for (const domain of ["input_boolean", "input_number", "input_select", "timer"]) {
+        const items = await ha.requestWs({ type: `${domain}/list` });
+        if (!Array.isArray(items) || !items.every((item) => item && typeof item.id === "string")) throw new Error(`HA returned an invalid ${domain} helper list.`);
+        for (const entry of registry.filter((item) => owned.has(item.entity_id) && item.entity_id.startsWith(`${domain}.`))) {
+          if (entry.platform !== domain || typeof entry.unique_id !== "string" || !items.some((item) => item.id === entry.unique_id)) {
+            throw new Error(`${entry.entity_id} is not a removable native helper. Remove custom YAML definitions in HA instead.`);
+          }
+          plan.push({ type: `${domain}/delete`, [`${domain}_id`]: entry.unique_id });
+        }
+      }
+    }
+    await ha.callService("script", "clock_radio_prepare_delete", { alarm: id }, { timeout: 60000 });
+    const preparedStates = await ha.states();
+    const prepared = alarmSnapshot(preparedStates);
+    if (prepared.deleting !== id || prepared.active_error || prepared.active_id === id || prepared.snoozed?.id === id
+        || prepared.alarms.find((alarm) => alarm.id === id)?.enabled
+        || preparedStates.some((state) => ["script.clock_radio_play_alarm", "script.clock_radio_snooze", "script.clock_radio_resume_snooze"].includes(state.entity_id) && state.state === "on")
+        || prepared.alarms.some((alarm) => alarm.id === id && ["active", "paused"].includes(alarm.timer))) {
+      throw new Error("HA did not confirm that this alarm was safely stopped and cancelled.");
+    }
+    for (const request of plan) await ha.requestWs(request);
+    if (id <= 2) await ha.callService("input_boolean", "turn_on", { entity_id: `input_boolean.${prefix(id)}_deleted` });
+    else if ((await ha.states()).some((state) => owned.has(state.entity_id))) throw new Error("Some alarm helpers remain in HA. Retry deletion after checking them.");
+    await ha.callService("input_text", "set_value", { entity_id: "input_text.clock_radio_deleting_alarm", value: "" });
+    if (alarmSnapshot(await ha.states()).alarms.some((alarm) => alarm.id === id)) throw new Error("HA did not confirm alarm deletion.");
+    return { deleted_alarm_id: id };
+  } catch (error) {
+    logger.warn(`Alarm ${id} deletion failed: ${error.message}`);
+    throw new RequestError(`Alarm ${id} deletion failed: ${error.message} Check HA permissions/helpers and retry Delete; an unfinished deletion stays disabled.`, 502);
+  }
 }
 
 export function validatePlaybackSettings(body, players) {
