@@ -1,5 +1,12 @@
 # Clock Radio configuration
 
+## Optional alarm helpers
+
+See the [Home Assistant alarm package](../examples/home-assistant/README.md) for
+two independent Music/Buzzer alarm profiles and native entities cards. Install
+that package separately in Home Assistant; the app does not silently create HA
+helpers or require expanded control permissions on the tablet.
+
 ## First start
 
 The app copies its example to `/config/dashboard.yaml` inside the container.

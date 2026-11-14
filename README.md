@@ -24,9 +24,12 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
   seconds. Invalid edits show an error and retain the last valid configuration.
 - A fictional local demo, automated tests, app linting and image-build CI.
 
-This is a focused **0.1.0 starter**, not a copy of Dasher's full feature set.
-Scheduled alarms, sleep timers and Music Assistant library browsing are not
-implemented. Playback happens on your selected HA speaker, not the tablet.
+This is a focused starter, not a copy of Dasher's full feature set. An optional
+[Home Assistant alarm package](examples/home-assistant/README.md) adds two
+independent Music/Buzzer profiles with wake times, weekday switches and
+auto-stop timers, configured through native HA entities cards. The tablet does
+not yet include an alarm editor. Sleep timers and Music Assistant library
+browsing are not implemented. Playback happens on your HA speaker, not the tablet.
 
 ## Install
 
@@ -79,7 +82,7 @@ station URLs for real playback; they are fictional.
 ```sh
 npm run check
 npm test
-docker build --build-arg BUILD_VERSION=0.1.0 --build-arg BUILD_ARCH=amd64 ../
+docker build --build-arg BUILD_VERSION=0.2.0 --build-arg BUILD_ARCH=amd64 ../
 ```
 
 ## Layout and releases

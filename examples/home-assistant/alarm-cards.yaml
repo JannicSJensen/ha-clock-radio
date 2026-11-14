@@ -1,0 +1,78 @@
+type: vertical-stack
+cards:
+  - type: entities
+    title: Alarm 1
+    show_header_toggle: false
+    entities:
+      - entity: input_boolean.clock_radio_alarm_1_enabled
+        name: Alarm 1
+      - entity: input_select.clock_radio_alarm_1_type
+        name: Type
+      - entity: sensor.clock_radio_alarm_1_wake_time
+        name: Wake Time 1
+      - entity: input_number.clock_radio_alarm_1_hour
+        name: Hour
+      - entity: input_number.clock_radio_alarm_1_minute
+        name: Minutes
+      - entity: input_boolean.clock_radio_alarm_1_monday
+        name: Monday
+      - entity: input_boolean.clock_radio_alarm_1_tuesday
+        name: Tuesday
+      - entity: input_boolean.clock_radio_alarm_1_wednesday
+        name: Wednesday
+      - entity: input_boolean.clock_radio_alarm_1_thursday
+        name: Thursday
+      - entity: input_boolean.clock_radio_alarm_1_friday
+        name: Friday
+      - entity: input_boolean.clock_radio_alarm_1_saturday
+        name: Saturday
+      - entity: input_boolean.clock_radio_alarm_1_sunday
+        name: Sunday
+      - entity: input_number.clock_radio_alarm_1_volume
+        name: Volume
+      - entity: input_number.clock_radio_alarm_1_duration
+        name: Duration
+      - entity: timer.clock_radio_alarm_1
+        name: Remaining
+  - type: entities
+    title: Alarm 2
+    show_header_toggle: false
+    entities:
+      - entity: input_boolean.clock_radio_alarm_2_enabled
+        name: Alarm 2
+      - entity: input_select.clock_radio_alarm_2_type
+        name: Type
+      - entity: sensor.clock_radio_alarm_2_wake_time
+        name: Wake Time 2
+      - entity: input_number.clock_radio_alarm_2_hour
+        name: Hour
+      - entity: input_number.clock_radio_alarm_2_minute
+        name: Minutes
+      - entity: input_boolean.clock_radio_alarm_2_monday
+        name: Monday
+      - entity: input_boolean.clock_radio_alarm_2_tuesday
+        name: Tuesday
+      - entity: input_boolean.clock_radio_alarm_2_wednesday
+        name: Wednesday
+      - entity: input_boolean.clock_radio_alarm_2_thursday
+        name: Thursday
+      - entity: input_boolean.clock_radio_alarm_2_friday
+        name: Friday
+      - entity: input_boolean.clock_radio_alarm_2_saturday
+        name: Saturday
+      - entity: input_boolean.clock_radio_alarm_2_sunday
+        name: Sunday
+      - entity: input_number.clock_radio_alarm_2_volume
+        name: Volume
+      - entity: input_number.clock_radio_alarm_2_duration
+        name: Duration
+      - entity: timer.clock_radio_alarm_2
+        name: Remaining
+  - type: entities
+    title: Alarm playback settings
+    show_header_toggle: false
+    entities:
+      - input_text.clock_radio_player
+      - input_text.clock_radio_music_source
+      - input_text.clock_radio_buzzer_source
+      - script.clock_radio_stop

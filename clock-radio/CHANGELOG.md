@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.2.0
+
+- Add an optional HA-native package with two independent alarm profiles,
+  Music/Buzzer selectors, persistent hour/minute and weekday helpers, volume,
+  duration, wake-time displays and automatic stop timers.
+- Include native entities cards, guarded defaults, speaker cleanup and explicit
+  playback failure notifications. Alarms run in HA, without an open tablet.
+
 ## 0.1.0
 
 - Initialize a standalone Home Assistant clock-radio app using the Dasher

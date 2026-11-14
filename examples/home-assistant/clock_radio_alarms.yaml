@@ -1,0 +1,404 @@
+# Load through homeassistant.packages. Values restore across HA restarts.
+# Run script.clock_radio_initialize once after reloading this package.
+input_boolean:
+  clock_radio_initialized:
+    name: Clock Radio initialized
+    icon: mdi:check-circle
+  clock_radio_alarm_1_enabled:
+    name: Clock Radio Alarm 1
+    icon: mdi:alarm
+  clock_radio_alarm_2_enabled:
+    name: Clock Radio Alarm 2
+    icon: mdi:alarm
+  clock_radio_alarm_1_monday:
+    name: Alarm 1 Monday
+  clock_radio_alarm_1_tuesday:
+    name: Alarm 1 Tuesday
+  clock_radio_alarm_1_wednesday:
+    name: Alarm 1 Wednesday
+  clock_radio_alarm_1_thursday:
+    name: Alarm 1 Thursday
+  clock_radio_alarm_1_friday:
+    name: Alarm 1 Friday
+  clock_radio_alarm_1_saturday:
+    name: Alarm 1 Saturday
+  clock_radio_alarm_1_sunday:
+    name: Alarm 1 Sunday
+  clock_radio_alarm_2_monday:
+    name: Alarm 2 Monday
+  clock_radio_alarm_2_tuesday:
+    name: Alarm 2 Tuesday
+  clock_radio_alarm_2_wednesday:
+    name: Alarm 2 Wednesday
+  clock_radio_alarm_2_thursday:
+    name: Alarm 2 Thursday
+  clock_radio_alarm_2_friday:
+    name: Alarm 2 Friday
+  clock_radio_alarm_2_saturday:
+    name: Alarm 2 Saturday
+  clock_radio_alarm_2_sunday:
+    name: Alarm 2 Sunday
+
+input_number:
+  clock_radio_alarm_1_hour:
+    name: Alarm 1 Hour
+    icon: mdi:alarm
+    min: 0
+    max: 23
+    step: 1
+    mode: slider
+  clock_radio_alarm_1_minute:
+    name: Alarm 1 Minutes
+    icon: mdi:alarm
+    min: 0
+    max: 59
+    step: 1
+    mode: slider
+  clock_radio_alarm_2_hour:
+    name: Alarm 2 Hour
+    icon: mdi:alarm
+    min: 0
+    max: 23
+    step: 1
+    mode: slider
+  clock_radio_alarm_2_minute:
+    name: Alarm 2 Minutes
+    icon: mdi:alarm
+    min: 0
+    max: 59
+    step: 1
+    mode: slider
+  clock_radio_alarm_1_volume:
+    name: Alarm 1 Volume
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+  clock_radio_alarm_2_volume:
+    name: Alarm 2 Volume
+    min: 0
+    max: 100
+    step: 1
+    unit_of_measurement: "%"
+  clock_radio_alarm_1_duration:
+    name: Alarm 1 Duration
+    min: 1
+    max: 120
+    step: 1
+    unit_of_measurement: min
+  clock_radio_alarm_2_duration:
+    name: Alarm 2 Duration
+    min: 1
+    max: 120
+    step: 1
+    unit_of_measurement: min
+  clock_radio_previous_volume:
+    name: Clock Radio previous volume
+    min: 0
+    max: 100
+    step: 0.1
+
+input_select:
+  clock_radio_alarm_1_type:
+    name: Alarm 1 Type
+    options: [Music, Buzzer]
+    icon: mdi:music-note
+  clock_radio_alarm_2_type:
+    name: Alarm 2 Type
+    options: [Music, Buzzer]
+    icon: mdi:bullhorn
+  clock_radio_previous_repeat:
+    name: Clock Radio previous repeat
+    options: ["off", "one", "all"]
+
+input_text:
+  clock_radio_player:
+    name: Clock Radio speaker entity
+    max: 100
+  clock_radio_music_source:
+    name: Clock Radio music URI
+    max: 255
+  clock_radio_buzzer_source:
+    name: Clock Radio buzzer URL
+    max: 255
+  clock_radio_active_player:
+    name: Clock Radio active speaker
+    max: 100
+
+timer:
+  clock_radio_alarm_1:
+    name: Clock Radio Alarm 1 remaining
+    restore: true
+  clock_radio_alarm_2:
+    name: Clock Radio Alarm 2 remaining
+    restore: true
+
+template:
+  - sensor:
+      - name: Clock Radio Alarm 1 Wake Time
+        unique_id: clock_radio_alarm_1_wake_time
+        icon: mdi:eye
+        availability: >-
+          {{ is_number(states('input_number.clock_radio_alarm_1_hour'))
+             and is_number(states('input_number.clock_radio_alarm_1_minute')) }}
+        state: >-
+          {{ '%02d:%02d' | format(states('input_number.clock_radio_alarm_1_hour') | int,
+                                  states('input_number.clock_radio_alarm_1_minute') | int) }}
+      - name: Clock Radio Alarm 2 Wake Time
+        unique_id: clock_radio_alarm_2_wake_time
+        icon: mdi:eye
+        availability: >-
+          {{ is_number(states('input_number.clock_radio_alarm_2_hour'))
+             and is_number(states('input_number.clock_radio_alarm_2_minute')) }}
+        state: >-
+          {{ '%02d:%02d' | format(states('input_number.clock_radio_alarm_2_hour') | int,
+                                  states('input_number.clock_radio_alarm_2_minute') | int) }}
+
+script:
+  clock_radio_initialize:
+    alias: Clock Radio - initialize defaults once
+    mode: single
+    sequence:
+      - condition: state
+        entity_id: input_boolean.clock_radio_initialized
+        state: "off"
+      - action: input_boolean.turn_off
+        target:
+          entity_id:
+            - input_boolean.clock_radio_alarm_1_enabled
+            - input_boolean.clock_radio_alarm_2_enabled
+            - input_boolean.clock_radio_alarm_1_saturday
+            - input_boolean.clock_radio_alarm_1_sunday
+            - input_boolean.clock_radio_alarm_2_saturday
+            - input_boolean.clock_radio_alarm_2_sunday
+      - action: input_boolean.turn_on
+        target:
+          entity_id:
+            - input_boolean.clock_radio_alarm_1_monday
+            - input_boolean.clock_radio_alarm_1_tuesday
+            - input_boolean.clock_radio_alarm_1_wednesday
+            - input_boolean.clock_radio_alarm_1_thursday
+            - input_boolean.clock_radio_alarm_1_friday
+            - input_boolean.clock_radio_alarm_2_monday
+            - input_boolean.clock_radio_alarm_2_tuesday
+            - input_boolean.clock_radio_alarm_2_wednesday
+            - input_boolean.clock_radio_alarm_2_thursday
+            - input_boolean.clock_radio_alarm_2_friday
+      - action: input_number.set_value
+        target:
+          entity_id: [input_number.clock_radio_alarm_1_hour, input_number.clock_radio_alarm_2_hour]
+        data:
+          value: 6
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.clock_radio_alarm_1_minute
+        data:
+          value: 0
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.clock_radio_alarm_2_minute
+        data:
+          value: 15
+      - action: input_number.set_value
+        target:
+          entity_id: [input_number.clock_radio_alarm_1_volume, input_number.clock_radio_alarm_2_volume]
+        data:
+          value: 50
+      - action: input_number.set_value
+        target:
+          entity_id: [input_number.clock_radio_alarm_1_duration, input_number.clock_radio_alarm_2_duration]
+        data:
+          value: 5
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.clock_radio_alarm_1_type
+        data:
+          option: Music
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.clock_radio_alarm_2_type
+        data:
+          option: Buzzer
+      - action: input_boolean.turn_on
+        target:
+          entity_id: input_boolean.clock_radio_initialized
+
+  clock_radio_cleanup:
+    alias: Clock Radio - stop sound and restore speaker
+    mode: single
+    sequence:
+      - action: timer.cancel
+        target:
+          entity_id: [timer.clock_radio_alarm_1, timer.clock_radio_alarm_2]
+      - variables:
+          player: "{{ states('input_text.clock_radio_active_player') }}"
+      - if: "{{ player is match('^media_player\\.[a-z0-9_]+$') }}"
+        then:
+          - action: media_player.media_stop
+            target:
+              entity_id: "{{ player }}"
+          - action: media_player.repeat_set
+            target:
+              entity_id: "{{ player }}"
+            data:
+              repeat: "{{ states('input_select.clock_radio_previous_repeat') }}"
+          - action: media_player.volume_set
+            target:
+              entity_id: "{{ player }}"
+            data:
+              volume_level: "{{ states('input_number.clock_radio_previous_volume') | float / 100 }}"
+          - action: input_text.set_value
+            target:
+              entity_id: input_text.clock_radio_active_player
+            data:
+              value: ""
+
+  clock_radio_stop:
+    alias: Clock Radio - stop alarm
+    icon: mdi:alarm-off
+    mode: single
+    sequence:
+      - action: script.turn_off
+        target:
+          entity_id: script.clock_radio_play_alarm
+      - action: script.clock_radio_cleanup
+
+  clock_radio_play_alarm:
+    alias: Clock Radio - play alarm
+    description: Start a profile manually or from its schedule. A newer alarm replaces the previous one.
+    mode: queued
+    max: 2
+    fields:
+      alarm:
+        name: Alarm number
+        required: true
+        selector:
+          select:
+            options: ["1", "2"]
+    sequence:
+      - if: "{{ alarm | default('') | string not in ['1', '2'] }}"
+        then:
+          - stop: Alarm must be 1 or 2.
+            error: true
+      - variables:
+          prefix: "{{ 'clock_radio_alarm_' ~ alarm }}"
+          player: "{{ states('input_text.clock_radio_player') }}"
+          kind: "{{ states('input_select.' ~ prefix ~ '_type') }}"
+          source: >-
+            {{ states('input_text.clock_radio_music_source' if kind == 'Music'
+                      else 'input_text.clock_radio_buzzer_source') }}
+      - if: >-
+          {{ not (player is match('^media_player\\.[a-z0-9_]+$'))
+             or states(player) in ['unknown', 'unavailable']
+             or kind not in ['Music', 'Buzzer']
+             or not (source is match('^(https?://|library://|radiobrowser://)'))
+             or not is_number(states('input_number.' ~ prefix ~ '_volume'))
+             or not is_number(states('input_number.' ~ prefix ~ '_duration')) }}
+        then:
+          - action: persistent_notification.create
+            data:
+              notification_id: clock_radio_setup_error
+              title: Clock Radio alarm could not start
+              message: Check the speaker, Music/Buzzer source, volume and duration helpers.
+          - stop: Invalid Clock Radio configuration. See the persistent notification.
+            error: true
+      - action: script.clock_radio_cleanup
+      - action: input_number.set_value
+        target:
+          entity_id: input_number.clock_radio_previous_volume
+        data:
+          value: "{{ (state_attr(player, 'volume_level') | float(0)) * 100 }}"
+      - action: input_select.select_option
+        target:
+          entity_id: input_select.clock_radio_previous_repeat
+        data:
+          option: "{{ state_attr(player, 'repeat') if state_attr(player, 'repeat') in ['off', 'one', 'all'] else 'off' }}"
+      - action: input_text.set_value
+        target:
+          entity_id: input_text.clock_radio_active_player
+        data:
+          value: "{{ player }}"
+      - action: timer.start
+        target:
+          entity_id: "{{ 'timer.' ~ prefix }}"
+        data:
+          duration: "{{ (states('input_number.' ~ prefix ~ '_duration') | int) * 60 }}"
+      - action: media_player.repeat_set
+        target:
+          entity_id: "{{ player }}"
+        data:
+          repeat: "{{ 'one' if kind == 'Buzzer' else 'off' }}"
+      - action: media_player.volume_set
+        target:
+          entity_id: "{{ player }}"
+        data:
+          volume_level: "{{ states('input_number.' ~ prefix ~ '_volume') | float / 100 }}"
+      - action: music_assistant.play_media
+        continue_on_error: true
+        target:
+          entity_id: "{{ player }}"
+        data:
+          media_id: "{{ source }}"
+          media_type: "{{ 'radio' if kind == 'Music' else 'track' }}"
+          enqueue: replace
+      - wait_template: "{{ is_state(player, 'playing') }}"
+        timeout: "00:00:15"
+        continue_on_timeout: true
+      - if: "{{ not wait.completed }}"
+        then:
+          - action: persistent_notification.create
+            data:
+              notification_id: clock_radio_playback_error
+              title: Clock Radio playback failed
+              message: The speaker did not report playback within 15 seconds. Check Music Assistant and the source.
+          - action: script.clock_radio_cleanup
+          - stop: Alarm playback failed.
+            error: true
+
+automation:
+  - id: clock_radio_schedule
+    alias: Clock Radio - check independent wake times
+    mode: single
+    triggers:
+      - trigger: time_pattern
+        minutes: "/1"
+        seconds: "0"
+    actions:
+      - repeat:
+          for_each: ["1", "2"]
+          sequence:
+            - variables:
+                prefix: "{{ 'clock_radio_alarm_' ~ repeat.item }}"
+                weekday: "{{ ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'][now().weekday()] }}"
+            - if: >-
+                {{ is_state('input_boolean.' ~ prefix ~ '_enabled', 'on')
+                   and is_state('input_boolean.' ~ prefix ~ '_' ~ weekday, 'on')
+                   and is_number(states('input_number.' ~ prefix ~ '_hour'))
+                   and is_number(states('input_number.' ~ prefix ~ '_minute'))
+                   and now().hour == states('input_number.' ~ prefix ~ '_hour') | int
+                   and now().minute == states('input_number.' ~ prefix ~ '_minute') | int }}
+              then:
+                - action: script.turn_on
+                  target:
+                    entity_id: script.clock_radio_play_alarm
+                  data:
+                    variables:
+                      alarm: "{{ repeat.item }}"
+  - id: clock_radio_auto_stop
+    alias: Clock Radio - stop when wake timer finishes
+    triggers:
+      - trigger: event
+        event_type: timer.finished
+    conditions:
+      - condition: template
+        value_template: "{{ trigger.event.data.entity_id in ['timer.clock_radio_alarm_1', 'timer.clock_radio_alarm_2'] }}"
+    actions:
+      - action: script.clock_radio_stop
+  - id: clock_radio_startup
+    alias: Clock Radio - initialize and clean up after restart
+    triggers:
+      - trigger: homeassistant
+        event: start
+    actions:
+      - action: script.clock_radio_initialize
+      - action: script.clock_radio_cleanup
