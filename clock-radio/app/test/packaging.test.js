@@ -33,7 +33,7 @@ test("Supervisor packaging has persistent config, ingress and non-conflicting ta
   assert.equal(config.map[0].read_only, false);
   assert.deepEqual(Object.keys(config.map[0]).sort(), ["path", "read_only", "type"]);
   assert.equal(config.hassio_api, true);
-  assert.equal(config.hassio_role, "default");
+  assert.ok(!("hassio_role" in config), "The default Supervisor role is implicit");
   assert.equal(config.schema.music_assistant_token, "password?");
   const translation = YAML.parse(read(path.join(addon, "translations/en.yaml")));
   assert.deepEqual(Object.keys(config.options).sort(), Object.keys(translation.configuration).sort());

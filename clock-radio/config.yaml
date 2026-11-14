@@ -9,7 +9,6 @@ arch:
 init: false
 homeassistant_api: true
 hassio_api: true
-hassio_role: default
 ingress: true
 ingress_port: 8100
 ingress_stream: true
