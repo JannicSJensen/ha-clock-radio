@@ -4,15 +4,16 @@ import { getPref, setPref } from "./js/core/prefs.js";
 import { makeTranslator } from "./js/lib/i18n.js";
 import { createMusicPage } from "./js/pages/music.js";
 import { createNowPlayingScreen } from "./js/components/nowplaying-screen.js";
-import { createSettingsPage } from "./js/pages/settings.js";
+import { createSettingsPages } from "./js/pages/settings.js";
 
 const $ = (id) => document.getElementById(id);
 const frame = $("clock-frame");
+const PAGES = { clock: "The Clock", music: "Music overview", alarms: "Alarm configuration", settings: "Settings" };
 let model = null;
 let current = "clock";
 let musicPage = null;
 let musicSignature = "";
-let settingsPage = null;
+let settingsPages = null;
 let nowPlaying = null;
 let clockSignature = "";
 let clockRevision = 0;
@@ -60,11 +61,11 @@ function policy() {
 new MutationObserver(policy).observe($("page-music"), { subtree: true, childList: true });
 
 function navigate() {
-  current = ["clock", "music", "settings"].includes(location.hash.slice(1)) ? location.hash.slice(1) : "clock";
-  for (const page of ["clock", "music", "settings"]) $(`page-${page}`).hidden = page !== current;
+  current = Object.hasOwn(PAGES, location.hash.slice(1)) ? location.hash.slice(1) : "clock";
+  for (const page of Object.keys(PAGES)) $(`page-${page}`).hidden = page !== current;
   $(`page-${current}`).tabIndex = -1;
   $(`page-${current}`).focus({ preventScroll: true });
-  $("page-position").textContent = `${{ clock: "The Clock", music: "Music overview", settings: "Settings" }[current]}. Swipe up/down or use Page Up/Down to change pages.`;
+  $("page-position").textContent = `${PAGES[current]}. Swipe up/down or use Page Up/Down to change pages.`;
   document.body.classList.toggle("on-clock", current === "clock");
   if (current !== "clock") document.body.classList.remove("is-night");
   frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" }, location.origin);
@@ -73,7 +74,7 @@ function navigate() {
 
 function changePage(step) {
   if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
-  const pages = ["clock", "music", "settings"];
+  const pages = Object.keys(PAGES);
   location.hash = pages[(pages.indexOf(current) + step + pages.length) % pages.length];
 }
 
@@ -125,9 +126,10 @@ function render() {
     $("page-music").replaceChildren(musicPage.el);
     musicSignature = signature;
   }
-  if (!settingsPage) {
-    settingsPage = createSettingsPage(ctx);
-    $("page-settings").append(settingsPage.el);
+  if (!settingsPages) {
+    settingsPages = createSettingsPages(ctx);
+    $("page-alarms").append(settingsPages.alarmsEl);
+    $("page-settings").append(settingsPages.el);
   }
   if (!nowPlaying) {
     nowPlaying = createNowPlayingScreen(ctx, { enabled: () => false });
@@ -135,7 +137,7 @@ function render() {
   }
   musicPage.update();
   nowPlaying.update();
-  settingsPage.update(model, pending > 0);
+  settingsPages.update(model, pending > 0);
   policy();
   if (!getPref("touch-navigation-hint")) {
     toast("Swipe up/down between pages (scroll to the edge first). Swipe left/right within clock panels. Keyboard: Page Up/Down.");
@@ -168,7 +170,7 @@ async function write(url, data) {
   if (!canControl()) { toast("The dashboard is read-only or disconnected."); return false; }
   pending++;
   notice("command-error", "");
-  settingsPage?.update(model, true);
+  settingsPages?.update(model, true);
   try {
     await postJson(url, data);
     await poll();
@@ -180,7 +182,7 @@ async function write(url, data) {
     return false;
   } finally {
     pending--;
-    settingsPage?.update(model, pending > 0);
+    settingsPages?.update(model, pending > 0);
   }
 }
 
@@ -195,8 +197,9 @@ addEventListener("message", (event) => {
   if (event.data.type === "clock-radio-page") changePage(event.data.step);
   if (event.data.type === "clock-radio-view") changeClockView(event.data.panel, event.data.step);
 });
-onSwipe($("page-music"), { vertical: changePage });
-onSwipe($("page-settings"), { vertical: changePage });
+for (const page of Object.keys(PAGES).filter((page) => page !== "clock")) {
+  onSwipe($(`page-${page}`), { vertical: changePage });
+}
 addEventListener("hashchange", navigate);
 addEventListener("keydown", (event) => {
   if (event.key === "Escape") nowPlaying?.close({ dismiss: true });

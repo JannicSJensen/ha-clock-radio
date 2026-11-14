@@ -1,7 +1,8 @@
 # Clock Radio
 
-Three pages for Home Assistant tablets: **The Clock**, **Music overview** and
-**Settings**. Nightstand-style clock faces and widgets, Dasher's Music Assistant
+Four pages for Home Assistant tablets: **The Clock**, **Music overview**,
+**Alarm configuration** and **Settings**. Nightstand-style clock faces and widgets,
+Dasher's Music Assistant
 browsing/player, and two independent HA-backed Music/Buzzer alarms.
 
 Open it from the Home Assistant sidebar or at `http://<home-assistant>:8100/`.

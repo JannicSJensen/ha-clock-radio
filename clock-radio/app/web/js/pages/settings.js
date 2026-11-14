@@ -26,7 +26,7 @@ function setValues(form, values) {
   }
 }
 
-export function createSettingsPage(ctx) {
+export function createSettingsPages(ctx) {
   const forms = [];
   function createForm(title, content, serialize, endpoint, getValues, available = () => true) {
     let dirty = false;
@@ -171,10 +171,14 @@ export function createSettingsPage(ctx) {
     if (await ctx.write("api/alarm/create", {})) ctx.toast("Alarm added in HA. It starts disabled; choose its wake time and weekdays before enabling it.");
   });
   const addInfo = h("p", { class: "settings-hint" });
-  const el = h("div", { class: "settings" },
-    h("header", { class: "settings-heading" }, h("h1", null, "Settings"), h("p", null, "Swipe down at the top for Music, or up at the bottom for The Clock."), add, addInfo),
+  const alarmsEl = h("div", { class: "settings" },
+    h("header", { class: "settings-heading" }, h("h1", null, "Alarm configuration"), h("p", null, "Swipe down at the top for Music, or up at the bottom for Settings."), add, addInfo),
     alarmList,
-    playback, stop, clock,
+    playback, stop,
+  );
+  const el = h("div", { class: "settings" },
+    h("header", { class: "settings-heading" }, h("h1", null, "Settings"), h("p", null, "Swipe down at the top for Alarm configuration, or up at the bottom for The Clock.")),
+    clock,
     h("section", { class: "settings-card" }, h("h2", null, "Music Assistant"), musicInfo),
   );
 
@@ -188,7 +192,7 @@ export function createSettingsPage(ctx) {
     control.value = selected;
     control.dataset.options = signature;
   }
-  return { el, update(model, busy) {
+  return { el, alarmsEl, update(model, busy) {
     const ids = model.alarms.alarms.map((alarm) => alarm.id);
     for (const [id, form] of alarmForms) {
       if (ids.includes(id)) continue;

@@ -8,7 +8,7 @@ A calm bedside clock and radio dashboard, built on the same concept as
 Assistant app (add-on), a small Node.js server, and a vanilla JavaScript tablet
 page with no build step, HACS cards, or tablet-side Home Assistant token.
 
-## Three pages
+## Four pages
 
 1. **The Clock** - the layouts and widgets from
    [nightstand-clock](https://github.com/taclab/nightstand-clock): square/round
@@ -19,14 +19,17 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
    Radio, Albums, Artists, Podcasts, Playlists and Search tabs, sticky
    now-playing bar and artwork player with seeking, shuffle, repeat and volume.
    Full library browsing needs a Music Assistant read-only token in app options.
-3. **Settings** - persistent clock appearance and existing HA alarm
+3. **Alarm configuration** - existing HA alarm
    profiles: Music/Buzzer type, independent wake times, weekdays, volumes and
    wake timers. Install the [alarm package](examples/home-assistant/README.md)
    once; **Add alarm** creates additional persistent HA helpers and timers.
    New alarms start disabled; existing profiles are not duplicated.
+4. **Settings** - persistent clock appearance, time/calendar, weather labels,
+   night mode and Music Assistant connection guidance.
 
 There is no menu. Swipe **up/down** between pages; scroll to the edge first in
-Music/Settings. Keyboard users can use **Page Up/Down**. On the split clock,
+Music/Alarm configuration/Settings. Keyboard users can use **Page Up/Down**.
+On the split clock,
 swipe **left/right** within each panel to save its clock face or widget.
 Full-screen faces and hiding the widget remain Settings options.
 
@@ -60,7 +63,8 @@ Requires Home Assistant OS or a Supervisor installation on amd64 or aarch64.
    older versions).
 2. Add `https://github.com/JannicSJensen/ha-clock-radio`.
 3. Install **Clock Radio**, start it and choose **Open web UI**.
-4. Configure the clock/alarms in **Settings**, and optional radio presets in
+4. Configure alarms in **Alarm configuration**, the clock in **Settings**, and
+   optional radio presets in
    the app's `dashboard.yaml`; see
    [settings and examples](clock-radio/DOCS.md).
 5. On a tablet, open `http://<home-assistant>:8100/`.
@@ -106,7 +110,7 @@ station URLs for real playback; they are fictional.
 ```sh
 npm run check
 npm test
-docker build --build-arg BUILD_VERSION=0.4.1 --build-arg BUILD_ARCH=amd64 ../
+docker build --build-arg BUILD_VERSION=0.5.0 --build-arg BUILD_ARCH=amd64 ../
 ```
 
 ## Layout and releases

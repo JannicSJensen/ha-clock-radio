@@ -146,12 +146,13 @@ test("alarm input validation is exact, and a failed save leaves the schedule dis
   mock.ws.close();
 });
 
-test("three-page HTTP integration browses Dasher music, plays only registered items and edits existing helpers", async (t) => {
+test("four-page HTTP integration browses Dasher music, plays only registered items and edits existing helpers", async (t) => {
   const app = await setup(t);
   const html = await (await fetch(app.url)).text();
   const menus = [...html.matchAll(/data-page="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual(menus, []);
-  for (const page of ["clock", "music", "settings"]) assert.ok(html.includes(`id="page-${page}"`));
+  assert.deepEqual([...html.matchAll(/<section id="page-([^"]+)"/g)].map((match) => match[1]), ["clock", "music", "alarms", "settings"]);
+  assert.match(html, /id="page-alarms" class="page settings-page" aria-label="Alarm configuration" hidden/);
   const state = await app.get("api/state");
   assert.equal(state.connected, true);
   assert.equal(state.alarms.alarms.length, 2);

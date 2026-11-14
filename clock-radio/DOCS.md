@@ -1,11 +1,12 @@
 # Clock Radio configuration
 
-## Three pages and alarm helpers
+## Four pages and alarm helpers
 
-There is no menu. Swipe **up/down** between **The Clock**, **Music overview** and
-**Settings**, or use keyboard **Page Up/Down** outside form inputs. Scroll to
-the top/bottom first in Music and Settings: ordinary scrolling never changes
-pages mid-scroll. Open player dialogs and sliders do not trigger page swipes.
+There is no menu. Swipe **up/down** between **The Clock**, **Music overview**,
+**Alarm configuration** and **Settings**, or use keyboard **Page Up/Down** outside
+form inputs. Scroll to the top/bottom first in Music, Alarm configuration and
+Settings: ordinary scrolling never changes pages mid-scroll. Open player dialogs
+and sliders do not trigger page swipes.
 Swipe left/right within the split clock's left panel to cycle square analog,
 round analog and digital faces; the right panel cycles calendar, weather, date
 and date/calendar. These selections save to YAML. Full-screen faces and hiding
@@ -13,7 +14,7 @@ the widget remain Settings options. Swipes cannot save views in read-only mode.
 
 See the [Home Assistant alarm package](../examples/home-assistant/README.md) for
 two independent Music/Buzzer alarm profiles and native entities cards. Install
-that package separately in Home Assistant. Settings edits the existing
+that package separately in Home Assistant. Alarm configuration edits the existing
 `clock_radio_alarm_N_*` helpers, including enabled state, type, wake time, seven
 weekdays, volume (0-100%) and wake timer (1-120 minutes). Profiles may
 use different times and durations; all use the configured app speaker and shared source
@@ -30,7 +31,11 @@ failed edits immediately refresh the actual HA values rather than reporting succ
 
 **Add alarm** creates 13 settings helpers, a persistent initialization flag and a
 restoring timer using HA's admin-only helper APIs. Fresh profiles default to
-Music, 06:00, Monday-Friday, 50% and five minutes, **disabled**. The dynamic HA
+Music, 06:00, Monday-Friday, 50% and five minutes, **disabled**. Find this action
+and shared Music/Buzzer sources on **Alarm configuration**. **Settings** contains
+clock appearance and Music Assistant guidance. Direct links `#alarms` and
+`#settings` open the respective pages; unsaved form edits survive page changes.
+The dynamic HA
 package must expose `sensor.clock_radio_alarm_scheduler_version` >= 2 and have
 available playback/stop scripts before creation is offered. Updating its scripts/automations/templates is sufficient
 for an existing installation; helper definitions and saved values are preserved.

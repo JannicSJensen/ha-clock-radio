@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.5.0
+
+- Split Settings into an Alarm configuration page for alarm profiles, creation
+  and playback, and a Settings page for clock appearance and Music Assistant.
+- Extend vertical swipes, keyboard navigation and direct links to four pages:
+  The Clock, Music overview, Alarm configuration and Settings. Preserve unsaved
+  edits and the existing read-only/disconnect policy on both configuration pages.
+
 ## 0.4.1
 
 - Add weather entity configuration to the HA app options for weather widgets

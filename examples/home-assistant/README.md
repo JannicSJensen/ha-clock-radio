@@ -3,8 +3,8 @@
 The optional [package](clock_radio_alarms.yaml) runs alarms in Home Assistant,
 independently of an open tablet or the Clock Radio app process. It requires the
 Music Assistant integration and a Music Assistant speaker with volume and repeat
-support. After installing it, Clock Radio's **Settings** page edits these same
-profiles directly; **Add alarm** creates additional persistent profiles. Native HA
+support. After installing it, Clock Radio's **Alarm configuration** page edits
+these same profiles directly; **Add alarm** creates additional persistent profiles. Native HA
 entities cards remain an alternative.
 
 ## Install
@@ -35,7 +35,7 @@ entities cards remain an alternative.
      `http://homeassistant:8123/local/sounds/wakeup.mp3` if that hostname is
      reachable from your Music Assistant server. A bare `/local/...` path is
      not a Music Assistant media URI. No sound file is bundled.
-6. Use **Settings** in Clock Radio to edit alarms, add more and edit shared
+6. Use **Alarm configuration** in Clock Radio to edit alarms, add more and edit shared
    playback sources, or add [alarm-cards.yaml](alarm-cards.yaml) as a manual card
    in a native HA dashboard. It uses standard entities cards, without HACS.
 7. Test a profile from Developer tools > Actions using
@@ -50,7 +50,7 @@ entities cards remain an alternative.
 | Alarm 2 | Buzzer | 06:15 | Monday-Friday | 5 minutes | 50% | No |
 
 Each profile has its own enable switch, type selector, hour/minute sliders, wake
-time display in Settings, seven weekday switches, volume, duration and countdown timer.
+time display in Alarm configuration, seven weekday switches, volume, duration and countdown timer.
 Any profile can be Music or Buzzer. Playback sources and the speaker are
 shared settings. Values restore across restarts rather than being reset by YAML
 `initial` fields.
