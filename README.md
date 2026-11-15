@@ -15,6 +15,8 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
    analog and digital clocks, calendar, weather, date, date/calendar and
    full-screen faces. Includes seconds/sweep modes, locale/week-start settings,
    colors, next alarm and sun/scheduled/entity/room-light night modes.
+   While either alarm type is snoozed, the widget becomes a live countdown with
+   the same slide-to-stop control as the ringing screen.
 2. **Alarm configuration** - existing HA alarm
    profiles: Music/Buzzer type, independent wake times, weekdays, volumes and
    wake timers. A compact list offers enable switches; tap a time to edit with

@@ -14,7 +14,7 @@ export function canScroll(target, boundary, step) {
   return false;
 }
 
-export function onSwipe(el, { horizontal, vertical, ignore = ".slider,input,select,textarea,[contenteditable],[role=dialog]" }) {
+export function onSwipe(el, { horizontal, vertical, ignore = ".slider,input,select,textarea,[contenteditable],[role=dialog],[role=slider]" }) {
   let start = null;
   const begin = (event) => {
     const touch = event.touches[0];

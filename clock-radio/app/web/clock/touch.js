@@ -5,11 +5,11 @@ const page = (step) => parent.postMessage({ type: "clock-radio-page", step }, lo
 onSwipe(root, {
   vertical: page,
   horizontal(step, target) {
-    if (root.classList.contains("full")) return;
+    if (root.classList.contains("full") || root.querySelector(".snooze-panel")) return;
     const panel = target.closest("#widget") ? "widget" : "face";
     parent.postMessage({ type: "clock-radio-view", panel, step }, location.origin);
   },
 });
 addEventListener("keydown", (event) => {
-  if (["PageUp", "PageDown"].includes(event.key)) { event.preventDefault(); page(event.key === "PageDown" ? 1 : -1); }
+  if (["PageUp", "PageDown"].includes(event.key) && !event.target.closest("[role=slider]")) { event.preventDefault(); page(event.key === "PageDown" ? 1 : -1); }
 });

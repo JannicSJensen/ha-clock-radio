@@ -889,6 +889,51 @@ test("ringing alarm API snoozes both types for 600 seconds, exposes the next wak
   assert.ok(stopped.alarms.every((alarm) => alarm.timer === "idle"));
 });
 
+test("scoped snooze cancellation handles both alarm types without accepting stale targets", async (t) => {
+  const app = await setup(t);
+  const clock = structuredClone(app.store.current.clock);
+  for (const id of [1, 2]) {
+    app.startAlarm(id);
+    assert.equal((await app.post("api/alarm/snooze", {})).status, 200);
+    const snoozed = (await app.get("api/state")).alarms.snoozed;
+    const before = app.calls.length;
+    for (const invalid of [null, {}, { ...snoozed, id: "1" }, { ...snoozed, type: "Other" }, { ...snoozed, until: "invalid" }, { ...snoozed, extra: true }]) {
+      assert.equal((await app.post("api/alarm/stop", { snoozed: invalid })).status, 400);
+    }
+    for (const changed of [{ id: id + 10 }, { type: snoozed.type === "Music" ? "Buzzer" : "Music" }, { until: new Date(Date.parse(snoozed.until) + 1000).toISOString() }]) {
+      assert.equal((await app.post("api/alarm/stop", { snoozed: { ...snoozed, ...changed } })).status, 409);
+    }
+    app.dashboard.readOnly = true;
+    assert.equal((await app.post("api/alarm/stop", { snoozed })).status, 403);
+    app.dashboard.readOnly = false;
+    assert.equal(app.calls.length, before);
+    assert.equal((await app.post("api/alarm/stop", { snoozed })).status, 200);
+    assert.equal((await app.get("api/state")).alarms.snoozed, null);
+    const stopped = app.calls.length;
+    assert.equal((await app.post("api/alarm/stop", { snoozed })).status, 409);
+    assert.equal(app.calls.length, stopped);
+  }
+  assert.deepEqual(app.store.current.clock, clock);
+});
+
+test("a stale snooze stop cannot dismiss a new ringing alarm or an expired deadline", async (t) => {
+  const app = await setup(t);
+  app.startAlarm(1);
+  await app.post("api/alarm/snooze", {});
+  const snoozed = (await app.get("api/state")).alarms.snoozed;
+  app.startAlarm(2);
+  let before = app.calls.length;
+  assert.equal((await app.post("api/alarm/stop", { snoozed })).status, 409);
+  assert.equal(app.calls.length, before);
+  assert.equal((await app.get("api/state")).alarms.active.id, 2);
+  await app.post("api/alarm/snooze", {});
+  app.states.find((state) => state.entity_id === "input_datetime.clock_radio_snooze_until").attributes.timestamp = Math.floor(Date.now() / 1000) - 1;
+  const expired = (await app.get("api/state")).alarms.snoozed;
+  before = app.calls.length;
+  assert.equal((await app.post("api/alarm/stop", { snoozed: expired })).status, 409);
+  assert.equal(app.calls.length, before);
+});
+
 test("snooze failures and disconnected HA return explicit errors without inventing a successful stop", async (t) => {
   const app = await setup(t);
   app.startAlarm(2);

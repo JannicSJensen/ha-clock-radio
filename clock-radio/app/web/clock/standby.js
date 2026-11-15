@@ -1,3 +1,5 @@
+import { createSnoozePanel } from "../js/components/snooze-panel.js";
+
 (function () {
   'use strict';
   // Adapted from taclab/nightstand-clock (Apache-2.0): timezone, live HA data and visibility bridge.
@@ -15,7 +17,7 @@
 
   var o = {
     layout: pick(options.layout, ['widget', 'full'], 'widget'),
-    widget: pick(options.widget, ['calendar', 'date-calendar', 'weather', 'date', 'none'], 'calendar'),
+    widget: pick(options.widget, ['calendar', 'date-calendar', 'weather', 'date', 'none', 'snooze'], 'calendar'),
     seconds: options.seconds !== false,
     secondHand: pick(options.secondHand, ['60', '30', 'tick'], '30'),
     night: pick(options.night, ['off', 'always', 'schedule', 'entity'], 'off'),
@@ -602,6 +604,13 @@
 
   var root = document.getElementById('root'), clockPanel = document.getElementById('clock'), widgetPanel = document.getElementById('widget');
   var update = null, widgetDay = '', night = null;
+  var snoozePanel = null;
+  widgets.snooze = function (container) {
+    if (!snoozePanel) snoozePanel = createSnoozePanel(function (alarm) {
+      parent.postMessage({ type: 'clock-radio-stop-snooze', snoozed: alarm }, location.origin);
+    });
+    container.append(snoozePanel.el);
+  };
 
   function build() {
     var now = wallDate(Date.now());
@@ -629,6 +638,7 @@
       widgetPanel.textContent = '';
       widgets[o.widget](widgetPanel, now);
     }
+    if (snoozePanel && o.widget === 'snooze') snoozePanel.update(options.snooze);
     update(now);
     root.setAttribute('aria-label', time(now) + (hour12 ? ' ' + period(now) : '') + ' ' + format(now, { dateStyle: 'full' }));
     keepSweep();
@@ -655,6 +665,7 @@
     }
     if (!event.data || event.data.type !== 'clock-radio-data' || !event.data.options) return;
     var live = event.data.options;
+    options.snooze = live.snooze;
     var weatherChanged = false;
     ['weatherConfigured', 'weatherPlace', 'weatherCondition', 'weatherTemperature', 'weatherUnit', 'weatherDate', 'weatherHigh', 'weatherLow'].forEach(function (key) {
       if (options[key] !== live[key]) weatherChanged = true;

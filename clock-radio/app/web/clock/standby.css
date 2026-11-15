@@ -90,6 +90,13 @@ html, body {
   height: min(100vw - 8vmin, 100vh - 8vmin);
 }
 #root.alone #widget, #root.full #widget { display: none; }
+.snooze-panel { --snooze-accent: #ff9f0a; box-sizing: border-box; width: 100%; height: 100%; padding: 8px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: clamp(6px, 1vmin, 12px); overflow-y: auto; text-align: center; }
+.snooze-panel h2 { margin: 0; font-size: 20px; font-weight: 500; }
+.snooze-panel__time { color: var(--snooze-accent); font-size: clamp(50px, 9vw, 110px); line-height: 1.1; font-weight: 300; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.snooze-panel__context { margin: 0; font-size: 14px; }
+.snooze-panel .slide-stop { flex: none; margin-top: 8px; }
+.snooze-panel__status { margin: 0; min-height: 2.8em; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+:root.night .snooze-panel { --snooze-accent: var(--night); --slide-stop-track: #171717; --slide-stop-knob: #292929; --slide-stop-label: var(--primary); --slide-stop-focus: var(--night); }
 #root.full { padding: 0; }
 #root.full #clock { width: 100vw; height: 100vh; }
 .sweep { position: absolute; will-change: transform; pointer-events: none; }

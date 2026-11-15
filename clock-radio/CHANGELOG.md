@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.15.0
+
+- Replace the clock widget with a live countdown while Music or Buzzer alarms
+  are snoozed, with the ringing screen's slide-to-stop control.
+- Restore the saved layout/widget when HA clears snooze. Keep deadline ticking,
+  night colors, portrait layout, read-only/disconnected guards, confirmation and
+  retryable errors consistent with the clock and ringing screen.
+- Scope snooze stop requests to the current ID, type and deadline so stale
+  controls cannot dismiss a replacement alarm. Keep existing stop requests
+  compatible and require no HA package update.
+
 ## 0.14.4
 
 - Initialize and verify newly created Music Source helpers before marking an

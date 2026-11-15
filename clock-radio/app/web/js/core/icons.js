@@ -9,7 +9,7 @@ function loadPath(name) {
   if (!cache.has(name)) {
     cache.set(
       name,
-      fetch(`./icons/${encodeURIComponent(name)}.svg`)
+      fetch(new URL(`../../icons/${encodeURIComponent(name)}.svg`, import.meta.url))
         .then((r) => {
           if (!r.ok) throw new Error(`Icon ${name} failed (HTTP ${r.status}).`);
           return r.text();

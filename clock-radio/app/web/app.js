@@ -6,6 +6,7 @@ import { createMusicPage } from "./js/pages/music.js";
 import { createNowPlayingScreen } from "./js/components/nowplaying-screen.js";
 import { createSettingsPages } from "./js/pages/settings.js";
 import { createAlarmScreen } from "./js/components/alarm-screen.js";
+import { snoozeKey } from "./js/components/snooze-panel.js";
 
 const $ = (id) => document.getElementById(id);
 const frame = $("clock-frame");
@@ -33,6 +34,10 @@ let clockRevision = 0;
 let clockDataSignature = "";
 let pending = 0;
 let polling = null;
+let currentSnoozeKey = null;
+let snoozeStopping = false;
+let snoozeError = "";
+let snoozeConfirmation = null;
 
 function notice(id, message) {
   $(id).textContent = message ?? "";
@@ -103,18 +108,43 @@ function changePage(step) {
 
 function changeClockView(panel, step) {
   if (!model || alarmScreen?.isOpen || current !== "clock" || !["face", "widget"].includes(panel)) return;
+  if (model.alarms.snoozed) return toast("Clock panels return to normal when snooze ends.");
   if (pending) return toast("Please wait for the current save to finish.");
   const views = panel === "face" ? ["analog", "analog-round", "digital"] : ["calendar", "weather", "date", "date-calendar"];
   const value = views[(Math.max(0, views.indexOf(model.config.clock[panel])) + step + views.length) % views.length];
   write("api/settings/clock", { ...model.config.clock, [panel]: value });
 }
 
-function renderClock() {
+function clockOptions() {
   const options = { ...model.clock };
-  document.body.style.setProperty("--clock-night", options.nightColor);
   delete options.error;
   delete options.night_error;
-  const live = new Set(["nightActive", "alarm", "weatherConfigured", "weatherPlace", "weatherCondition", "weatherTemperature", "weatherUnit", "weatherDate", "weatherHigh", "weatherLow"]);
+  const alarm = model.alarms.active ? null : model.alarms.snoozed;
+  const key = snoozeKey(alarm);
+  if (key !== currentSnoozeKey) {
+    clearTimeout(snoozeConfirmation);
+    snoozeStopping = false;
+    snoozeError = "";
+    currentSnoozeKey = key;
+  }
+  if (alarm) {
+    options.layout = "widget";
+    options.widget = "snooze";
+  }
+  options.snooze = {
+    alarm, stopping: snoozeStopping, error: snoozeError, busy: pending > 0,
+    canStop: canControl() && model.alarms.can_stop && !model.alarms.active_error,
+    status: !model.connected ? "Disconnected. Reconnect to cancel snooze."
+      : model.read_only ? "Read-only. Use Home Assistant to cancel snooze."
+      : model.alarms.active_error || (!model.alarms.can_stop ? "The HA alarm stop script is unavailable." : ""),
+  };
+  return options;
+}
+
+function renderClock() {
+  const options = clockOptions();
+  document.body.style.setProperty("--clock-night", options.nightColor);
+  const live = new Set(["snooze", "nightActive", "alarm", "weatherConfigured", "weatherPlace", "weatherCondition", "weatherTemperature", "weatherUnit", "weatherDate", "weatherHigh", "weatherLow"]);
   const signature = JSON.stringify(Object.fromEntries(Object.entries(options).filter(([key]) => !live.has(key))));
   if (signature !== clockSignature) {
     frame.src = `./clock/index.html?view=${++clockRevision}#${encodeURIComponent(JSON.stringify(options))}`;
@@ -124,6 +154,37 @@ function renderClock() {
     frame.contentWindow?.postMessage({ type: "clock-radio-data", options }, location.origin);
   }
   clockDataSignature = JSON.stringify(options);
+}
+
+async function stopSnooze(target) {
+  const alarm = model?.alarms.snoozed;
+  if (!alarm || model.alarms.active || snoozeKey(target) !== snoozeKey(alarm) || Date.parse(alarm.until) <= Date.now()) {
+    toast("This snooze has ended or changed. Waiting for its current state.");
+    await poll();
+    return;
+  }
+  if (snoozeStopping || pending || !canControl() || !model.alarms.can_stop || model.alarms.active_error) {
+    toast("Snooze cannot be stopped right now. Check the connection, permissions and HA alarm helpers.");
+    return;
+  }
+  const key = snoozeKey(alarm);
+  snoozeStopping = true;
+  snoozeError = "";
+  renderClock();
+  const ok = await write("api/alarm/stop", { snoozed: { id: alarm.id, type: alarm.type, until: alarm.until } });
+  if (snoozeKey(model.alarms.snoozed) !== key || model.alarms.active) return;
+  if (!ok) {
+    snoozeStopping = false;
+    snoozeError = ctx.writeError() || "Snooze was not cancelled. Please try again.";
+  } else {
+    snoozeConfirmation = setTimeout(() => {
+      if (currentSnoozeKey !== key) return;
+      snoozeStopping = false;
+      snoozeError = "Home Assistant has not confirmed cancellation. Check HA and try again.";
+      renderClock();
+    }, 15000);
+  }
+  renderClock();
 }
 
 function render() {
@@ -137,7 +198,7 @@ function render() {
   $("demo-notice").hidden = !model.demo;
   notice("connection-error", model.connection_error);
   notice("config-error", model.config_error);
-  notice("clock-error", [model.clock.error, model.clock.night_error].filter(Boolean).join(" "));
+  notice("clock-error", [model.clock.error, model.clock.night_error, model.alarms.active_error].filter(Boolean).join(" "));
   notice("missing-players", model.missing_players.length ? `Missing configured speakers: ${model.missing_players.join(", ")}` : "");
   $("read-only").hidden = !model.read_only;
   renderClock();
@@ -208,6 +269,7 @@ async function write(url, data) {
   notice("command-error", "");
   settingsPages?.update(model, true);
   alarmScreen?.update(model, true);
+  renderClock();
   try {
     await postJson(url, data);
     await poll();
@@ -221,16 +283,21 @@ async function write(url, data) {
     pending--;
     settingsPages?.update(model, pending > 0);
     alarmScreen?.update(model, pending > 0);
+    renderClock();
   }
 }
 
 frame.addEventListener("load", () => {
   frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" && !alarmScreen?.isOpen }, location.origin);
-  if (model) frame.contentWindow?.postMessage({ type: "clock-radio-data", options: model.clock }, location.origin);
+  if (model) frame.contentWindow?.postMessage({ type: "clock-radio-data", options: clockOptions() }, location.origin);
 });
 addEventListener("message", (event) => {
   if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
   if (event.data?.type === "clock-radio-night") document.body.classList.toggle("is-night", current === "clock" && !alarmScreen?.isOpen && event.data.active === true);
+  if (event.data?.type === "clock-radio-stop-snooze") {
+    stopSnooze(event.data.snoozed);
+    return;
+  }
   if (![1, -1].includes(event.data?.step)) return;
   if (event.data.type === "clock-radio-page") changePage(event.data.step);
   if (event.data.type === "clock-radio-view") changeClockView(event.data.panel, event.data.step);

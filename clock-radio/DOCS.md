@@ -201,6 +201,21 @@ previous page returns; an interrupted alarm-editor draft is discarded.
 **Snooze** silences either alarm type and rings again in **10 minutes**, even
 with the app/tablet closed. A pending snooze appears in Alarm configuration
 with **Cancel snoozed alarm** and contributes to the clock's next-alarm display.
+On **The Clock**, the right-hand panel becomes a live `MM:SS` snooze countdown
+with the captured alarm type and the ringing screen's **slide to stop** control.
+In portrait it appears below the clock. Full-screen and widget-free layouts
+temporarily use two panels; your saved layout, face and widget are restored
+when HA clears snooze. Horizontal panel swipes are paused during snooze.
+
+![Clock with a live snooze countdown and slide-to-stop control](../docs/screenshots/snooze.png)
+
+The countdown uses HA's saved deadline, including after reload or returning from
+a hidden page. Stopping waits for HA confirmation; failures remain visible and
+can be retried. Read-only/disconnected controls are disabled. At `00:00`, the
+panel waits for HA to resume the alarm rather than starting audio locally or
+pretending snooze has ended. A stale cancellation cannot dismiss a replacement
+alarm: the stop request must match the current snoozed ID, type and deadline.
+
 A new alarm replaces a pending snooze. Resuming uses the captured Music/Buzzer
 type with the profile's current duration/volume and current shared speaker/source.
 No schedule is enabled or disabled by snoozing.

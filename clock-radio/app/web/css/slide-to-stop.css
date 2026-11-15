@@ -1,0 +1,7 @@
+.slide-stop { box-sizing: border-box; position: relative; width: 100%; height: 76px; border-radius: 99px; background: var(--slide-stop-track, #242426); touch-action: none; user-select: none; cursor: grab; }
+.slide-stop__knob { position: absolute; left: 6px; top: 6px; display: grid; place-items: center; width: 64px; height: 64px; border-radius: 50%; background: var(--slide-stop-knob, #555559); font-size: 28px; }
+.slide-stop__knob .icon { display: inline-flex; width: 1em; height: 1em; }
+.slide-stop__knob .icon svg { width: 100%; height: 100%; }
+.slide-stop__label { position: absolute; inset: 0 12px 0 76px; display: grid; place-items: center; color: var(--slide-stop-label, #c7c7ca); font-size: clamp(18px, 5vw, 24px); }
+.slide-stop[aria-disabled="true"] { opacity: .45; cursor: not-allowed; }
+.slide-stop:focus-visible { outline: 2px solid var(--slide-stop-focus, #ff9f0a); outline-offset: 4px; }

@@ -308,8 +308,23 @@ export class Dashboard {
   async stopAlarm(body) {
     await this.mutationReady();
     if (this.alarmWrites.has("delete")) throw new RequestError("Wait for the alarm deletion to finish.", 409);
-    if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length) throw new RequestError("Stop alarm takes an empty object.");
-    if (!alarmSnapshot(this.states).can_stop) throw new RequestError("The alarm stop script is unavailable.", 409);
+    if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some((key) => key !== "snoozed")) throw new RequestError("Stop alarm takes an empty object or a snoozed alarm context.");
+    const snapshot = alarmSnapshot(this.states);
+    if (Object.hasOwn(body, "snoozed")) {
+      const target = body.snoozed;
+      if (!target || typeof target !== "object" || Array.isArray(target)
+          || Object.keys(target).some((key) => !["id", "type", "until"].includes(key))
+          || !Number.isSafeInteger(target.id) || target.id < 1 || !["Music", "Buzzer"].includes(target.type)
+          || typeof target.until !== "string" || !Number.isFinite(Date.parse(target.until))) {
+        throw new RequestError("A snoozed alarm ID, type and deadline are required.");
+      }
+      if (snapshot.active || snapshot.active_id || snapshot.active_player || snapshot.active_error
+          || snapshot.snoozed?.id !== target.id || snapshot.snoozed?.type !== target.type
+          || snapshot.snoozed?.until !== target.until || Date.parse(target.until) <= Date.now()) {
+        throw new RequestError("This snooze has ended or changed. Refresh its current state before stopping it.", 409);
+      }
+    }
+    if (!snapshot.can_stop) throw new RequestError("The alarm stop script is unavailable.", 409);
     await this.ha.callService("script", "turn_on", { entity_id: "script.clock_radio_stop" });
     await this.refresh();
   }
