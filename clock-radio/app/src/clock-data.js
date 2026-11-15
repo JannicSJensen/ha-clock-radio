@@ -1,5 +1,7 @@
 import { WEEKDAYS } from "./alarms.js";
 
+export const NIGHT_OVERRIDE_ENTITY = "input_select.clock_radio_night_override";
+
 const dayFormatters = new Map();
 function parts(at, zone) {
   if (!dayFormatters.has(zone)) dayFormatters.set(zone, new Intl.DateTimeFormat("en-GB", {
@@ -78,6 +80,7 @@ export class ClockData {
   constructor({ ha, logger, now = Date.now }) {
     Object.assign(this, { ha, logger, now });
     this.night = false;
+    this.override = null;
     this.forecast = null;
     this.forecastKey = "";
     this.forecastAt = 0;
@@ -88,6 +91,15 @@ export class ClockData {
     const settings = config.clock;
     const index = new Map(states.map((state) => [state.entity_id, state]));
     this.night = nightEntityActive(index.get(nightEntityId(config)), settings, this.night);
+    const override = index.get(NIGHT_OVERRIDE_ENTITY);
+    if (override || this.override) {
+      const available = ["Auto", "Day", "Night"].includes(override?.state);
+      const value = available ? override.state : this.override?.value ?? "Auto";
+      this.override = {
+        value, available,
+        error: available ? null : `${NIGHT_OVERRIDE_ENTITY} is missing, unavailable or invalid. Choose Auto, Day or Night in HA. The last valid override (${value}) is retained.`,
+      };
+    }
     const weather = index.get(settings.weather_entity);
     if (this.weather?.entity_id !== weather?.entity_id) this.forecast = null;
     this.weather = weather;
@@ -137,20 +149,24 @@ export class ClockData {
     if (snooze && Date.parse(snooze) > this.now() && (!alarm || Date.parse(snooze) < Date.parse(alarm))) alarm = snooze;
     const weatherAvailable = weather && !["unknown", "unavailable"].includes(weather.state);
     const nightState = states.find((state) => state.entity_id === nightEntityId(config));
-    const nightError = settings.night_mode === "sun" && !["above_horizon", "below_horizon"].includes(nightState?.state)
+    const override = this.override?.value ?? "Auto";
+    const automaticNightError = settings.night_mode === "sun" && !["above_horizon", "below_horizon"].includes(nightState?.state)
       ? `Home Assistant ${nightEntityId(config)} is missing, unavailable or invalid. Check sun_entity in the HA app configuration and the Sun integration. The last night state is retained.`
       : ["entity", "illuminance"].includes(settings.night_mode)
         && (!nightState || ["unknown", "unavailable"].includes(nightState.state))
         ? "Choose an available Home Assistant entity for sensor-based night mode. The last night state is retained." : null;
+    const nightError = [this.override?.error, override === "Auto" ? automaticNightError : null].filter(Boolean).join(" ") || null;
     return {
       layout: settings.layout, clock: settings.layout === "full" ? settings.full_face : settings.face,
       widget: settings.widget, seconds: settings.seconds, secondHand: settings.second_hand,
       timeFormat: settings.time_format, locale: settings.language,
       timeZone: zone, weekStart: settings.week_start, primary: settings.primary,
       accent: settings.accent, secondsColor: settings.seconds_color, background: settings.background,
-      night: ["entity", "illuminance", "sun"].includes(settings.night_mode) ? "entity" : settings.night_mode,
+      night: override === "Day" ? "off" : override === "Night" ? "always"
+        : ["entity", "illuminance", "sun"].includes(settings.night_mode) ? "entity" : settings.night_mode,
       nightStart: settings.night_start, nightEnd: settings.night_end,
-      nightActive: this.night, nightColor: settings.night_color, nightBrightness: settings.night_brightness,
+      nightActive: override === "Auto" ? this.night : override === "Night",
+      nightColor: settings.night_color, nightBrightness: settings.night_brightness,
       weatherConfigured: Boolean(settings.weather_entity), weatherPlace: settings.weather_name || weather?.attributes?.friendly_name || "",
       weatherCondition: weather?.state ?? null,
       weatherTemperature: weatherAvailable && typeof weather.attributes?.temperature === "number" ? weather.attributes.temperature : null,

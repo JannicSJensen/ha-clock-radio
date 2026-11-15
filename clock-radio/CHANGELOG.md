@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.13.0
+
+- Add optional `input_select.clock_radio_night_override` support for manual
+  clock-color testing from HA: Auto follows the configured night mode, Day
+  forces daytime colors and Night forces night color/brightness over black.
+  Automatic settings, sensor hysteresis, alarms and music are left unchanged.
+- Show the helper's selection in Settings. Missing optional helpers keep
+  existing behavior; an installed helper becoming invalid/unavailable retains
+  its last valid selection and reports an explicit warning.
+- Include a standalone restoring HA helper package and setup instructions.
+  No alarm scheduler package update is required.
+
 ## 0.12.0
 
 - Add four persistent bottom dots to the main Clock, Music, Alarm configuration

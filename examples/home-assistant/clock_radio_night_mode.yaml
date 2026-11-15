@@ -1,0 +1,8 @@
+input_select:
+  clock_radio_night_override:
+    name: Clock Radio night override
+    options:
+      - Auto
+      - Day
+      - Night
+    icon: mdi:theme-light-dark

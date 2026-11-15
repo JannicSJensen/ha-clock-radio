@@ -78,9 +78,10 @@ export function createSettingsPages(ctx) {
 
   const weatherEntity = sourceValue();
   const sunEntity = sourceValue();
+  const nightOverride = sourceValue();
   const weatherInfo = h("p", { class: "settings-hint" }, "Set weather_entity in the Home Assistant app configuration and restart to change the weather source. Empty disables weather.");
   const clockInfo = h("p", { class: "settings-hint" });
-  const nightInfo = h("p", { class: "settings-hint" }, "Sun mode enables night colors below the horizon. Set sun_entity in the HA app configuration and restart to change its source. Night entity, hours and threshold are ignored in Sun mode. Room-light mode uses hysteresis; unavailable sensors retain the last night state.");
+  const nightInfo = h("p", { class: "settings-hint" }, "Sun mode enables night colors below the horizon. Set sun_entity in the HA app configuration and restart to change its source. Night entity, hours and threshold are ignored in Sun mode. Room-light mode uses hysteresis; unavailable sensors retain the last night state. To test colors, set input_select.clock_radio_night_override in HA to Day or Night, then return it to Auto to resume the configured mode.");
   const clock = createForm("Clock appearance",
     [
       group("View", "view", [
@@ -106,6 +107,7 @@ export function createSettingsPages(ctx) {
       group("Night mode", "night", [
         field("Mode", select("night_mode", CLOCK_CHOICES.night_mode)),
         source("Sun entity", sunEntity),
+        source("Manual color test (HA)", nightOverride),
         field("Night entity / illuminance sensor", select("night_entity", [""])),
         field("Start hour", input("night_start", "number", { min: 0, max: 23, required: true })),
         field("End hour", input("night_end", "number", { min: 0, max: 23, required: true })),
@@ -152,6 +154,8 @@ export function createSettingsPages(ctx) {
     const entities = model.clock_entities;
     weatherEntity.textContent = model.config.clock.weather_entity || "Not configured";
     sunEntity.textContent = model.config.sun_entity;
+    const override = model.night_override;
+    nightOverride.textContent = override.available ? override.value : override.error ? `${override.value} (unavailable)` : "Not installed (Auto)";
     musicState.textContent = model.music.library ? "Configured" : "Not configured";
     optionsFor(clock.elements.namedItem("night_entity"), entities.filter((item) => !item.entity_id.startsWith("weather.")), "Choose an entity", model.config.clock.night_entity);
     optionsFor(clock.elements.namedItem("next_alarm_entity"), entities.filter((item) => /^(sensor|input_datetime)\./.test(item.entity_id)), "Use the Clock Radio alarms", model.config.clock.next_alarm_entity);

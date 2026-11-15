@@ -288,7 +288,44 @@ The Settings page can be scrolled to the Night mode group. The configured
 **Sun entity** is shown as a read-only row. In Sun mode, the separate night-entity
 selector, hours and sensor threshold shown below are not used.
 
-![Settings scrolled to Sun night mode, night color and brightness controls](../docs/screenshots/night-mode.png)
+### Manual clock color test
+
+Clock Radio 0.13.0+ optionally follows
+`input_select.clock_radio_night_override`, with the exact choices **Auto**,
+**Day**, **Night**. This overrides only clock colors, not alarms or music.
+The configured Night mode and its settings are never rewritten:
+
+- **Auto** follows your configured Sun, schedule, entity, illuminance, always
+  or off mode.
+- **Day** forces your daytime primary/accent/seconds/background colors.
+- **Night** forces the configured night color and brightness over black.
+
+Create a **Dropdown** helper under **HA Settings > Devices & services > Helpers**
+named **Clock Radio night override**, with those three options in that order.
+Check that its entity ID is exactly `input_select.clock_radio_night_override`.
+Alternatively, install the standalone
+[night-mode helper package](../examples/home-assistant/clock_radio_night_mode.yaml)
+using HA's packages mechanism, check configuration and reload input selects.
+Restart HA if input selects have not been loaded before. Use only one definition;
+do not install the package if you already created the helper another way.
+No alarm package, Music Assistant integration or app configuration option is
+needed for this helper.
+
+Select **Day** or **Night** in HA to test the colors, then return to **Auto**.
+Changes are picked up during normal five-second polling, including when the
+dashboard is read-only.
+**Settings > Night mode > Manual color test (HA)** shows the helper's current
+selection; the row is informational, not another clock-form setting.
+Selections restore across HA/app restarts, so remember to return to Auto after
+testing. Auto is the default when the helper is first created.
+
+Without the optional helper, existing behavior is unchanged. If an installed
+helper becomes missing, unavailable or invalid, a visible warning appears and
+the last valid override is retained (Auto if none has been read yet). Valid
+values clear the warning. If you intentionally remove the helper, restart the
+app to return to ordinary helper-free operation.
+
+![Sun night mode, manual HA color-test status, night color and brightness controls](../docs/screenshots/night-mode.png)
 
 Set `weather_entity` in **Settings > Apps > Clock Radio > Configuration**, save
 and restart the app. This is the only weather entity selector; the dashboard

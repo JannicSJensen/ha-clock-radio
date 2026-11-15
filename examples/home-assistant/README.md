@@ -8,6 +8,23 @@ these same profiles directly; **Add alarm** creates additional persistent profil
 and **Delete** removes or disables/hides them after confirmation. Native HA
 entities cards remain an alternative.
 
+## Optional manual clock color test
+
+The independent [night-mode helper](clock_radio_night_mode.yaml) adds
+`input_select.clock_radio_night_override` with **Auto / Day / Night**.
+With Clock Radio 0.13.0+, Auto follows the app's configured night mode, while
+Day and Night force their respective clock colors for testing. Return to Auto
+after testing; the helper restores its last selection across restarts.
+
+This helper needs neither the alarm package nor Music Assistant. Either create
+a Dropdown helper with that entity ID and those options in HA's Helpers UI, or
+copy the standalone YAML file into your HA packages directory, check
+configuration and reload input selects (restart HA if necessary).
+Do not install duplicate definitions if the helper already exists.
+See the [clock configuration guide](../../clock-radio/DOCS.md#manual-clock-color-test)
+for behavior, status and error handling. The alarm package below stays at
+scheduler protocol 5.
+
 ## Install
 
 1. Enable packages in your HA configuration if they are not already enabled:

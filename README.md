@@ -47,6 +47,9 @@ the widget and full-screen clock. Weather selection is not in dashboard Settings
 For automatic night colors, select **Sun (below horizon)** in Settings' Night
 mode. Set `sun_entity` in the HA app configuration if needed (default `sun.sun`).
 It follows that entity without an automation or fixed schedule.
+For manual color testing, the optional
+[HA night-override helper](examples/home-assistant/clock_radio_night_mode.yaml)
+offers **Auto / Day / Night** without replacing your automatic night-mode setup.
 
 ## Screenshots
 

@@ -1,5 +1,5 @@
 name: Clock Radio
-version: "0.12.0"
+version: "0.13.0"
 slug: clock_radio
 url: https://github.com/JannicSJensen/ha-clock-radio
 description: Nightstand clock, music overview and Home Assistant alarm settings

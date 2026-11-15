@@ -588,6 +588,42 @@ test("Sun night mode uses the HA app's configured entity across saves and restar
   assert.equal(app.dashboard.payload().clock.night_error, null);
 });
 
+test("HA's manual color helper overrides live Sun mode without rewriting settings or alarm helpers, including read-only dashboards", async (t) => {
+  const app = await setup(t);
+  const state = await app.get("api/state");
+  assert.equal((await app.post("api/settings/clock", { ...state.config.clock, night_mode: "sun" })).status, 200);
+  const yaml = fs.readFileSync(app.store.file, "utf8");
+  const alarms = JSON.stringify(app.dashboard.payload().alarms);
+  const calls = app.calls.length;
+  app.dashboard.readOnly = true;
+  for (const [value, night, active] of [["Night", "always", true], ["Day", "off", false], ["Auto", "entity", false]]) {
+    await app.ha.callService("input_select", "select_option", { entity_id: "input_select.clock_radio_night_override", option: value });
+    await app.dashboard.refresh();
+    const actual = await app.get("api/state");
+    assert.deepEqual(actual.night_override, { entity_id: "input_select.clock_radio_night_override", value, available: true, error: null });
+    assert.equal(actual.config.clock.night_mode, "sun");
+    assert.equal(actual.clock.night, night);
+    assert.equal(actual.clock.nightActive, active);
+    assert.equal(actual.clock.night_error, null);
+    assert.equal(JSON.stringify(actual.alarms), alarms);
+    assert.equal(fs.readFileSync(app.store.file, "utf8"), yaml);
+  }
+  assert.equal(app.calls.length - calls, 3);
+  assert.ok(app.calls.slice(calls).every(({ domain, service, data }) => domain === "input_select"
+    && service === "select_option" && data.entity_id === "input_select.clock_radio_night_override"));
+  app.dashboard.readOnly = false;
+  await app.ha.callService("input_select", "select_option", { entity_id: "input_select.clock_radio_night_override", option: "Night" });
+  await app.dashboard.refresh();
+  const beforeSave = app.calls.length;
+  assert.equal((await app.post("api/settings/clock", { ...state.config.clock, night_mode: "sun", primary: "#22aa88" })).status, 200);
+  const saved = await app.get("api/state");
+  assert.equal(saved.night_override.value, "Night");
+  assert.equal(saved.config.clock.night_mode, "sun");
+  assert.equal(saved.config.clock.primary, "#22aa88");
+  assert.equal(saved.clock.night, "always");
+  assert.equal(app.calls.length, beforeSave, "Saving appearance must not write the HA override or any alarm helper");
+});
+
 test("explicit next-alarm sensors and date/time helpers use the proper epoch", () => {
   const now = Date.parse("2026-11-14T12:00:00Z");
   assert.equal(alarmEntityAt({ entity_id: "sensor.next_alarm", state: "2026-11-15T05:15:00+01:00" }, "Europe/Copenhagen", now), "2026-11-15T04:15:00.000Z");

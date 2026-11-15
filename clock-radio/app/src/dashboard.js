@@ -1,6 +1,6 @@
 import { RequestError } from "./errors.js";
 import crypto from "node:crypto";
-import { ClockData } from "./clock-data.js";
+import { ClockData, NIGHT_OVERRIDE_ENTITY } from "./clock-data.js";
 import { alarmEntities, alarmSnapshot, canCreateAlarm, deleteAlarm, provisionAlarm, saveAlarm, validateAlarm, validateDeleteAlarm, validatePlaybackSettings } from "./alarms.js";
 import { availableTabs } from "./music.js";
 import { fetchImage } from "./images.js";
@@ -179,6 +179,7 @@ export class Dashboard {
         clock: config.clock,
       },
       players, alarms, clock,
+      night_override: { entity_id: NIGHT_OVERRIDE_ENTITY, ...(this.clockData.override ?? { value: "Auto", available: false, error: null }) },
       clock_entities: this.states.filter((state) => /^(weather|sensor|input_datetime|input_boolean|binary_sensor|switch|sun)\./.test(state.entity_id))
         .map((state) => ({ entity_id: state.entity_id, name: state.attributes?.friendly_name || state.entity_id, device_class: state.attributes?.device_class ?? null })),
       music: {
