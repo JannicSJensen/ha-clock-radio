@@ -18,6 +18,7 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
 2. **Music overview** - Dasher's layout with swipeable Discover,
    Radio, Albums, Artists, Podcasts, Playlists and Search tabs, sticky
    now-playing bar and artwork player with seeking, shuffle, repeat and volume.
+   The page and now-playing bar use a pure-black background, with contrasting cards.
    Full library browsing needs a Music Assistant read-only token in app options.
 3. **Alarm configuration** - existing HA alarm
    profiles: Music/Buzzer type, independent wake times, weekdays, volumes and

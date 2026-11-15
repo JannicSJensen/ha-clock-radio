@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.1
+
+- Make the Music page canvas and bottom now-playing bar pure black across all
+  tabs. Preserve contrasting station cards, controls and artwork-player styling.
+- Refresh the Music documentation screenshot.
+
 ## 0.13.0
 
 - Add optional `input_select.clock_radio_night_override` support for manual

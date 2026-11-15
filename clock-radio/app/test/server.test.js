@@ -58,7 +58,12 @@ test("HTTP foundation works end to end with HA, hot reload, error paths and ingr
   assert.match(js, /getJson\("api\/state"/);
   const api = await (await fetch(`${url}/js/core/api.js`)).text();
   assert.match(api, /fetch\(`\.\/\$\{url\}`/);
-  assert.equal((await fetch(`${url}/styles.css`)).status, 200);
+  const styles = await fetch(`${url}/styles.css`);
+  assert.equal(styles.status, 200);
+  assert.match(await styles.text(), /\.clock-page,\s*#page-music\s*\{\s*background:\s*#000;/);
+  const musicStyles = await fetch(`${url}/css/music.css`);
+  assert.equal(musicStyles.status, 200);
+  assert.match(await musicStyles.text(), /\.np\s*\{[^}]*background:\s*#000;/);
   assert.equal((await fetch(`${url}/app.js`, { method: "HEAD" })).status, 200);
   assert.equal((await fetch(`${url}/package.json`)).status, 404);
   assert.equal((await fetch(`${url}/api/command`)).status, 405);
