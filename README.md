@@ -15,12 +15,7 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
    analog and digital clocks, calendar, weather, date, date/calendar and
    full-screen faces. Includes seconds/sweep modes, locale/week-start settings,
    colors, next alarm and sun/scheduled/entity/room-light night modes.
-2. **Music overview** - Dasher's layout with swipeable Discover,
-   Radio, Albums, Artists, Podcasts, Playlists and Search tabs, sticky
-   now-playing bar and artwork player with seeking, shuffle, repeat and volume.
-   The page and now-playing bar use a pure-black background, with contrasting cards.
-   Full library browsing needs a Music Assistant read-only token in app options.
-3. **Alarm configuration** - existing HA alarm
+2. **Alarm configuration** - existing HA alarm
    profiles: Music/Buzzer type, independent wake times, weekdays, volumes and
    wake timers. A compact list offers enable switches; tap a time to edit with
    hour/minute wheels and circular repeat-day buttons. Music alarms offer
@@ -31,11 +26,16 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
    New alarms start disabled; existing profiles are not duplicated. **Delete**
    confirms removal and stops/cancels that alarm. Bundled YAML profiles are
    disabled/hidden; app-created native helpers are removed.
+3. **Music overview** - Dasher's layout with swipeable Discover,
+   Radio, Albums, Artists, Podcasts, Playlists and Search tabs, sticky
+   now-playing bar and artwork player with seeking, shuffle, repeat and volume.
+   The page and now-playing bar use a pure-black background, with contrasting cards.
+   Full library browsing needs a Music Assistant read-only token in app options.
 4. **Settings** - persistent clock appearance, time/calendar, weather labels,
    night mode and Music Assistant connection guidance.
 
 There is no menu. Swipe **up/down** between pages; scroll to the edge first in
-Music/Alarm configuration/Settings. Keyboard users can use **Page Up/Down**.
+Alarm configuration/Music/Settings. Keyboard users can use **Page Up/Down**.
 Four dots at the bottom show which page you are on; the active dot is grey.
 On the split clock,
 swipe **left/right** within each panel to save its clock face or widget.
@@ -58,11 +58,11 @@ These landscape screendumps show the app with configured, fictional demo data.
 No real Home Assistant data, credentials or audio are used. Your entities,
 station logos and clock appearance may differ.
 
-| The Clock: analog face and calendar | Music overview: Radio and now-playing bar |
+| The Clock: analog face and calendar | Alarm configuration: independent profiles |
 | --- | --- |
-| ![The Clock with an analog face and calendar widget](docs/screenshots/clock.png) | ![Music overview with radio station artwork and playback controls](docs/screenshots/music.png) |
-| **Alarm configuration: independent profiles** | **Settings: iOS-inspired dark appearance** |
-| ![Alarm configuration with Music and Buzzer profiles](docs/screenshots/alarms.png) | ![Black Settings page with grouped controls, a seconds switch and floating Save changes bar](docs/screenshots/settings.png) |
+| ![The Clock with an analog face and calendar widget](docs/screenshots/clock.png) | ![Alarm configuration with Music and Buzzer profiles](docs/screenshots/alarms.png) |
+| **Music overview: Radio and now-playing bar** | **Settings: iOS-inspired dark appearance** |
+| ![Music overview with radio station artwork and playback controls](docs/screenshots/music.png) | ![Black Settings page with grouped controls, a seconds switch and floating Save changes bar](docs/screenshots/settings.png) |
 
 The [illustrated configuration guide](clock-radio/DOCS.md) also shows the alarm
 editor and radio picker, both ringing-alarm screens, Sun night-mode settings and artwork player.

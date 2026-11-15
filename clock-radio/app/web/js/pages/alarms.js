@@ -395,7 +395,7 @@ export function createAlarmPage(ctx) {
   });
   const el = h("div", { class: "settings alarm-page" },
     h("header", { class: "settings-heading alarm-page__heading" },
-      h("div", null, h("h1", null, "Alarm configuration"), h("p", null, "Tap an alarm to edit. Swipe down for Music or up for Settings.")), add),
+      h("div", null, h("h1", null, "Alarm configuration"), h("p", null, "Tap an alarm to edit. Swipe down for The Clock or up for Music.")), add),
     addInfo, pageStatus, list, stop, dialog, deleteDialog);
 
   function update(model, busy) {

@@ -54,8 +54,12 @@ test("HTTP foundation works end to end with HA, hot reload, error paths and ingr
   assert.match(html, /href="\.\/styles.css"/);
   assert.match(html, /src="\.\/app.js"/);
   assert.match(html, /id="page-indicator"[^>]+role="img"[^>]+aria-label="Page position"/);
+  assert.deepEqual([...html.matchAll(/<section id="page-([^"]+)"/g)].map((match) => match[1]), ["clock", "alarms", "music", "settings"]);
   const js = await (await fetch(`${url}/app.js`)).text();
   assert.match(js, /getJson\("api\/state"/);
+  assert.match(js, /const PAGES = \{ clock: "The Clock", alarms: "Alarm configuration", music: "Music overview", settings: "Settings" \}/);
+  const alarms = await (await fetch(`${url}/js/pages/alarms.js`)).text();
+  assert.match(alarms, /Swipe down for The Clock or up for Music/);
   const api = await (await fetch(`${url}/js/core/api.js`)).text();
   assert.match(api, /fetch\(`\.\/\$\{url\}`/);
   const styles = await fetch(`${url}/styles.css`);

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.14.0
+
+- Reorder the main pages to Clock, Alarm configuration, Music overview, Settings.
+  Swipes, Page Up/Down, bottom dots and screen-reader positions use this order.
+- Update the Alarm navigation hint, documentation and affected screenshots.
+  Existing page links and dialog navigation safeguards are unchanged.
+
 ## 0.13.1
 
 - Make the Music page canvas and bottom now-playing bar pure black across all

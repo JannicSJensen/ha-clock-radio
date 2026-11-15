@@ -12,7 +12,7 @@ const frame = $("clock-frame");
 new ResizeObserver(([entry]) => {
   document.documentElement.style.setProperty("--banner-height", `${entry.contentRect.height}px`);
 }).observe(document.querySelector(".banners"));
-const PAGES = { clock: "The Clock", music: "Music overview", alarms: "Alarm configuration", settings: "Settings" };
+const PAGES = { clock: "The Clock", alarms: "Alarm configuration", music: "Music overview", settings: "Settings" };
 const pageIds = Object.keys(PAGES);
 const pageDots = pageIds.map(() => {
   const dot = document.createElement("span");

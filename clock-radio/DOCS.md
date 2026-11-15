@@ -2,13 +2,13 @@
 
 ## Four pages and alarm helpers
 
-There is no menu. Swipe **up/down** between **The Clock**, **Music overview**,
-**Alarm configuration** and **Settings**, or use keyboard **Page Up/Down** outside
-form inputs. Scroll to the top/bottom first in Music, Alarm configuration and
+There is no menu. Swipe **up/down** between **The Clock**, **Alarm configuration**,
+**Music overview** and **Settings**, or use keyboard **Page Up/Down** outside
+form inputs. Scroll to the top/bottom first in Alarm configuration, Music and
 Settings: ordinary scrolling never changes pages mid-scroll. Open player dialogs
 and sliders do not trigger page swipes.
 Four dots at the bottom of every main page show your position, left to right:
-Clock, Music, Alarm configuration, Settings. The active page has a grey dot;
+Clock, Alarm configuration, Music, Settings. The active page has a grey dot;
 the other dots are darker. They are position indicators, not buttons. Screen
 readers announce the page name and position, such as "Page 4 of 4: Settings".
 Swipe left/right within the split clock's left panel to cycle square analog,
@@ -17,7 +17,7 @@ and date/calendar. These selections save to YAML. Full-screen faces and hiding
 the widget remain Settings options. Swipes cannot save views in read-only mode.
 
 See the [four-page screenshot gallery](../README.md#screenshots) for the Clock,
-Music overview, Alarm configuration and Settings. All screendumps below use
+Alarm configuration, Music overview and Settings. All screendumps below use
 fictional demo data, not a real HA installation.
 
 See the [Home Assistant alarm package](../examples/home-assistant/README.md) for
