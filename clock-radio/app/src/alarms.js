@@ -249,7 +249,7 @@ export async function provisionAlarm(ha, states, body, logger) {
       return { alarm_id: id };
     } catch (error) {
       logger.warn(`Alarm ${id} creation failed: ${error.message}`);
-      throw new RequestError(`Alarm ${id} setup failed: ${error.message} No alarm was enabled. Use Finish setup on the incomplete profile, or inspect its helpers in HA.`, 502);
+      throw new RequestError(`Alarm setup failed: ${error.message} No alarm was enabled. Use Finish setup on the incomplete profile, or inspect its helpers in HA.`, 502);
     }
 }
 
@@ -301,7 +301,7 @@ export async function deleteAlarm(ha, states, body, logger) {
     return { deleted_alarm_id: id };
   } catch (error) {
     logger.warn(`Alarm ${id} deletion failed: ${error.message}`);
-    throw new RequestError(`Alarm ${id} deletion failed: ${error.message} Check HA permissions/helpers and retry Delete; an unfinished deletion stays disabled.`, 502);
+    throw new RequestError(`Alarm deletion failed: ${error.message} Check HA permissions/helpers and retry Delete; an unfinished deletion stays disabled.`, 502);
   }
 }
 

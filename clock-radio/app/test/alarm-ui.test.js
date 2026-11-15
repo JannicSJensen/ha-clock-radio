@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { alarmSettings, canEditAlarm, repeatLabel } from "../web/js/pages/alarms.js";
+import { alarmLabel, alarmSettings, canEditAlarm, repeatLabel } from "../web/js/pages/alarms.js";
 import { timeParts, to24Hour } from "../web/js/components/time-picker.js";
 import { validateAlarm } from "../src/alarms.js";
 
@@ -36,6 +36,18 @@ test("repeat summaries distinguish disabled schedules from nonexistent one-shot 
   assert.equal(repeatLabel(days(["saturday", "sunday"])), "Weekends");
   assert.equal(repeatLabel(days(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"])), "Every day");
   assert.equal(repeatLabel(days(["tuesday", "saturday"])), "Tue, Sat");
+});
+
+test("alarm labels use time, type and repeat days rather than profile numbers", () => {
+  const alarm = { id: 1, hour: 6, minute: 5, type: "Music", days: days(["monday", "tuesday", "wednesday", "thursday", "friday"]) };
+  assert.equal(alarmLabel(alarm, false), "06:05 · Music · Weekdays");
+  assert.equal(alarmLabel({ ...alarm, id: 42 }, false), alarmLabel(alarm, false));
+  assert.equal(alarmLabel(alarm, true), "6:05 AM · Music · Weekdays");
+  assert.equal(alarmLabel({ ...alarm, hour: 0 }, true), "12:05 AM · Music · Weekdays");
+  assert.equal(alarmLabel({ ...alarm, hour: 12 }, true), "12:05 PM · Music · Weekdays");
+  assert.equal(alarmLabel({ ...alarm, hour: 23, minute: 59, type: "Buzzer", days: days(["saturday", "sunday"]) }, true), "11:59 PM · Buzzer · Weekends");
+  assert.equal(alarmLabel({ ...alarm, hour: null, type: null }, false), "--:-- · Unavailable · Weekdays");
+  assert.equal(alarm.id, 1);
 });
 
 test("list switches send only supported settings and preserve every profile value", () => {

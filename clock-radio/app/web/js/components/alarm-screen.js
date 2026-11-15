@@ -110,7 +110,7 @@ export function createAlarmScreen(ctx, { onOpen, onClose }) {
     const supports = (flag) => Boolean((player?.supported_features ?? 0) & flag);
     const unavailable = !player || ["unavailable", "unknown"].includes(player.state);
     miniPlayer.hidden = active.type !== "Music";
-    context.textContent = `Alarm ${active.id} · ${active.type}`;
+    context.textContent = `${active.type} alarm`;
     const media = describeMedia(attrs, ctx.stations());
     title.textContent = media.title || "Alarm music";
     subtitle.textContent = unavailable ? "Speaker unavailable" : [media.subtitle, player.name, player.state === "paused" ? "Paused" : ""].filter(Boolean).join(" · ");

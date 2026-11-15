@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.3
+
+- Remove numbered alarm names from the list, editor, delete confirmation,
+  notifications, accessibility labels and ringing screen.
+- Identify row controls and delete targets by time, type and repeat days.
+  Keep internal HA profile/helper IDs and command targeting unchanged.
+- Refresh the affected Alarm and ringing-screen documentation screenshots.
+
 ## 0.14.2
 
 - Remove the two explanatory lines above the Alarm list, while retaining

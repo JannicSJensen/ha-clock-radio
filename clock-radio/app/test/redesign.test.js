@@ -140,7 +140,9 @@ test("partial native helper deletion stays visible and disabled, blocks resurrec
   };
   const failed = await app.post("api/alarm/delete", { id: 3 });
   assert.equal(failed.status, 502);
-  assert.match((await failed.json()).error, /retry Delete/);
+  const error = (await failed.json()).error;
+  assert.match(error, /^Alarm deletion failed:/);
+  assert.match(error, /retry Delete/);
   let state = await app.get("api/state");
   const pending = state.alarms.alarms.find((alarm) => alarm.id === 3);
   assert.equal(state.alarms.deleting, 3);
@@ -1124,7 +1126,9 @@ test("partial helper creation is visible, disabled and resumable without duplica
     if (message.type === "input_number/create") throw new Error("Helper creation denied");
     return original(message);
   };
-  assert.equal((await app.post("api/alarm/create", {})).status, 502);
+  const failed = await app.post("api/alarm/create", {});
+  assert.equal(failed.status, 502);
+  assert.match((await failed.json()).error, /^Alarm setup failed:/);
   const partial = (await app.get("api/state")).alarms.alarms[2];
   assert.equal(partial.enabled, false);
   assert.equal(partial.setup_complete, false);

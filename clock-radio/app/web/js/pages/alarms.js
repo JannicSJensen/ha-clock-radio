@@ -30,6 +30,14 @@ export function repeatLabel(days) {
   return DAYS.flatMap((day, index) => days[day] ? [DAY_NAMES[index]] : []).join(", ");
 }
 
+export function alarmLabel(alarm, hour12) {
+  const parts = validTime(alarm) ? timeParts(alarm.hour, alarm.minute, hour12) : null;
+  const time = parts
+    ? `${hour12 ? parts.hour : pad(parts.hour)}:${pad(parts.minute)}${hour12 ? parts.period ? " PM" : " AM" : ""}`
+    : "--:--";
+  return `${time} · ${alarm.type || "Unavailable"} · ${repeatLabel(alarm.days)}`;
+}
+
 function hour12For(model) {
   const clock = model.config.clock;
   if (clock.time_format !== "automatic") return clock.time_format === "12-hour";
@@ -101,13 +109,14 @@ export function createAlarmPage(ctx) {
       ctx.toast("Deletion is unavailable. Check the HA package, connection and pending alarm operations.");
       return;
     }
-    if (!model.alarms.alarms.some((alarm) => alarm.id === id)) {
+    const alarm = model.alarms.alarms.find((alarm) => alarm.id === id);
+    if (!alarm) {
       ctx.toast("This alarm is no longer configured.");
       return;
     }
     deleteId = id;
-    deleteTitle.textContent = `Delete Alarm ${id}?`;
-    deleteMessage.textContent = "This cannot be undone. Any ringing playback or snooze for this alarm will be stopped/cancelled. "
+    deleteTitle.textContent = "Delete alarm?";
+    deleteMessage.textContent = `${alarmLabel(alarm, hour12For(model))}. This cannot be undone. Any ringing playback or snooze for this alarm will be stopped/cancelled. `
       + (id <= 2 ? "The bundled profile will be disabled and hidden; its YAML helpers remain in HA." : "This alarm's helpers will be removed from HA.");
     deleteStatus.textContent = "";
     deleteDialog.setAttribute("aria-modal", "true");
@@ -139,7 +148,7 @@ export function createAlarmPage(ctx) {
       if (await ctx.write("api/alarm/delete", { id })) {
         if (activeId === id) closeEditor();
         if (deleteDialog.open) deleteDialog.close();
-        ctx.toast(`Alarm ${id} deleted.`);
+        ctx.toast("Alarm deleted.");
       } else {
         deleteStatus.textContent = ctx.writeError() || "The alarm was not deleted. Check HA and retry.";
         pageStatus.textContent = deleteStatus.textContent;
@@ -300,7 +309,7 @@ export function createAlarmPage(ctx) {
     dirty = false;
     status.textContent = "";
     reload.hidden = true;
-    title.textContent = `Edit Alarm ${id}`;
+    title.textContent = "Edit alarm";
     timeZone.textContent = `Home Assistant time zone: ${model.clock.timeZone || "not available"}`;
     createdInfo.hidden = !created;
     createdInfo.textContent = created ? "This alarm is already stored in HA. Cancel leaves it disabled without applying your edits." : "";
@@ -331,7 +340,7 @@ export function createAlarmPage(ctx) {
         const record = rows.get(id);
         if (record) record.error = null;
         if (activeId === id) closeEditor();
-        ctx.toast(`Alarm ${id} saved.`);
+        ctx.toast("Alarm saved.");
       } else {
         status.textContent = ctx.writeError() || "Alarm settings were not saved.";
         reload.hidden = false;
@@ -349,16 +358,16 @@ export function createAlarmPage(ctx) {
     const time = h("span", { class: "alarm-row__time" });
     const period = h("span", { class: "alarm-row__period" });
     const summary = h("span", { class: "alarm-row__summary" });
-    const edit = h("button", { class: "alarm-row__edit", type: "button", "aria-label": `Edit Alarm ${id}` },
+    const edit = h("button", { class: "alarm-row__edit", type: "button", "aria-label": "Edit alarm" },
       h("span", { class: "alarm-row__clock" }, time, period), summary);
     edit.addEventListener("click", () => openEditor(id));
-    const toggle = switchControl(`Enable Alarm ${id}`);
+    const toggle = switchControl("Enable alarm");
     const message = h("p", { class: "alarm-row__status", role: "status" });
     const resume = h("button", { class: "btn", type: "button", hidden: true }, "Finish setup");
-    const remove = h("button", { class: "alarm-icon-button alarm-icon-button--danger", type: "button", "aria-label": `Delete Alarm ${id}`, title: `Delete Alarm ${id}` }, icon("delete"));
+    const remove = h("button", { class: "alarm-icon-button alarm-icon-button--danger", type: "button", "aria-label": "Delete alarm", title: "Delete alarm" }, icon("delete"));
     remove.addEventListener("click", () => openDelete(id));
     const record = { edit, toggle: toggle.control, time, period, summary, message, resume, remove, error: null, saving: false };
-    record.el = h("article", { class: "alarm-row", "aria-label": `Alarm ${id}` },
+    record.el = h("article", { class: "alarm-row", "aria-label": "Alarm" },
       h("div", { class: "alarm-row__main" }, edit, toggle.el, remove), message, resume);
     toggle.control.addEventListener("change", async () => {
       const model = ctx.getModel();
@@ -406,7 +415,7 @@ export function createAlarmPage(ctx) {
       if (ids.includes(id)) continue;
       record.el.remove();
       rows.delete(id);
-      ctx.toast(`Alarm ${id} is no longer configured.`);
+      ctx.toast("An alarm is no longer configured.");
     }
     const hour12 = hour12For(model);
     for (const alarm of alarms) {
@@ -422,7 +431,13 @@ export function createAlarmPage(ctx) {
         record.time.textContent = `${hour12 ? parts.hour : pad(parts.hour)}:${pad(parts.minute)}`;
         record.period.textContent = hour12 ? parts.period ? "PM" : "AM" : "";
       } else { record.time.textContent = "--:--"; record.period.textContent = ""; }
-      record.summary.textContent = `Alarm ${alarm.id} · ${alarm.type || "Unavailable"} · ${repeatLabel(alarm.days)}`;
+      record.summary.textContent = `${alarm.type || "Unavailable"} · ${repeatLabel(alarm.days)}`;
+      const label = alarmLabel(alarm, hour12);
+      record.el.setAttribute("aria-label", `Alarm: ${label}`);
+      record.edit.setAttribute("aria-label", `Edit alarm: ${label}`);
+      record.toggle.setAttribute("aria-label", `Enable alarm: ${label}`);
+      record.remove.setAttribute("aria-label", `Delete alarm: ${label}`);
+      record.remove.title = `Delete alarm: ${label}`;
       record.edit.disabled = busy || !available;
       record.toggle.disabled = busy || record.saving || !ctx.canControl() || !available || Boolean(model.alarms.delete_error);
       record.remove.disabled = record.saving || !deletionAllowed(model, alarm.id, busy);

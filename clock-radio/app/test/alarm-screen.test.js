@@ -21,6 +21,7 @@ test("captured type survives edits/replacement, and incomplete cleanup stays vis
   assert.equal(snapshot.active.id, 2);
   assert.equal(snapshot.can_snooze, true);
   const key = alarmKey(snapshot.active);
+  assert.notEqual(alarmKey({ ...snapshot.active, id: 42 }), key);
   demo.states.find((state) => state.entity_id === "input_select.clock_radio_alarm_2_type").state = "Music";
   assert.equal(alarmSnapshot(demo.states).active.type, "Buzzer");
   demo.startAlarm(1);
