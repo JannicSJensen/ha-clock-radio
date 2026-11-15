@@ -16,6 +16,12 @@ of inactivity. Set `return_to_clock_minutes` in the HA app configuration to
 change it (`0` disables it), then restart. Open dialogs and pending saves pause
 the countdown; music and unsaved Settings drafts are preserved.
 
+Clock settings and saved alarm definitions persist in this browser as a
+read-only snapshot. An offline banner shows the last synchronization time;
+controls stay disabled until HA reconnects. Requests have deadlines, and
+timed-out changes are never replayed. This does not run alarms without HA or
+guarantee that a cold browser reload works without the dashboard server.
+
 Buzzer alarms can each select one of twelve original built-in sounds.
 Update the HA alarm package to scheduler version 7 and configure a
 speaker-accessible HA internal URL; see [sound setup](DOCS.md#buzzer-alarm-sounds).

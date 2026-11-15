@@ -18,6 +18,19 @@ export const CLOCK_DEFAULTS = {
   night_brightness: 70,
 };
 
+export function clockRendererOptions(settings, timeZone) {
+  return {
+    layout: settings.layout, clock: settings.layout === "full" ? settings.full_face : settings.face,
+    widget: settings.widget, seconds: settings.seconds, secondHand: settings.second_hand,
+    timeFormat: settings.time_format, locale: settings.language,
+    timeZone, weekStart: settings.week_start, primary: settings.primary,
+    accent: settings.accent, secondsColor: settings.seconds_color, background: settings.background,
+    night: ["entity", "illuminance", "sun"].includes(settings.night_mode) ? "entity" : settings.night_mode,
+    nightStart: settings.night_start, nightEnd: settings.night_end,
+    nightColor: settings.night_color, nightBrightness: settings.night_brightness,
+  };
+}
+
 export function parseClockOptions(raw = {}, defaults = CLOCK_DEFAULTS) {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) throw new Error("clock must be a mapping.");
   for (const key of Object.keys(raw)) {

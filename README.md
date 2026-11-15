@@ -52,6 +52,11 @@ clock returns automatically. Configure `return_to_clock_minutes` in the HA app
 options (`0` disables it) and restart. Activity restarts the countdown; open
 dialogs and pending saves pause it. Music continues and Settings drafts remain.
 
+Clock settings and alarm definitions also persist as read-only browser
+snapshots, with explicit offline/last-sync status and bounded requests.
+No changes are queued or replayed; HA is still required to execute alarms.
+See [offline behavior and limits](clock-radio/DOCS.md#offline-snapshots-and-request-deadlines).
+
 Set `media_player` in the HA app configuration: Music and every alarm use that
 one speaker, without player selection, grouping or Party.
 Set `weather_entity` there as well and restart the app to enable weather in

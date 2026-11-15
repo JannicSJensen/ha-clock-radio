@@ -1,4 +1,5 @@
 import { WEEKDAYS } from "./alarms.js";
+import { clockRendererOptions } from "../web/js/lib/clock-options.js";
 
 export const NIGHT_OVERRIDE_ENTITY = "input_select.clock_radio_night_override";
 
@@ -156,17 +157,11 @@ export class ClockData {
         && (!nightState || ["unknown", "unavailable"].includes(nightState.state))
         ? "Choose an available Home Assistant entity for sensor-based night mode. The last night state is retained." : null;
     const nightError = [this.override?.error, override === "Auto" ? automaticNightError : null].filter(Boolean).join(" ") || null;
+    const appearance = clockRendererOptions(settings, zone);
     return {
-      layout: settings.layout, clock: settings.layout === "full" ? settings.full_face : settings.face,
-      widget: settings.widget, seconds: settings.seconds, secondHand: settings.second_hand,
-      timeFormat: settings.time_format, locale: settings.language,
-      timeZone: zone, weekStart: settings.week_start, primary: settings.primary,
-      accent: settings.accent, secondsColor: settings.seconds_color, background: settings.background,
-      night: override === "Day" ? "off" : override === "Night" ? "always"
-        : ["entity", "illuminance", "sun"].includes(settings.night_mode) ? "entity" : settings.night_mode,
-      nightStart: settings.night_start, nightEnd: settings.night_end,
+      ...appearance,
+      night: override === "Day" ? "off" : override === "Night" ? "always" : appearance.night,
       nightActive: override === "Auto" ? this.night : override === "Night",
-      nightColor: settings.night_color, nightBrightness: settings.night_brightness,
       weatherConfigured: Boolean(settings.weather_entity), weatherPlace: settings.weather_name || weather?.attributes?.friendly_name || "",
       weatherCondition: weather?.state ?? null,
       weatherTemperature: weatherAvailable && typeof weather.attributes?.temperature === "number" ? weather.attributes.temperature : null,

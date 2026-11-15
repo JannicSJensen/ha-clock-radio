@@ -8,6 +8,7 @@ import { createSettingsPages } from "./js/pages/settings.js";
 import { createAlarmScreen } from "./js/components/alarm-screen.js";
 import { snoozeKey } from "./js/components/snooze-panel.js";
 import { IdleReturn } from "./js/core/idle-return.js";
+import { SnapshotStore, offlineStatus } from "./js/core/snapshot.js";
 
 const $ = (id) => document.getElementById(id);
 const frame = $("clock-frame");
@@ -41,6 +42,7 @@ let snoozeError = "";
 let snoozeConfirmation = null;
 const idleReturn = new IdleReturn();
 const activePointers = new Set();
+const snapshots = new SnapshotStore();
 
 function checkIdleReturn() {
   if (idleReturn.expired({
@@ -222,10 +224,12 @@ function render() {
   $("initial-loading").hidden = true;
   $("demo-notice").hidden = !model.demo;
   notice("connection-error", model.connection_error);
+  notice("offline-status", offlineStatus(model));
+  notice("snapshot-error", snapshots.error);
   notice("config-error", model.config_error);
   notice("clock-error", [model.clock.error, model.clock.night_error, model.alarms.active_error].filter(Boolean).join(" "));
   notice("missing-players", model.missing_players.length ? `Missing configured speakers: ${model.missing_players.join(", ")}` : "");
-  $("read-only").hidden = !model.read_only;
+  $("read-only").hidden = !model.read_only || Boolean(model.offline_snapshot);
   renderClock();
   ctx.t = makeTranslator(model.config.locale);
   renderMusic();
@@ -265,16 +269,24 @@ async function poll() {
   if (polling) return polling;
   polling = (async () => {
     try {
-      model = await getJson("api/state");
+      const next = await getJson("api/state", { timeout: 8000 });
+      if (next.connected) {
+        model = next;
+        if (!pending) snapshots.save(model);
+      } else model = snapshots.restore(next.connection_error) ?? next;
       render();
     } catch (error) {
       console.warn(error.message);
+      model = snapshots.restore(`Dashboard connection lost: ${error.message}`) ?? model;
       if (model) {
         model.connected = false;
         model.connection_error = `Dashboard connection lost: ${error.message}`;
         render();
       } else {
         notice("connection-error", `Cannot reach the dashboard: ${error.message}`);
+        notice("offline-status", "Offline. No saved snapshot is available. Reconnect to load clock settings and alarms.");
+        notice("snapshot-error", snapshots.error);
+        $("initial-loading").textContent = "Cannot connect. No saved snapshot is available.";
         $("connection").textContent = "Disconnected";
       }
     }
@@ -301,6 +313,8 @@ async function write(url, data) {
     return false;
   } finally {
     pending--;
+    if (!pending && model?.connected) snapshots.save(model);
+    notice("snapshot-error", snapshots.error);
     checkIdleReturn();
     settingsPages?.update(model, pending > 0);
     alarmScreen?.update(model, pending > 0);
@@ -360,6 +374,10 @@ $("fullscreen").addEventListener("click", async () => {
 });
 addEventListener("fullscreenchange", () => { $("fullscreen").textContent = document.fullscreenElement ? "Exit full screen" : "Full screen"; });
 navigate();
+model = snapshots.restore("Checking the connection to Home Assistant.");
+if (model) render();
+else notice("snapshot-error", snapshots.error);
 await poll();
 setInterval(poll, 5000);
 setInterval(checkIdleReturn, 1000);
+addEventListener("online", poll);

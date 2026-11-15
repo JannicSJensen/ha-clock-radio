@@ -1,12 +1,32 @@
 export async function getJson(url, options = {}) {
-  const response = await fetch(`./${url}`, { cache: "no-store", ...options });
-  const data = await response.json();
-  if (!response.ok) throw new Error(data.error ?? `Request failed (HTTP ${response.status}).`);
-  return data;
+  const { timeout = 30_000, signal, ...request } = options;
+  if (!Number.isFinite(timeout) || timeout <= 0) throw new Error("Request timeout must be a positive number.");
+  const controller = new AbortController();
+  const abort = () => controller.abort(signal.reason);
+  if (signal?.aborted) abort();
+  else signal?.addEventListener("abort", abort, { once: true });
+  let timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; controller.abort(); }, timeout);
+  try {
+    const response = await fetch(`./${url}`, { cache: "no-store", ...request, signal: controller.signal });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error ?? `Request failed (HTTP ${response.status}).`);
+    return data;
+  } catch (error) {
+    if (timedOut) {
+      const uncertain = request.method === "POST" ? " The change may still complete. Check saved values before retrying." : "";
+      throw new Error(`Request timed out after ${timeout / 1000} seconds.${uncertain}`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", abort);
+  }
 }
 
 export function postJson(url, data) {
-  return getJson(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data) });
+  const timeout = /^api\/alarm\/(?:create|delete)$/.test(url) ? 120_000 : 30_000;
+  return getJson(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data), timeout });
 }
 
 export function pictureUrl(value) {

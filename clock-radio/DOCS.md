@@ -559,8 +559,48 @@ five seconds; commands trigger an immediate refresh. Pause, resume, stop, volume
 and station buttons depend on the capabilities reported by the selected player.
 
 No speakers and no stations have explicit setup messages. Disconnected HA
-retains the last state as stale, shows a warning and disables commands; the
-clock continues. Missing configured players are listed on the dashboard.
+shows a warning and disables commands; the clock continues. Missing configured
+players are listed on the dashboard.
+
+## Offline snapshots and request deadlines
+
+After a successful HA synchronization, this browser saves clock appearance,
+time zone and alarm definitions in local storage. On reload it restores that
+snapshot immediately as **read-only**, until a fresh response confirms the
+connection. Failed requests and empty/disconnected responses never overwrite
+the last good snapshot. Reconnection replaces saved definitions with HA's
+current state, including deleted alarms; it never merges or replays changes.
+
+The offline banner includes the last synchronization date/time and explains
+that HA alarm execution cannot be confirmed. Schedules remain inspectable,
+but alarm switches, editing/saving, speaker controls, Stop and Snooze are
+disabled. Cached data does not recreate ringing screens, Snooze countdowns,
+next-alarm timestamps, weather readings or playback state. An already-open
+ringing screen stays visible during a disconnect, with its controls disabled.
+Sensor-driven night colors retain their last confirmed state while offline;
+clock time and scheduled night colors continue using the device's clock.
+
+Snapshots contain no credentials, artwork tokens or alarm/radio source URLs.
+They belong to this browser profile and origin (address/port), not to HA
+backups or other tablets. Clear the site's browser data to remove them; use a
+trusted browser profile because same-origin pages can read local storage.
+Storage failures or corrupt/unsupported snapshots show a visible warning
+and a console warning; the running page can still retain a valid in-memory
+snapshot. Unchanged definitions checkpoint the timestamp at most once per
+minute; definition changes are saved immediately after a confirmed state read.
+
+State requests time out after **8 seconds**, other reads and normal changes
+after **30 seconds**, and alarm creation/deletion after **120 seconds** to
+allow HA provisioning/cleanup. Deadlines include reading the response body.
+State polling retries every five seconds when no request is already running.
+Changes are **never retried automatically**: after a timeout the operation
+may still complete in HA, so inspect refreshed saved values before retrying.
+
+This is not an offline alarm engine. HA must be running to execute schedules;
+the browser cannot reliably wake a suspended Echo/tablet or replace HA's
+scheduler. There is no service worker or offline app-shell guarantee: a cold
+reload still needs the dashboard HTML/JavaScript to load from the server or
+browser HTTP cache. Keep the existing page open during a server outage.
 
 ## Browser caching and performance
 
@@ -579,7 +619,9 @@ Existing Music Assistant recommendation/artwork caches remain server-side.
 
 Live API responses, artwork proxies and commands remain `no-store`. The
 five-second state polling, immediate post-command refresh and alarm/Snooze
-updates are unchanged. Static caching does not provide an offline operating mode.
+updates are unchanged. Static caching alone does not guarantee offline loading;
+read-only saved definitions are described under **Offline snapshots and request
+deadlines** above.
 
 ## Access and safety
 

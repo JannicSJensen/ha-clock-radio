@@ -156,13 +156,14 @@ export function createSettingsPages(ctx) {
     sunEntity.textContent = model.config.sun_entity;
     const override = model.night_override;
     nightOverride.textContent = override.available ? override.value : override.error ? `${override.value} (unavailable)` : "Not installed (Auto)";
-    musicState.textContent = model.music.library ? "Configured" : "Not configured";
+    musicState.textContent = !model.connected ? "Unavailable offline" : model.music.library ? "Configured" : "Not configured";
     optionsFor(clock.elements.namedItem("night_entity"), entities.filter((item) => !item.entity_id.startsWith("weather.")), "Choose an entity", model.config.clock.night_entity);
     optionsFor(clock.elements.namedItem("next_alarm_entity"), entities.filter((item) => /^(sensor|input_datetime)\./.test(item.entity_id)), "Use the Clock Radio alarms", model.config.clock.next_alarm_entity);
     const language = clock.elements.namedItem("language");
     if (model.config.clock.language && ![...language.options].some((option) => option.value === model.config.clock.language)) language.add(new Option(model.config.clock.language, model.config.clock.language));
     for (const form of forms) form.update(model, busy);
     clockInfo.textContent = `Clock time zone: ${model.clock.timeZone || "this device"}. Alarm schedules always use Home Assistant's time zone.`;
-    musicInfo.textContent = model.music.library ? "Music Assistant browsing is configured. The read-only access token stays on the server." : "For Discover, Albums, Artists, Podcasts, Playlists and Search, set music_assistant_token in the HA app options (Music Assistant → Settings → Profile). Set music_assistant_url if it is not discovered automatically. Restart the app after changing these options. Radio presets work without library access.";
+    musicInfo.textContent = !model.connected ? "Reconnect to view Music Assistant configuration and library browsing."
+      : model.music.library ? "Music Assistant browsing is configured. The read-only access token stays on the server." : "For Discover, Albums, Artists, Podcasts, Playlists and Search, set music_assistant_token in the HA app options (Music Assistant → Settings → Profile). Set music_assistant_url if it is not discovered automatically. Restart the app after changing these options. Radio presets work without library access.";
   } };
 }

@@ -313,7 +313,8 @@ export function createAlarmPage(ctx) {
     if (soundPicker.hidden || disabled) {
       if (audio.getAttribute("src")) stopPreview();
     }
-    soundHint.textContent = alarm.buzzer_source_error || (!alarm.can_select_sound
+    soundHint.textContent = !ctx.getModel().connected ? "Offline. Reconnect to preview or change this alarm's sound."
+      : alarm.buzzer_source_error || (!alarm.can_select_sound
       ? "Update the HA alarm package to scheduler version 7 to choose a sound for each alarm."
       : `${ALARM_SOUNDS.find(({ id }) => id === sound.value)?.description ?? "Keep the shared HA Buzzer sound."} Preview plays on this device only; Save applies the sound to this alarm.`);
   }
@@ -323,7 +324,7 @@ export function createAlarmPage(ctx) {
     const stations = model.alarms.radio_stations ?? [];
     const radioError = model.alarms.radio_error;
     const unavailable = !alarm.can_select_radio;
-    stationHint.textContent = alarm.music_source_error
+    stationHint.textContent = !model.connected ? "Offline. Reconnect to view or change radio stations." : alarm.music_source_error
       || (unavailable ? "Update the HA alarm package to version 5, including its per-alarm Music Source helpers, to choose a station."
         : radioError || (!stations.length ? "No radio stations in Music Assistant. Add radios to its library; the list refreshes automatically."
           : "Choose a radio for this alarm only. Save applies your selection; no music plays now."));
@@ -519,11 +520,12 @@ export function createAlarmPage(ctx) {
     }
     const incomplete = alarms.some((alarm) => alarm.id > 2 && (!alarm.available || !alarm.setup_complete));
     add.disabled = busy || !ctx.canControl() || !model.alarms.can_create || incomplete;
-    addInfo.textContent = model.alarms.deleting ? "Finish the pending deletion before adding or deleting another alarm."
+    addInfo.textContent = !model.connected ? "Offline. Saved schedules are read-only; reconnect to change alarms."
+      : model.alarms.deleting ? "Finish the pending deletion before adding or deleting another alarm."
       : incomplete ? "Finish setting up the incomplete alarm before adding another."
       : model.alarms.can_create ? ""
       : "Update the HA alarm package to the dynamic scheduler to enable Add alarm.";
-    if (!model.alarms.can_delete) addInfo.textContent += " Delete requires the version 4 HA package and available deletion helpers/scripts.";
+    if (model.connected && !model.alarms.can_delete) addInfo.textContent += " Delete requires the version 4 HA package and available deletion helpers/scripts.";
     addInfo.hidden = !addInfo.textContent;
     stop.hidden = !model.alarms.active_player && !model.alarms.snoozed;
     stop.textContent = model.alarms.snoozed ? "Cancel snoozed alarm" : "Stop active alarm";

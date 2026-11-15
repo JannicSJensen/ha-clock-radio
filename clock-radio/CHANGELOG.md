@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.18.0
+
+- Keep a validated, read-only browser snapshot of clock settings and alarm
+  definitions. Restore it before connecting and retain it across HA outages
+  and browser reloads when the dashboard assets can still load.
+- Show explicit offline/last-synchronized status and storage errors. Cached
+  data never enables controls, recreates ringing/Snooze state, stores source
+  URLs or credentials, or queues/replays changes. Fresh HA data replaces it.
+- Bound browser requests: 8 seconds for state, 30 seconds for other reads and
+  ordinary changes, and 120 seconds for alarm creation/deletion. Timed-out
+  changes warn that they may still complete; they are never retried automatically.
+- No local alarm execution, offline app-shell guarantee or HA package change.
+
 ## 0.17.0
 
 - Return Alarm configuration, Music and Settings to The Clock after two minutes
