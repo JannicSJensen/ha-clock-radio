@@ -39,7 +39,7 @@ async function setup(t, options = {}) {
   const ha = new HAClient({ url: haUrl, token: DEMO_HA_TOKEN });
   const music = new MusicService({ ha, logger: quiet, url: `${haUrl}/ma`, token: DEMO_MA_TOKEN });
   const radio = new RadioLibrary({ ha, music, logger: quiet });
-  const dashboard = new Dashboard({ ha, configStore: store, music, radio, mediaPlayer: "media_player.bedroom", weatherEntity: "weather.bedroom", logger: quiet, version: "test" });
+  const dashboard = new Dashboard({ ha, configStore: store, music, radio, mediaPlayer: "media_player.bedroom", weatherEntity: "weather.bedroom", sunEntity: options.sunEntity, logger: quiet, version: "test" });
   await dashboard.refresh();
   const server = createServer({ dashboard, webRoot: path.join(root, "web"), logger: quiet });
   const url = await listen(server);
@@ -545,6 +545,47 @@ test("Sun night mode saves without an entity selector, survives restart and foll
   const noSun = app.states.filter((entity) => entity.entity_id !== "sun.sun");
   await missing.refresh(reopened.current, noSun, "Europe/Copenhagen");
   assert.equal(missing.payload(reopened.current, { alarms: [] }, noSun, "Europe/Copenhagen").nightActive, false);
+});
+
+test("Sun night mode uses the HA app's configured entity across saves and restart without falling back", async (t) => {
+  const app = await setup(t, { sunEntity: "sun.bedroom" });
+  const custom = { entity_id: "sun.bedroom", state: "below_horizon", attributes: {} };
+  app.states.push(custom);
+  let state = await app.get("api/state");
+  assert.equal(state.config.sun_entity, "sun.bedroom");
+  assert.equal((await app.post("api/settings/clock", { ...state.config.clock, night_mode: "sun" })).status, 200);
+  state = await app.get("api/state");
+  assert.equal(state.clock.nightActive, true, "The configured sun wins over sun.sun's above_horizon state");
+  assert.equal(state.clock.night_error, null);
+  assert.ok(!fs.readFileSync(app.store.file, "utf8").includes("sun_entity"), "Appearance saves do not persist the HA app option in YAML");
+  const before = fs.readFileSync(app.store.file, "utf8");
+  assert.equal((await app.post("api/settings/clock", { ...state.config.clock, sun_entity: "sun.sun" })).status, 400);
+  assert.equal(fs.readFileSync(app.store.file, "utf8"), before);
+
+  const reopened = new ConfigStore({ dir: path.dirname(app.store.file), example: path.join(root, "examples/dashboard.yaml"), logger: quiet });
+  const restarted = new Dashboard({ ha: app.ha, configStore: reopened, sunEntity: "sun.bedroom", logger: quiet });
+  await restarted.refresh();
+  assert.equal(restarted.payload().clock.nightActive, true);
+  for (const invalid of ["unknown", "unavailable", "on", "0", ""]) {
+    custom.state = invalid;
+    await app.dashboard.refresh();
+    const clock = app.dashboard.payload().clock;
+    assert.equal(clock.nightActive, true);
+    assert.match(clock.night_error, /sun.bedroom.*missing, unavailable or invalid/);
+    assert.match(clock.night_error, /sun_entity in the HA app configuration/);
+  }
+  app.states.splice(app.states.indexOf(custom), 1);
+  await app.dashboard.refresh();
+  assert.equal(app.dashboard.payload().clock.nightActive, true);
+  const initialMissing = new Dashboard({ ha: app.ha, configStore: reopened, sunEntity: "sun.bedroom", logger: quiet });
+  await initialMissing.refresh();
+  assert.equal(initialMissing.payload().clock.nightActive, false);
+  assert.match(initialMissing.payload().clock.night_error, /sun.bedroom/);
+  app.states.push(custom);
+  custom.state = "above_horizon";
+  await app.dashboard.refresh();
+  assert.equal(app.dashboard.payload().clock.nightActive, false);
+  assert.equal(app.dashboard.payload().clock.night_error, null);
 });
 
 test("explicit next-alarm sensors and date/time helpers use the proper epoch", () => {

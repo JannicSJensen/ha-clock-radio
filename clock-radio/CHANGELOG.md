@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.10.1
+
+- Add a Sun entity field to the HA app configuration, defaulting to `sun.sun`.
+  Sun night mode follows the configured entity; Settings shows its ID and
+  explains where to change it.
+- Validate the option at startup. Missing/empty retains the default for existing
+  installations; an unavailable/invalid configured entity reports an explicit
+  warning and retains the last night state instead of using a different entity.
+
 ## 0.10.0
 
 - Show Music Assistant radio names/logos below Alarm type in the Music alarm

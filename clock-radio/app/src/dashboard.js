@@ -52,8 +52,8 @@ export function validateCommand(body, { config, players, readOnly }) {
 }
 
 export class Dashboard {
-  constructor({ ha, configStore, music = null, radio = null, mediaPlayer = "", weatherEntity = "", readOnly = false, demo = false, version, logger = console }) {
-    Object.assign(this, { ha, configStore, music, radio, mediaPlayer, weatherEntity, readOnly, demo, version, logger });
+  constructor({ ha, configStore, music = null, radio = null, mediaPlayer = "", weatherEntity = "", sunEntity = "sun.sun", readOnly = false, demo = false, version, logger = console }) {
+    Object.assign(this, { ha, configStore, music, radio, mediaPlayer, weatherEntity, sunEntity, readOnly, demo, version, logger });
     this.states = [];
     this.connected = false;
     this.connectionError = "Connecting to Home Assistant.";
@@ -66,7 +66,7 @@ export class Dashboard {
 
   get config() {
     const config = this.configStore.current;
-    return { ...config, clock: { ...config.clock, weather_entity: this.weatherEntity } };
+    return { ...config, sun_entity: this.sunEntity, clock: { ...config.clock, weather_entity: this.weatherEntity } };
   }
 
   refresh() {
@@ -172,6 +172,7 @@ export class Dashboard {
       missing_players: this.mediaPlayer && !states.length ? [this.mediaPlayer] : [],
       config: {
         title: config.title, locale: config.locale, time_zone: config.time_zone,
+        sun_entity: this.sunEntity,
         clock_24h: config.clock_24h, show_seconds: config.show_seconds,
         default_player: this.mediaPlayer,
         stations: config.stations.map(({ id, name }) => ({ id, name })),

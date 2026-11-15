@@ -259,10 +259,12 @@ uses oversized digits with date/weather and the next alarm.
 | `night_color`, `night_brightness` | Night color and brightness 20-100%; defaults `#ff2a1f` and 70 |
 
 Choose **Settings > Clock appearance > Night mode > Sun (below horizon)** to
-follow Home Assistant's `sun.sun` entity automatically. `below_horizon` enables
+follow the Sun entity set by `sun_entity` in **Settings > Apps > Clock Radio >
+Configuration** (default `sun.sun`; empty also uses this default). Save and
+restart the app after changing it. `below_horizon` enables
 your night color/brightness; `above_horizon` restores the daytime colors.
 Enable the HA Sun integration and configure HA's location correctly.
-No automation, schedule hours, threshold or night-entity selection is required.
+No automation, schedule hours, threshold or dashboard night-entity selection is required.
 Existing night-entity/hour/threshold settings are preserved but ignored in Sun
 mode. Horizon changes are applied on the next refresh (within five seconds).
 If the sun entity is missing, unavailable or invalid, a visible warning appears
@@ -362,6 +364,11 @@ Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
   `weather.forecast_home`. The sole weather source for widgets and full-screen
   clocks. Empty disables weather; missing/unavailable entities show an error
   and never fall back to another source.
+- `sun_entity`: HA Sun entity ID used by **Sun (below horizon)** night mode,
+  for example `sun.sun` or a renamed `sun.bedroom`. Missing/empty uses `sun.sun`.
+  This is configured only in the HA app options, not the dashboard night-entity
+  selector or YAML. An unavailable configured entity shows its ID in a warning
+  and retains the last night state; it never falls back to another Sun entity.
 - `read_only`: defaults to `false`; when enabled, the server refuses every
   playback, alarm creation/editing and clock-settings mutation, even direct API requests.
 - `music_assistant_url`: optional HTTP(S) base address without credentials,

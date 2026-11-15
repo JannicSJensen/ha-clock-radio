@@ -9,7 +9,7 @@ function parts(at, zone) {
   return Object.fromEntries(dayFormatters.get(zone).formatToParts(new Date(at)).filter((part) => part.type !== "literal").map((part) => [part.type, Number(part.value)]));
 }
 const wallEpoch = (p) => Date.UTC(p.year, p.month - 1, p.day, p.hour ?? 0, p.minute ?? 0, p.second ?? 0);
-const nightEntityId = (settings) => settings.night_mode === "sun" ? "sun.sun" : settings.night_entity;
+const nightEntityId = (config) => config.clock.night_mode === "sun" ? config.sun_entity ?? "sun.sun" : config.clock.night_entity;
 
 function wallCandidates(desired, zone) {
   const wall = wallEpoch(desired);
@@ -87,7 +87,7 @@ export class ClockData {
   async refresh(config, states, zone) {
     const settings = config.clock;
     const index = new Map(states.map((state) => [state.entity_id, state]));
-    this.night = nightEntityActive(index.get(nightEntityId(settings)), settings, this.night);
+    this.night = nightEntityActive(index.get(nightEntityId(config)), settings, this.night);
     const weather = index.get(settings.weather_entity);
     if (this.weather?.entity_id !== weather?.entity_id) this.forecast = null;
     this.weather = weather;
@@ -136,9 +136,9 @@ export class ClockData {
     const snooze = alarms.snoozed?.until;
     if (snooze && Date.parse(snooze) > this.now() && (!alarm || Date.parse(snooze) < Date.parse(alarm))) alarm = snooze;
     const weatherAvailable = weather && !["unknown", "unavailable"].includes(weather.state);
-    const nightState = states.find((state) => state.entity_id === nightEntityId(settings));
+    const nightState = states.find((state) => state.entity_id === nightEntityId(config));
     const nightError = settings.night_mode === "sun" && !["above_horizon", "below_horizon"].includes(nightState?.state)
-      ? "Home Assistant sun.sun is missing, unavailable or invalid. Check the Sun integration. The last night state is retained."
+      ? `Home Assistant ${nightEntityId(config)} is missing, unavailable or invalid. Check sun_entity in the HA app configuration and the Sun integration. The last night state is retained.`
       : ["entity", "illuminance"].includes(settings.night_mode)
         && (!nightState || ["unknown", "unavailable"].includes(nightState.state))
         ? "Choose an available Home Assistant entity for sensor-based night mode. The last night state is retained." : null;

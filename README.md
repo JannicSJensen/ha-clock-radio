@@ -44,7 +44,8 @@ one speaker, without player selection, grouping or Party.
 Set `weather_entity` there as well and restart the app to enable weather in
 the widget and full-screen clock. Weather selection is not in dashboard Settings.
 For automatic night colors, select **Sun (below horizon)** in Settings' Night
-mode. It follows HA's `sun.sun` entity without an automation or fixed schedule.
+mode. Set `sun_entity` in the HA app configuration if needed (default `sun.sun`).
+It follows that entity without an automation or fixed schedule.
 
 ## Screenshots
 

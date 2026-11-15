@@ -9,8 +9,9 @@ import { fileURLToPath } from "node:url";
 import { setTimeout as delay } from "node:timers/promises";
 import test from "node:test";
 
-test("demo starts without real credentials, stays connected and shuts down cleanly", { timeout: 30000 }, async (t) => {
+async function startDemo(t, options) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "clock-radio-demo-"));
+  if (options !== undefined) fs.writeFileSync(path.join(dir, "options.json"), JSON.stringify(options));
   const reservation = http.createServer();
   await new Promise((resolve) => reservation.listen(0, "127.0.0.1", resolve));
   const port = reservation.address().port;
@@ -38,11 +39,17 @@ test("demo starts without real credentials, stays connected and shuts down clean
   }
   assert.match(output, /listening on port/);
   const state = async () => (await fetch(`http://127.0.0.1:${port}/api/state`)).json();
+  return { state, port, output: () => output };
+}
+
+test("demo starts without real credentials, stays connected and shuts down cleanly", { timeout: 30000 }, async (t) => {
+  const { state, port, output } = await startDemo(t, { weather_entity: "weather.bedroom", sun_entity: "sun.bedroom" });
   const initial = await state();
   assert.equal(initial.demo, true);
   assert.equal(initial.connected, true);
   assert.equal(initial.config.stations.length, 4);
   assert.equal(initial.config.clock.weather_entity, "weather.bedroom");
+  assert.equal(initial.config.sun_entity, "sun.bedroom");
   assert.equal(initial.clock.weatherConfigured, true);
   assert.equal(initial.clock.weatherHigh, 22);
   const response = await fetch(`http://127.0.0.1:${port}/api/command`, {
@@ -53,9 +60,16 @@ test("demo starts without real credentials, stays connected and shuts down clean
   assert.equal((await state()).players[0].state, "paused");
   for (let count = 0; count < 3; count++) {
     await delay(5100);
-    assert.equal((await state()).connected, true, output);
+    assert.equal((await state()).connected, true, output());
   }
-  assert.ok(!output.includes("WARN"), output);
+  assert.ok(!output().includes("WARN"), output());
+});
+
+test("startup defaults missing and empty Sun options to sun.sun", async (t) => {
+  for (const options of [{}, { sun_entity: "" }]) {
+    const app = await startDemo(t, options);
+    assert.equal((await app.state()).config.sun_entity, "sun.sun");
+  }
 });
 
 test("startup rejects invalid HA weather options before connecting", (t) => {
@@ -69,8 +83,26 @@ test("startup rejects invalid HA weather options before connecting", (t) => {
       env: { ...process.env, OPTIONS_FILE: optionsFile, CONFIG_DIR: dir },
       encoding: "utf8", timeout: 5000,
     });
+
     assert.ifError(child.error);
     assert.equal(child.status, 1, child.stderr);
     assert.match(child.stderr, /weather_entity must be a single Home Assistant weather entity ID/);
+  }
+});
+
+test("startup rejects invalid HA Sun entity options before connecting", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "clock-radio-sun-options-"));
+  t.after(() => fs.rmSync(dir, { recursive: true }));
+  const optionsFile = path.join(dir, "options.json");
+  for (const sun_entity of [null, 123, [], {}, "sensor.sun", "sun.", "sun.sun,sun.other", "sun.Sun", " sun.sun"]) {
+    fs.writeFileSync(optionsFile, JSON.stringify({ sun_entity }));
+    const child = spawnSync(process.execPath, ["src/index.js"], {
+      cwd: fileURLToPath(new URL("../", import.meta.url)),
+      env: { ...process.env, OPTIONS_FILE: optionsFile, CONFIG_DIR: dir },
+      encoding: "utf8", timeout: 5000,
+    });
+    assert.ifError(child.error);
+    assert.equal(child.status, 1, child.stderr);
+    assert.match(child.stderr, /sun_entity must be a single Home Assistant sun entity ID/);
   }
 });
