@@ -36,7 +36,8 @@ described in the alarm package setup; these shared defaults are not editable
 in the app.
 
 Alarm configuration shows a compact list with large wake times and immediate
-enable switches. Tap an alarm to open its editor. Scroll the hour/minute wheels
+enable switches. Setup/deletion warnings appear only when action is needed.
+Tap an alarm to open its editor. Scroll the hour/minute wheels
 or use Arrow Up/Down, Home/End and Page Up/Down while a wheel is focused.
 The wheels follow the clock's 12/24-hour setting; 12-hour mode includes AM/PM.
 The displayed HA time zone always determines the schedule, not the tablet's zone.

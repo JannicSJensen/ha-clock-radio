@@ -57,7 +57,7 @@ export function createAlarmPage(ctx) {
   let picker = null;
   const pageStatus = h("p", { class: "form-status", role: "alert" });
   const list = h("div", { class: "alarm-list" });
-  const addInfo = h("p", { class: "settings-hint" });
+  const addInfo = h("p", { class: "settings-hint", hidden: true });
   const add = h("button", { class: "alarm-icon-button alarm-icon-button--accent", type: "button", "aria-label": "Add alarm" }, icon("plus"));
   const stop = h("button", { class: "btn", type: "button" }, "Stop active alarm");
   stop.addEventListener("click", () => ctx.write("api/alarm/stop", {}));
@@ -395,7 +395,7 @@ export function createAlarmPage(ctx) {
   });
   const el = h("div", { class: "settings alarm-page" },
     h("header", { class: "settings-heading alarm-page__heading" },
-      h("div", null, h("h1", null, "Alarm configuration"), h("p", null, "Tap an alarm to edit. Swipe down for The Clock or up for Music.")), add),
+      h("h1", null, "Alarm configuration"), add),
     addInfo, pageStatus, list, stop, dialog, deleteDialog);
 
   function update(model, busy) {
@@ -442,9 +442,10 @@ export function createAlarmPage(ctx) {
     add.disabled = busy || !ctx.canControl() || !model.alarms.can_create || incomplete;
     addInfo.textContent = model.alarms.deleting ? "Finish the pending deletion before adding or deleting another alarm."
       : incomplete ? "Finish setting up the incomplete alarm before adding another."
-      : model.alarms.can_create ? "Alarms run in Home Assistant. New alarms start disabled."
+      : model.alarms.can_create ? ""
       : "Update the HA alarm package to the dynamic scheduler to enable Add alarm.";
     if (!model.alarms.can_delete) addInfo.textContent += " Delete requires the version 4 HA package and available deletion helpers/scripts.";
+    addInfo.hidden = !addInfo.textContent;
     stop.hidden = !model.alarms.active_player && !model.alarms.snoozed;
     stop.textContent = model.alarms.snoozed ? "Cancel snoozed alarm" : "Stop active alarm";
     stop.disabled = busy || !ctx.canControl() || !model.alarms.can_stop;

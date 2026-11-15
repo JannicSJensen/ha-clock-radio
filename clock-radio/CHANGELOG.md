@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.14.2
+
+- Remove the two explanatory lines above the Alarm list, while retaining
+  setup/deletion warnings, errors and alarm controls.
+- Refresh the affected Alarm documentation screenshots.
+
 ## 0.14.1
 
 - Use pure black for the shared app canvas and all four main-page backgrounds,

@@ -180,7 +180,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 }
 .alarm-page { --alarm-accent: #ff9f0a; max-width: 760px; }
 .alarm-page__heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
-.alarm-page__heading p { margin-bottom: 0; }
 .alarm-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 48px; height: 48px; flex: none; border-radius: 50%; background: #36363a; font-size: 26px; }
 .alarm-icon-button--accent { color: #181818; background: var(--alarm-accent); }
 .alarm-icon-button--danger { color: #ff453a; }
