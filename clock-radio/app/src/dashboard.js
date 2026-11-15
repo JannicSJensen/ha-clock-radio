@@ -148,6 +148,16 @@ export class Dashboard {
     });
     const alarms = alarmSnapshot(this.states);
     alarms.can_create = canCreateAlarm(alarms);
+    alarms.radio_stations = (this.radio?.stations ?? []).map(({ id, name, image }) => ({ id, name, image }));
+    alarms.radio_error = this.radio?.error ?? (this.radio ? null : "Music Assistant radio library is unavailable.");
+    for (const alarm of alarms.alarms) {
+      const source = alarm.music_source;
+      const station = this.radio?.stations.find((item) => item.uri === source);
+      alarm.music_source_set = Boolean(source);
+      delete alarm.music_source;
+      alarm.music_station_id = station?.id ?? null;
+      alarm.music_station_name = station?.name ?? null;
+    }
     const clock = this.clockData.payload(config, alarms, this.states, this.haTimeZone);
     clock.error = [clock.error, this.timeZoneError].filter(Boolean).join(" ") || null;
     const errors = [clock.error, clock.night_error].filter(Boolean).join(" ");
@@ -220,6 +230,16 @@ export class Dashboard {
   async saveAlarm(body) {
     await this.mutationReady();
     const { id } = validateAlarm(body);
+    let musicSource;
+    if (Object.hasOwn(body, "music_station_id")) {
+      if (body.music_station_id === null) musicSource = "";
+      else {
+        if (!this.radio || this.radio.error) throw new RequestError(this.radio?.error || "Music Assistant radio library is unavailable.", 409);
+        const station = this.radio.stations.find((item) => item.id === body.music_station_id);
+        if (!station) throw new RequestError("This station is no longer in the Music Assistant radio library. Reload saved values and choose another.", 409);
+        musicSource = station.uri;
+      }
+    }
     if (body.enabled) {
       this.player(this.mediaPlayer);
       if (alarmSnapshot(this.states).player !== this.mediaPlayer) throw new RequestError("Apply the configured HA app speaker before enabling alarms.", 409);
@@ -227,7 +247,7 @@ export class Dashboard {
     if (this.alarmWrites.has(id) || this.alarmWrites.has("playback") || this.alarmWrites.has("create") || this.alarmWrites.has("delete")) throw new RequestError("An alarm is already being edited. Try again when the save finishes.", 409);
     this.alarmWrites.add(id);
     try {
-      await saveAlarm(this.ha, body, this.states, this.logger);
+      await saveAlarm(this.ha, body, this.states, this.logger, musicSource);
     } finally {
       this.alarmWrites.delete(id);
       await this.refresh();

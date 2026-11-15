@@ -61,7 +61,7 @@ test("Delete removes native profiles, preserves unrelated helpers and persistent
     assert.deepEqual(await response.json(), { ok: true, deleted_alarm_id: id });
     assert.ok(!(await app.get("api/state")).alarms.alarms.some((alarm) => alarm.id === id));
   }
-  assert.equal(app.helperDeletions.length, 15);
+  assert.equal(app.helperDeletions.length, 16);
   assert.ok(app.helperDeletions.every((request) => Object.values(request).some((value) => typeof value === "string" && /^clock_radio_alarm_3(?:_|$)/.test(value))));
   assert.ok(app.states.some((state) => state.entity_id === "input_boolean.unrelated_switch"));
   assert.deepEqual((await app.get("api/state")).alarms.alarms.find((alarm) => alarm.id === 4), other);
@@ -156,7 +156,7 @@ test("partial native helper deletion stays visible and disabled, blocks resurrec
   state = await app.get("api/state");
   assert.equal(state.alarms.deleting, null);
   assert.ok(!state.alarms.alarms.some((alarm) => alarm.id === 3));
-  assert.equal(app.helperDeletions.length, 15, "Only the remaining helpers are deleted on retry");
+  assert.equal(app.helperDeletions.length, 16, "Only the remaining helpers are deleted on retry");
 });
 
 test("Delete will not remove helpers after incomplete speaker cleanup or a success-shaped no-op preparation", async (t) => {
@@ -186,7 +186,7 @@ test("Delete will not remove helpers after incomplete speaker cleanup or a succe
   assert.equal(app.helperDeletions.length, 0);
   failure = null;
   assert.equal((await app.post("api/alarm/delete", { id: 3 })).status, 200);
-  assert.equal(app.helperDeletions.length, 15);
+  assert.equal(app.helperDeletions.length, 16);
 });
 
 test("a failed bundled deletion commit remains recoverable even after its deleted flag was set", async (t) => {
@@ -226,7 +226,7 @@ test("native deletion uses registry storage IDs rather than guessing IDs from en
     return result;
   };
   assert.equal((await app.post("api/alarm/delete", { id: 3 })).status, 200);
-  assert.equal(seen.length, 15);
+  assert.equal(seen.length, 16);
   assert.ok(seen.every((id) => id.startsWith("storage-")));
 });
 
@@ -279,7 +279,7 @@ test("Delete serializes against edits, creation, shared playback and stop/snooze
   const refresh = app.dashboard.refresh.bind(app.dashboard);
   let checkedFinalRefresh = false;
   app.dashboard.refresh = () => {
-    if (app.helperDeletions.length === 15) {
+    if (app.helperDeletions.length === 16) {
       assert.ok(app.dashboard.alarmWrites.has("delete"), "Deletion remains locked through the final fresh snapshot");
       checkedFinalRefresh = true;
     }
@@ -314,6 +314,171 @@ test("all clock layouts and options validate; legacy YAML stays compatible", () 
   for (const bad of [{ layout: "unknown" }, { face: "other" }, { seconds: "true" }, { night_brightness: 19 }, { night_brightness: 101 }, { night_start: 24 }, { night_threshold: -1 }, { primary: "red" }, { weather_entity: "light.room" }, { unknown: 1 }]) {
     assert.throws(() => parseClockOptions(bad));
   }
+});
+
+test("alarm radio choices come only from MA, include preset duplicates, and work without MA browsing credentials", async (t) => {
+  const app = await setup(t);
+  app.music.client.baseUrl = "";
+  app.music.client.token = "";
+  app.radio.updatedAt = 0;
+  await app.dashboard.refresh();
+  app.store.current.stations.push({ id: "same-as-ma", name: "Configured duplicate", media_content_id: app.radio.stations[0].uri });
+  const state = app.dashboard.payload();
+  assert.equal(state.music.library, false);
+  assert.equal(state.alarms.radio_error, null);
+  assert.equal(state.alarms.radio_stations.length, app.library.radio.length);
+  assert.ok(!state.music.stations.some((station) => station.id === app.radio.stations[0].id), "The music page deduplicates presets; alarm selection must still include that MA radio");
+  assert.deepEqual(state.alarms.radio_stations.map((station) => station.id), app.radio.stations.map((station) => station.id));
+  assert.ok(state.alarms.radio_stations.every((station) => /^ma-[a-f0-9]{16}$/.test(station.id)));
+  assert.ok(state.alarms.radio_stations.every((station) => !Object.hasOwn(station, "uri") && station.image.startsWith("api/music/image/")));
+  const { id, type, hour, minute, volume, duration, days } = state.alarms.alarms[0];
+  const settings = { id, type, hour, minute, volume, duration, days, enabled: false, music_station_id: state.alarms.radio_stations[1].id };
+  assert.equal((await app.post("api/settings/alarm", settings)).status, 200);
+});
+
+test("each alarm saves its own station without playing music, and retains it through Buzzer, switches and shared-source edits", async (t) => {
+  const app = await setup(t);
+  await app.post("api/alarm/create", {});
+  const base = (id) => {
+    const { type, hour, minute, volume, duration, days } = app.dashboard.payload().alarms.alarms.find((alarm) => alarm.id === id);
+    return { id, enabled: true, type, hour, minute, volume, duration, days };
+  };
+  const [first, second] = app.radio.stations;
+  const before = app.calls.length;
+  for (const [id, station] of [[1, first], [2, second], [3, second]]) {
+    assert.equal((await app.post("api/settings/alarm", { ...base(id), type: "Music", music_station_id: station.id })).status, 200);
+  }
+  assert.ok(!app.calls.slice(before).some((call) => call.domain === "media_player" || call.domain === "script" || call.domain === "music_assistant"), "Saving must never preview/play a radio");
+  let state = await app.get("api/state");
+  assert.deepEqual(state.alarms.alarms.map((alarm) => alarm.music_station_id), [first.id, second.id, second.id]);
+  assert.equal(state.alarms.music_source, "library://radio/1", "The shared source is not rewritten");
+  assert.equal(app.states.find((s) => s.entity_id === "input_text.clock_radio_alarm_3_music_source").state, second.uri);
+  assert.equal((await app.post("api/settings/alarm", { ...base(2), type: "Buzzer" })).status, 200);
+  app.startAlarm(2);
+  assert.equal(app.states.find((s) => s.entity_id === "media_player.bedroom").attributes.media_content_id, state.alarms.buzzer_source);
+  assert.equal((await app.post("api/settings/alarm", { ...base(2), type: "Music", enabled: false })).status, 200);
+  await app.ha.callService("input_text", "set_value", { entity_id: "input_text.clock_radio_music_source", value: first.uri });
+  app.startAlarm(2);
+  assert.equal(app.states.find((s) => s.entity_id === "media_player.bedroom").attributes.media_content_id, second.uri);
+  await app.dashboard.refresh();
+  state = await app.get("api/state");
+  assert.equal(state.alarms.alarms[1].music_station_id, second.id);
+  assert.ok(!Object.hasOwn(state.alarms.alarms[1], "music_source"), "Raw per-alarm sources stay server-side");
+  assert.equal((await app.post("api/settings/alarm", { ...base(2), music_station_id: null })).status, 200);
+  assert.equal((await app.get("api/state")).alarms.alarms[1].music_source_set, false);
+  app.startAlarm(2);
+  assert.equal(app.states.find((s) => s.entity_id === "media_player.bedroom").attributes.media_content_id, first.uri);
+});
+
+test("Snooze and native helper deletion use the selected station without rewriting another profile", async (t) => {
+  const app = await setup(t);
+  await app.post("api/alarm/create", {});
+  const alarm = (await app.get("api/state")).alarms.alarms[2];
+  const { id, type, hour, minute, volume, duration, days } = alarm;
+  const selected = app.radio.stations[1];
+  assert.equal((await app.post("api/settings/alarm", { id, type, hour, minute, volume, duration, days, enabled: false, music_station_id: selected.id })).status, 200);
+  app.startAlarm(3);
+  assert.equal((await app.post("api/alarm/snooze", {})).status, 200);
+  app.advanceAlarms(Date.now() + 601000);
+  assert.equal(app.states.find((s) => s.entity_id === "media_player.bedroom").attributes.media_content_id, selected.uri);
+  assert.equal((await app.post("api/alarm/delete", { id: 3 })).status, 200);
+  assert.ok(app.helperDeletions.some((request) => request.type === "input_text/delete" && request.input_text_id === "clock_radio_alarm_3_music_source"));
+  assert.equal(app.states.find((s) => s.entity_id === "input_text.clock_radio_alarm_1_music_source").state, "");
+});
+
+test("old packages preserve existing edits and sources but cannot save per-alarm stations", async (t) => {
+  const app = await setup(t);
+  const { id, type, hour, minute, volume, duration, days } = app.dashboard.payload().alarms.alarms[0];
+  const settings = { id, type, hour, minute, volume, duration, days, enabled: false };
+  const version = app.states.find((s) => s.entity_id === "sensor.clock_radio_alarm_scheduler_version");
+  for (const value of ["2", "3", "4"]) {
+    version.state = value;
+    const before = app.calls.length;
+    assert.equal((await app.post("api/settings/alarm", { ...settings, music_station_id: app.radio.stations[0].id })).status, 409);
+    assert.equal(app.calls.length, before);
+    assert.equal((await app.post("api/settings/alarm", settings)).status, 200);
+    assert.equal((await app.get("api/state")).alarms.alarms[0].can_select_radio, false);
+  }
+  await app.post("api/alarm/create", {});
+  assert.equal(app.helperRequests.length, 15, "Legacy helper creation is unchanged");
+  assert.ok(!app.states.some((s) => s.entity_id === "input_text.clock_radio_alarm_3_music_source"));
+  version.state = "5";
+  const native = (await app.get("api/state")).alarms.alarms[2];
+  const values = { ...settings, id: 3, days: native.days, music_station_id: app.radio.stations[1].id };
+  assert.equal((await app.post("api/settings/alarm", values)).status, 200);
+  assert.equal(app.helperRequests.length, 16, "An old native profile gets its missing source helper on first selection");
+  assert.equal(app.helperRequests.at(-1).type, "input_text/create");
+  assert.equal((await app.post("api/settings/alarm", values)).status, 200);
+  assert.equal(app.helperRequests.length, 16, "Retry never duplicates the helper");
+});
+
+test("station validation rejects stale IDs, arbitrary URIs, unsupported sources and unavailable helpers before writes", async (t) => {
+  const app = await setup(t);
+  const { id, type, hour, minute, volume, duration, days } = app.dashboard.payload().alarms.alarms[0];
+  const settings = { id, type, hour, minute, volume, duration, days, enabled: false };
+  const before = app.calls.length;
+  for (const invalid of ["https://example.com", "", [], {}, 1, true]) {
+    assert.equal((await app.post("api/settings/alarm", { ...settings, music_station_id: invalid })).status, 400);
+  }
+  assert.equal((await app.post("api/settings/alarm", { ...settings, music_station_id: "ma-0000000000000000" })).status, 409);
+  const station = app.radio.stations[0];
+  const original = station.uri;
+  for (const uri of ["javascript:alert(1)", "https://[bad", "https://example.com/" + "x".repeat(256), "https://user:pass@example.com/"]) {
+    station.uri = uri;
+    assert.equal((await app.post("api/settings/alarm", { ...settings, music_station_id: station.id })).status, 400);
+  }
+  station.uri = original;
+  app.states.find((s) => s.entity_id === "input_text.clock_radio_alarm_1_music_source").state = "unavailable";
+  const response = await app.post("api/settings/alarm", { ...settings, music_station_id: station.id });
+  assert.equal(response.status, 409);
+  assert.match((await response.json()).error, /radio helper.*unavailable/);
+  assert.equal(app.calls.length, before);
+});
+
+test("radio-library failures remain explicit but do not prevent unrelated alarm edits or clearing an override", async (t) => {
+  const app = await setup(t);
+  const { id, type, hour, minute, volume, duration, days } = app.dashboard.payload().alarms.alarms[0];
+  const settings = { id, type, hour, minute, volume, duration, days, enabled: false };
+  app.states.find((s) => s.entity_id === "input_text.clock_radio_alarm_1_music_source").state = "library://radio/deleted";
+  app.radio.error = "Radio library unavailable: demo offline";
+  const blocked = await app.post("api/settings/alarm", { ...settings, music_station_id: app.radio.stations[0].id });
+  assert.equal(blocked.status, 409);
+  assert.match((await blocked.json()).error, /demo offline/);
+  assert.equal((await app.post("api/settings/alarm", settings)).status, 200);
+  const saved = (await app.get("api/state")).alarms;
+  assert.equal(saved.radio_error, app.radio.error);
+  assert.equal(saved.alarms[0].music_source_set, true);
+  assert.equal(saved.alarms[0].music_station_id, null);
+  assert.equal((await app.post("api/settings/alarm", { ...settings, music_station_id: null })).status, 200);
+  assert.equal(app.states.find((s) => s.entity_id === "input_text.clock_radio_alarm_1_music_source").state, "");
+});
+
+test("radio writes fail explicitly with a disabled schedule, and native migration requires admin permission", async (t) => {
+  const app = await setup(t);
+  const { type, hour, minute, volume, duration, days } = app.dashboard.payload().alarms.alarms[0];
+  const settings = { id: 1, type, hour, minute, volume, duration, days, enabled: true, music_station_id: app.radio.stations[1].id };
+  const call = app.ha.callService.bind(app.ha);
+  app.ha.callService = (...args) => {
+    if (args[2]?.entity_id === "input_text.clock_radio_alarm_1_music_source") throw new Error("Radio helper denied");
+    return call(...args);
+  };
+  assert.equal((await app.post("api/settings/alarm", settings)).status, 502);
+  assert.equal((await app.get("api/state")).alarms.alarms[0].enabled, false);
+  app.ha.callService = call;
+  app.states.find((s) => s.entity_id === "sensor.clock_radio_alarm_scheduler_version").state = "4";
+  await app.post("api/alarm/create", {});
+  app.states.find((s) => s.entity_id === "sensor.clock_radio_alarm_scheduler_version").state = "5";
+  const request = app.ha.requestWs.bind(app.ha);
+  app.ha.requestWs = (message) => {
+    if (message.type === "input_text/create") throw new Error("Native helper creation denied");
+    return request(message);
+  };
+  const failed = await app.post("api/settings/alarm", { ...settings, id: 3 });
+  assert.equal(failed.status, 502);
+  assert.equal((await app.get("api/state")).alarms.alarms[2].enabled, false);
+  assert.ok(!app.states.some((s) => s.entity_id === "input_text.clock_radio_alarm_3_music_source"));
+  app.ha.requestWs = request;
+  assert.equal((await app.post("api/settings/alarm", { ...settings, id: 3 })).status, 200);
 });
 
 test("night entity thresholds use hysteresis and retain state while unavailable", () => {
@@ -848,7 +1013,7 @@ test("adding alarms provisions scoped persistent helpers and leaves existing pro
     assert.equal(profile.days.sunday, false);
     assert.equal(profile.timer, "idle");
   }
-  assert.equal(app.helperRequests.length, 30);
+  assert.equal(app.helperRequests.length, 32);
   assert.ok(app.helperRequests.every((request) => !Object.hasOwn(request, "initial")));
   assert.ok(app.helperRequests.filter((request) => request.type === "timer/create").every((request) => request.restore === true));
   assert.deepEqual((await app.get("api/state")).alarms.alarms.slice(0, 2), original);
@@ -890,7 +1055,7 @@ test("partial helper creation is visible, disabled and resumable without duplica
   assert.equal((await app.post("api/alarm/create", {})).status, 409);
   app.ha.requestWs = original;
   assert.equal((await app.post("api/alarm/create", { id: 3 })).status, 200);
-  assert.equal(app.helperRequests.length, 15);
+  assert.equal(app.helperRequests.length, 16);
   assert.equal(new Set(app.states.map((state) => state.entity_id)).size, app.states.length);
 });
 

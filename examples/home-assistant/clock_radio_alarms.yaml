@@ -124,6 +124,12 @@ input_text:
   clock_radio_music_source:
     name: Clock Radio music URI
     max: 255
+  clock_radio_alarm_1_music_source:
+    name: Clock Radio Alarm 1 Music Source
+    max: 255
+  clock_radio_alarm_2_music_source:
+    name: Clock Radio Alarm 2 Music Source
+    max: 255
   clock_radio_buzzer_source:
     name: Clock Radio buzzer URL
     max: 255
@@ -158,7 +164,7 @@ template:
   - sensor:
       - name: Clock Radio Alarm Scheduler Version
         unique_id: clock_radio_alarm_scheduler_version
-        state: "4"
+        state: "5"
       - name: Clock Radio Alarm 1 Wake Time
         unique_id: clock_radio_alarm_1_wake_time
         icon: mdi:eye
@@ -468,8 +474,14 @@ script:
           player: "{{ states('input_text.clock_radio_player') }}"
           kind: "{{ alarm_type | default(states('input_select.' ~ prefix ~ '_type')) }}"
           source: >-
-            {{ states('input_text.clock_radio_music_source' if kind == 'Music'
-                      else 'input_text.clock_radio_buzzer_source') }}
+            {% if kind == 'Music' %}
+              {% set selected = states.input_text
+                  | selectattr('entity_id', 'eq', 'input_text.' ~ prefix ~ '_music_source') | list %}
+              {{ selected[0].state if selected and selected[0].state != ''
+                 else states('input_text.clock_radio_music_source') }}
+            {% else %}
+              {{ states('input_text.clock_radio_buzzer_source') }}
+            {% endif %}
       - if: >-
           {{ not has_value('input_text.clock_radio_deleting_alarm')
              or not (states('input_text.clock_radio_deleting_alarm') == ''

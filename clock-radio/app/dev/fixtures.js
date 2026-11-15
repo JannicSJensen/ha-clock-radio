@@ -70,6 +70,7 @@ export function demoStates() {
     }
     states.push({ entity_id: `timer.clock_radio_alarm_${id}`, state: "idle", attributes: {} });
     states.push({ entity_id: `input_boolean.clock_radio_alarm_${id}_deleted`, state: "off", attributes: {} });
+    states.push({ entity_id: `input_text.clock_radio_alarm_${id}_music_source`, state: "", attributes: { max: 255 } });
   }
   for (const [key, state] of Object.entries({
     player: "media_player.bedroom", music_source: "library://radio/1",
@@ -82,7 +83,7 @@ export function demoStates() {
   states.push({ entity_id: "script.clock_radio_snooze", state: "off", attributes: {} });
   states.push({ entity_id: "script.clock_radio_resume_snooze", state: "off", attributes: {} });
   states.push({ entity_id: "input_datetime.clock_radio_snooze_until", state: "2000-01-01 00:00:00", attributes: { timestamp: 946684800 } });
-  states.push({ entity_id: "sensor.clock_radio_alarm_scheduler_version", state: "4", attributes: {} });
+  states.push({ entity_id: "sensor.clock_radio_alarm_scheduler_version", state: "5", attributes: {} });
   return states;
 }
 
@@ -117,11 +118,17 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
     if (!["Music", "Buzzer"].includes(type) || !entity(`timer.clock_radio_alarm_${id}`)) throw new Error("Invalid demo alarm.");
     if (!deletionReady(id)) throw new Error("Invalid alarm deletion helpers.");
     if (entity("input_text.clock_radio_deleting_alarm")?.state === String(id) || entity(`input_boolean.clock_radio_alarm_${id}_deleted`)?.state === "on") throw new Error("This alarm is deleted or deletion is in progress.");
+    const selected = entity(`input_text.clock_radio_alarm_${id}_music_source`);
+    const source = type === "Music"
+      ? selected && selected.state !== "" ? selected.state : entity("input_text.clock_radio_music_source").state
+      : entity("input_text.clock_radio_buzzer_source").state;
+    if (!/^(https?:\/\/|library:\/\/|radiobrowser:\/\/)\S+$/.test(source)) throw new Error("Invalid demo alarm source.");
     cleanupAlarm();
     entity("input_text.clock_radio_snoozed_alarm").state = "";
     const player = entity(entity("input_text.clock_radio_player").state);
     previous = { volume_level: player.attributes.volume_level, repeat: player.attributes.repeat };
     player.state = "playing";
+    player.attributes.media_content_id = source;
     player.attributes.repeat = type === "Buzzer" ? "one" : "off";
     player.attributes.volume_level = Number(entity(`input_number.clock_radio_alarm_${id}_volume`).state) / 100;
     entity("input_text.clock_radio_active_player").state = player.entity_id;
@@ -322,10 +329,10 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
         socket.send(JSON.stringify({ type: "result", id: message.id, success: true, result: [{ domain: "music_assistant", entry_id: "demo-music", state: "loaded" }] }));
       } else if (authenticated && message.type === "config/entity_registry/list") {
         socket.send(JSON.stringify({ type: "result", id: message.id, success: true, result: states.map((state) => ({ entity_id: state.entity_id, unique_id: state.entity_id.split(".")[1], platform: state.entity_id.split(".")[0] })) }));
-      } else if (authenticated && /^(input_boolean|input_number|input_select|timer)\/list$/.test(message.type)) {
+      } else if (authenticated && /^(input_boolean|input_number|input_select|input_text|timer)\/list$/.test(message.type)) {
         const domain = message.type.split("/")[0];
         socket.send(JSON.stringify({ type: "result", id: message.id, success: true, result: [...nativeHelpers.values()].filter((item) => item.domain === domain).map((item) => ({ id: item.id, name: item.name })) }));
-      } else if (authenticated && /^(input_boolean|input_number|input_select|timer)\/delete$/.test(message.type)) {
+      } else if (authenticated && /^(input_boolean|input_number|input_select|input_text|timer)\/delete$/.test(message.type)) {
         helperDeletions.push(message);
         const domain = message.type.split("/")[0];
         const key = `${domain}.${message[`${domain}_id`]}`;
@@ -337,7 +344,7 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
         const index = states.findIndex((state) => state.entity_id === key);
         if (index >= 0) states.splice(index, 1);
         socket.send(JSON.stringify({ type: "result", id: message.id, success: true, result: null }));
-      } else if (authenticated && /^(input_boolean|input_number|input_select|timer)\/create$/.test(message.type)) {
+      } else if (authenticated && /^(input_boolean|input_number|input_select|input_text|timer)\/create$/.test(message.type)) {
         helperRequests.push(message);
         const domain = message.type.split("/")[0];
         const objectId = message.name.toLowerCase().replaceAll(" ", "_");
@@ -346,7 +353,7 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
           socket.send(JSON.stringify({ type: "result", id: message.id, success: false, error: { message: "Entity already exists." } }));
           return;
         }
-        const state = domain === "input_boolean" ? "off" : domain === "timer" ? "idle" : domain === "input_select" ? message.options[0] : String(message.min);
+        const state = domain === "input_boolean" ? "off" : domain === "timer" ? "idle" : domain === "input_select" ? message.options[0] : domain === "input_text" ? "" : String(message.min);
         states.push({ entity_id, state, attributes: { friendly_name: message.name, min: message.min, max: message.max, step: message.step, options: message.options } });
         nativeHelpers.set(entity_id, { domain, id: objectId, name: message.name });
         socket.send(JSON.stringify({ type: "result", id: message.id, success: true, result: { id: objectId, name: message.name } }));

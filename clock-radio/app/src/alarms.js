@@ -1,8 +1,13 @@
 import { RequestError } from "./errors.js";
 
 export const WEEKDAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
-const settingKeys = new Set(["id", "enabled", "type", "hour", "minute", "days", "volume", "duration"]);
+const settingKeys = new Set(["id", "enabled", "type", "hour", "minute", "days", "volume", "duration", "music_station_id"]);
 const prefix = (id) => `clock_radio_alarm_${id}`;
+export const alarmMusicSourceEntity = (id) => `input_text.${prefix(id)}_music_source`;
+const musicSourceDefinition = (id) => ({
+  entity_id: alarmMusicSourceEntity(id), domain: "input_text",
+  fields: { name: `Clock Radio Alarm ${id} Music Source`, min: 0, max: 255, mode: "text" },
+});
 const numeric = (state) => state && state.state !== "" && !["unknown", "unavailable"].includes(state.state) && Number.isFinite(Number(state.state));
 
 export function alarmEntities(id) {
@@ -18,7 +23,7 @@ export function alarmEntities(id) {
 export function alarmIds(states) {
   const ids = new Set([1, 2]);
   for (const state of states) {
-    const match = /^(?:input_boolean|input_number|input_select|timer|sensor)\.clock_radio_alarm_([1-9]\d*)(?:$|_(?:enabled|initialized|type|hour|minute|volume|duration|monday|tuesday|wednesday|thursday|friday|saturday|sunday|wake_time)$)/.exec(state.entity_id);
+    const match = /^(?:input_boolean|input_number|input_select|input_text|timer|sensor)\.clock_radio_alarm_([1-9]\d*)(?:$|_(?:enabled|initialized|type|hour|minute|volume|duration|music_source|monday|tuesday|wednesday|thursday|friday|saturday|sunday|wake_time)$)/.exec(state.entity_id);
     if (match && Number.isSafeInteger(Number(match[1]))) ids.add(Number(match[1]));
   }
   return [...ids].filter((id) => !states.some((state) => state.entity_id === `input_boolean.${prefix(id)}_deleted` && state.state === "on")).sort((a, b) => a - b);
@@ -26,6 +31,8 @@ export function alarmIds(states) {
 
 export function alarmSnapshot(states) {
   const index = new Map(states.map((state) => [state.entity_id, state]));
+  const scriptAvailable = (name) => index.has(`script.clock_radio_${name}`)
+    && !["unknown", "unavailable"].includes(index.get(`script.clock_radio_${name}`).state);
   const deletionState = index.get("input_text.clock_radio_deleting_alarm");
   const deletionValid = !deletionState || deletionState.state === ""
     || /^[1-9]\d*$/.test(deletionState.state) && Number.isSafeInteger(Number(deletionState.state));
@@ -35,8 +42,15 @@ export function alarmSnapshot(states) {
     const entities = alarmEntities(id);
     const missing = Object.values(entities).filter((entity) => !index.has(entity) || ["unknown", "unavailable"].includes(index.get(entity).state));
     const value = (key) => index.get(entities[key]);
+    const source = index.get(alarmMusicSourceEntity(id));
+    const sourceError = source && ["unknown", "unavailable"].includes(source.state)
+      ? `HA radio helper ${source.entity_id} is unavailable. Restore it before selecting a station.` : null;
     return {
       id, missing, available: missing.length === 0, deletion_pending: deleting === id,
+      music_source: source && !sourceError ? source.state : null,
+      music_source_error: sourceError,
+      can_select_radio: Number(index.get("sensor.clock_radio_alarm_scheduler_version")?.state) >= 5
+        && scriptAvailable("play_alarm") && !sourceError && (Boolean(source) || id > 2),
       setup_complete: id <= 2 || index.get(`input_boolean.${prefix(id)}_initialized`)?.state === "on",
       enabled: value("enabled")?.state === "on",
       type: value("type")?.state ?? null,
@@ -53,8 +67,6 @@ export function alarmSnapshot(states) {
     const value = index.get(`input_text.clock_radio_${name}`)?.state;
     return value && !["unknown", "unavailable"].includes(value) ? value : "";
   };
-  const scriptAvailable = (name) => index.has(`script.clock_radio_${name}`)
-    && !["unknown", "unavailable"].includes(index.get(`script.clock_radio_${name}`).state);
   let activeError = null;
   const context = (name) => {
     const value = text(name);
@@ -125,6 +137,10 @@ export function validateAlarm(body) {
   if (!Number.isSafeInteger(body.id) || body.id < 1) throw new RequestError("Alarm ID must be a positive safe integer.");
   if (typeof body.enabled !== "boolean") throw new RequestError("enabled must be a boolean.");
   if (!["Music", "Buzzer"].includes(body.type)) throw new RequestError("Alarm type must be Music or Buzzer.");
+  if (Object.hasOwn(body, "music_station_id") && body.music_station_id !== null
+      && (typeof body.music_station_id !== "string" || !/^ma-[a-f0-9]{16}$/.test(body.music_station_id))) {
+    throw new RequestError("music_station_id must be a Music Assistant station ID or null for the shared HA default.");
+  }
   for (const [key, min, max] of [["hour", 0, 23], ["minute", 0, 59], ["volume", 0, 100], ["duration", 1, 120]]) checkNumber(body[key], key, min, max);
   if (!body.days || typeof body.days !== "object" || Array.isArray(body.days)
       || Object.keys(body.days).length !== 7 || !WEEKDAYS.every((day) => typeof body.days[day] === "boolean")) {
@@ -134,17 +150,38 @@ export function validateAlarm(body) {
   return body;
 }
 
-export async function saveAlarm(ha, body, states, logger) {
+export async function saveAlarm(ha, body, states, logger, musicSource) {
   const setting = validateAlarm(body);
   const snapshot = alarmSnapshot(states);
   if (snapshot.delete_error) throw new RequestError(snapshot.delete_error, 409);
   const profile = snapshot.alarms.find((alarm) => alarm.id === setting.id);
   if (profile?.deletion_pending) throw new RequestError("Finish deleting this alarm before changing its settings.", 409);
   if (!profile?.available || !profile.setup_complete) throw new RequestError("The alarm helpers are missing, unavailable or incomplete. Install the HA package or finish setup first.", 409);
+  const changesStation = Object.hasOwn(setting, "music_station_id");
+  if (changesStation) {
+    if (!profile.can_select_radio) throw new RequestError(profile.music_source_error || "Update the HA alarm package to version 5, including its per-alarm Music Source helpers, before selecting a station.", 409);
+    if (typeof musicSource !== "string" || musicSource.length > 255
+        || (musicSource !== "" && (!/^(https?:\/\/|library:\/\/|radiobrowser:\/\/)\S+$/.test(musicSource)
+          || !URL.canParse(musicSource)
+          || new URL(musicSource).username || new URL(musicSource).password))) {
+      throw new RequestError("This station URI cannot be stored in an HA alarm source helper. Choose another Music Assistant station.");
+    }
+  }
   const entities = alarmEntities(setting.id);
   const call = (domain, service, entity, data = {}) => ha.callService(domain, service, { entity_id: entity, ...data });
   await call("input_boolean", "turn_off", entities.enabled);
   try {
+    if (changesStation) {
+      const definition = musicSourceDefinition(setting.id);
+      if (!states.some((state) => state.entity_id === definition.entity_id)) {
+        const registry = await ha.requestWs({ type: "config/entity_registry/list" });
+        if (!Array.isArray(registry) || !registry.every((entry) => entry && typeof entry.entity_id === "string")) throw new Error("HA returned an invalid entity registry.");
+        if (registry.some((entry) => entry.entity_id === definition.entity_id)) throw new Error("The radio helper is registered but unavailable. Restore it in HA before saving.");
+        await ha.requestWs({ type: "input_text/create", ...definition.fields });
+        if (!(await ha.states()).some((state) => state.entity_id === definition.entity_id)) throw new Error("HA did not create the radio helper under its expected entity ID.");
+      }
+      await call("input_text", "set_value", definition.entity_id, { value: musicSource });
+    }
     for (const key of ["hour", "minute", "volume", "duration"]) await call("input_number", "set_value", entities[key], { value: setting[key] });
     await call("input_select", "select_option", entities.type, { option: setting.type });
     for (const day of WEEKDAYS) await call("input_boolean", setting.days[day] ? "turn_on" : "turn_off", entities[day]);
@@ -188,6 +225,7 @@ export async function provisionAlarm(ha, states, body, logger) {
       return { key, entity_id, domain, fields, value: WEEKDAYS.indexOf(key) >= 0 && WEEKDAYS.indexOf(key) < 5 };
     });
     definitions.push({ key: "timer", entity_id: `timer.${prefix(id)}`, domain: "timer", fields: { name: `Clock Radio Alarm ${id}`, duration: "00:05:00", restore: true } });
+    if (Number(snapshot.scheduler_version) >= 5) definitions.push(musicSourceDefinition(id));
     const initialized = `input_boolean.${prefix(id)}_initialized`;
     definitions.push({ key: "initialized", entity_id: initialized, domain: "input_boolean", fields: { name: `Clock Radio Alarm ${id} Initialized` }, value: false });
     const created = [];
@@ -229,13 +267,13 @@ export async function deleteAlarm(ha, states, body, logger) {
   if (snapshot.active_error) throw new RequestError(snapshot.active_error, 409);
   if (snapshot.deleting && snapshot.deleting !== id) throw new RequestError("Finish the pending alarm deletion first.", 409);
   if (!snapshot.alarms.some((alarm) => alarm.id === id)) throw new RequestError("This alarm is not configured.", 404);
-  const owned = new Set([...Object.values(alarmEntities(id)), `timer.${prefix(id)}`, `input_boolean.${prefix(id)}_initialized`]);
+  const owned = new Set([...Object.values(alarmEntities(id)), alarmMusicSourceEntity(id), `timer.${prefix(id)}`, `input_boolean.${prefix(id)}_initialized`]);
   try {
     const plan = [];
     if (id > 2) {
       const registry = await ha.requestWs({ type: "config/entity_registry/list" });
       if (!Array.isArray(registry) || !registry.every((entry) => entry && typeof entry.entity_id === "string")) throw new Error("HA returned an invalid entity registry.");
-      for (const domain of ["input_boolean", "input_number", "input_select", "timer"]) {
+      for (const domain of ["input_boolean", "input_number", "input_select", "input_text", "timer"]) {
         const items = await ha.requestWs({ type: `${domain}/list` });
         if (!Array.isArray(items) || !items.every((item) => item && typeof item.id === "string")) throw new Error(`HA returned an invalid ${domain} helper list.`);
         for (const entry of registry.filter((item) => owned.has(item.entity_id) && item.entity_id.startsWith(`${domain}.`))) {

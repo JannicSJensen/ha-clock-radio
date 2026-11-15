@@ -50,6 +50,10 @@ export function createAlarmPage(ctx) {
   let deleting = false;
   let deleteId = null;
   let selectedDays = {};
+  let selectedStation = null;
+  let stationDirty = false;
+  let stationSignature = "";
+  const stationInputs = new Map();
   let picker = null;
   const pageStatus = h("p", { class: "form-status", role: "alert" });
   const list = h("div", { class: "alarm-list" });
@@ -68,6 +72,10 @@ export function createAlarmPage(ctx) {
   const enabled = switchControl("Enable this alarm", "enabled");
   const type = h("select", { name: "type", "aria-label": "Alarm type" },
     h("option", { value: "Music" }, "Music"), h("option", { value: "Buzzer" }, "Buzzer"));
+  const stationHint = h("p", { class: "alarm-editor__hint", role: "status" });
+  const stationList = h("div", { class: "alarm-stations__list", role: "radiogroup", "aria-label": "Alarm radio station" });
+  const stationPicker = h("section", { class: "alarm-stations", hidden: true },
+    h("h3", null, "Radio station"), stationHint, stationList);
   const volume = h("input", { id: "alarm-volume", name: "volume", type: "range", min: 0, max: 100, step: 1, "aria-label": "Volume" });
   const volumeLabel = h("output", { for: "alarm-volume", class: "alarm-editor__value" });
   const duration = h("input", { name: "duration", type: "number", min: 1, max: 120, step: 1, required: true, "aria-label": "Wake timer (minutes)" });
@@ -176,6 +184,7 @@ export function createAlarmPage(ctx) {
     h("section", { class: "alarm-editor__group" },
       row("Enabled", enabled.el),
       row("Alarm type", type),
+      stationPicker,
       row("Volume", volumeLabel),
       h("div", { class: "alarm-editor__volume" }, volume),
       row("Wake timer", h("label", { class: "alarm-editor__duration" }, duration, h("span", null, "min")))),
@@ -191,6 +200,8 @@ export function createAlarmPage(ctx) {
     picker.setTime(alarm.hour, alarm.minute);
     enabled.control.checked = alarm.enabled;
     type.value = alarm.type;
+    selectedStation = alarm.music_station_id ?? (alarm.music_source_set ? "saved" : null);
+    stationDirty = false;
     volume.value = alarm.volume;
     duration.value = alarm.duration;
     repeat.textContent = repeatLabel(selectedDays);
@@ -211,6 +222,7 @@ export function createAlarmPage(ctx) {
   });
   cancel.addEventListener("click", closeEditor);
   form.addEventListener("input", markDirty);
+  type.addEventListener("change", () => updateEditor(ctx.getModel(), pageBusy));
   reload.addEventListener("click", () => {
     dirty = false;
     updateEditor(ctx.getModel(), false);
@@ -229,8 +241,53 @@ export function createAlarmPage(ctx) {
     remove.disabled = !deletionAllowed(model, activeId, busy);
     picker.setDisabled(disabled);
     if (!dirty && available) loadEditor(alarm);
+    updateStations(model, alarm, disabled);
     hint.textContent = model.alarms.delete_error || (!available ? "The HA alarm helpers are missing, unavailable, invalid or incomplete."
       : !ctx.canControl() ? "Read-only or disconnected. Changes cannot be saved." : "");
+  }
+  function updateStations(model, alarm, disabled) {
+    stationPicker.hidden = type.value !== "Music";
+    if (stationPicker.hidden) return;
+    const stations = model.alarms.radio_stations ?? [];
+    const radioError = model.alarms.radio_error;
+    const unavailable = !alarm.can_select_radio;
+    stationHint.textContent = alarm.music_source_error
+      || (unavailable ? "Update the HA alarm package to version 5, including its per-alarm Music Source helpers, to choose a station."
+        : radioError || (!stations.length ? "No radio stations in Music Assistant. Add radios to its library; the list refreshes automatically."
+          : "Choose a radio for this alarm only. Save applies your selection; no music plays now."));
+    const options = [
+      { id: null, name: "Use shared HA default", image: null },
+      ...stations,
+    ];
+    if (selectedStation && !stations.some((station) => station.id === selectedStation)) {
+      options.push({ id: selectedStation, name: "Saved station (not in the current library)", image: null, saved: true });
+    }
+    const signature = JSON.stringify(options);
+    if (signature !== stationSignature) {
+      stationSignature = signature;
+      stationInputs.clear();
+      stationList.replaceChildren(...options.map((station) => {
+        const input = h("input", { type: "radio", name: "alarm-radio", value: station.id ?? "", "aria-label": station.name });
+        input.addEventListener("change", () => {
+          if (!input.checked) return;
+          selectedStation = station.id;
+          stationDirty = true;
+          markDirty();
+        });
+        stationInputs.set(station.id, input);
+        const art = h("span", { class: "alarm-stations__art", "aria-hidden": "true" }, icon("radio"));
+        if (station.image) {
+          const image = h("img", { src: station.image, alt: "", loading: "lazy", onerror: () => image.remove() });
+          art.append(image);
+        }
+        return h("label", { class: "alarm-stations__option" }, input, art, h("span", null, station.name));
+      }));
+    }
+    for (const option of options) {
+      const input = stationInputs.get(option.id);
+      input.checked = option.id === selectedStation;
+      input.disabled = disabled || unavailable || Boolean(option.saved) || (option.id !== null && Boolean(radioError));
+    }
   }
   function openEditor(id, created = false) {
     const model = ctx.getModel();
@@ -266,6 +323,7 @@ export function createAlarmPage(ctx) {
         id, enabled: enabled.control.checked, type: type.value, ...picker.getTime(),
         volume: Number(volume.value), duration: Number(duration.value), days: { ...selectedDays },
       };
+      if (stationDirty) values.music_station_id = selectedStation;
       saving = true;
       status.textContent = "Saving...";
       updateEditor(ctx.getModel(), true);

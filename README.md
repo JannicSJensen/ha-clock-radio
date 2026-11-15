@@ -22,7 +22,9 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
 3. **Alarm configuration** - existing HA alarm
    profiles: Music/Buzzer type, independent wake times, weekdays, volumes and
    wake timers. A compact list offers enable switches; tap a time to edit with
-   hour/minute wheels and circular repeat-day buttons. Install the
+   hour/minute wheels and circular repeat-day buttons. Music alarms offer
+   Music Assistant radio logos below Alarm type, with a separate saved station
+   for each alarm (HA package version 5). Install the
    [alarm package](examples/home-assistant/README.md)
    once; **Add alarm** creates additional persistent HA helpers and timers.
    New alarms start disabled; existing profiles are not duplicated. **Delete**
@@ -57,7 +59,7 @@ station logos and clock appearance may differ.
 | ![Alarm configuration with Music and Buzzer profiles](docs/screenshots/alarms.png) | ![Settings with clock layout, time, colors and weather guidance](docs/screenshots/settings.png) |
 
 The [illustrated configuration guide](clock-radio/DOCS.md) also shows the alarm
-editor, both ringing-alarm screens, Sun night-mode settings and artwork player.
+editor and radio picker, both ringing-alarm screens, Sun night-mode settings and artwork player.
 
 ## Foundation
 

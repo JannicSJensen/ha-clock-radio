@@ -21,10 +21,11 @@ two independent Music/Buzzer alarm profiles and native entities cards. Install
 that package separately in Home Assistant. Alarm configuration edits the existing
 `clock_radio_alarm_N_*` helpers, including enabled state, type, wake time, seven
 weekdays, volume (0-100%) and wake timer (1-120 minutes). Profiles may
-use different times and durations; all use the configured app speaker and shared source
-helpers. Missing/unavailable helpers are shown explicitly and cannot be saved.
-Configure the shared Music/Buzzer source helpers in Home Assistant as described
-in the alarm package setup; they are not editable in the app.
+use different times, durations and Music radio stations; all use the configured
+app speaker. Missing/unavailable helpers are shown explicitly and cannot be saved.
+Configure the shared default Music source and Buzzer source helpers in HA as
+described in the alarm package setup; these shared defaults are not editable
+in the app.
 
 Alarm configuration shows a compact list with large wake times and immediate
 enable switches. Tap an alarm to open its editor. Scroll the hour/minute wheels
@@ -50,7 +51,39 @@ enabled; additional incomplete profiles still offer **Finish setup**.
 The editor shows the time wheels, repeat-day shortcuts and existing profile
 controls. Scroll inside the editor if controls do not fit your screen.
 
-![Alarm editor with time wheels, daily repeat, alarm type, volume and wake timer](../docs/screenshots/alarm-editor.png)
+![Alarm editor with time wheels, daily repeat and the Music station section](../docs/screenshots/alarm-editor.png)
+
+### Music alarm radio station
+
+When **Alarm type** is **Music**, a **Radio station** list appears directly below
+it, showing Music Assistant radio names and logos. Click/tap a radio to select
+it **for this alarm only**, then **Save alarm**. Selection does not start music.
+The radio list comes through HA's Music Assistant integration; a separate MA
+browsing URL/token is not required.
+
+![Music alarm editor with Music Assistant station logos and an independent selected radio](../docs/screenshots/alarm-radio.png)
+
+**Use shared HA default** clears this alarm's override and uses
+`input_text.clock_radio_music_source`. Existing alarms keep this default until
+you save a station. **Cancel** discards the station draft. Switching to Buzzer
+hides the list without losing its selection; Buzzer still uses its shared sound.
+The saved radio also applies when that Music alarm resumes from Snooze.
+Draft station choices survive polling without moving keyboard focus.
+
+Install/reload scheduler package **version 5**, including
+`input_text.clock_radio_alarm_1_music_source` and
+`input_text.clock_radio_alarm_2_music_source`. These restoring, maximum-255-character
+helpers must not have `initial` values. Newly created profiles include their own
+source helper; existing app-created profiles receive it through HA's admin-only
+API when their first station choice is saved. Do not reset initialization flags.
+Older packages can still edit existing alarm settings but cannot choose a station.
+
+An empty or failed library shows an explicit message. Add radios to Music
+Assistant's library; normal radio refresh is every five minutes (one minute after
+an error). A previously saved station missing from the current library remains
+selected and is not silently replaced. Choose a different station or the shared
+default to change it; unrelated edits preserve it. Unavailable source helpers
+must be restored in HA before choosing a station.
 
 Saving a profile temporarily disables its schedule while the individual HA
 helpers are updated, then applies the requested enabled state. If a write
@@ -61,7 +94,8 @@ Configured-speaker changes temporarily pause enabled schedules and restore them
 only after the speaker helper is saved. Conflicting edits are rejected;
 failed edits immediately refresh the actual HA values rather than reporting success.
 
-**Add alarm** creates 13 settings helpers, a persistent initialization flag and a
+**Add alarm** with the current package creates 14 settings helpers (including
+the per-profile Music source), a persistent initialization flag and a
 restoring timer using HA's admin-only helper APIs. Fresh profiles default to
 Music, 06:00, Monday-Friday, 50% and five minutes, **disabled**. Find this action
 and profile controls on **Alarm configuration**. **Settings** contains
@@ -71,8 +105,9 @@ Add alarm creates the disabled HA profile immediately and opens its editor.
 Cancel leaves that new profile in HA, disabled, without applying draft edits.
 The dynamic HA
 package must expose `sensor.clock_radio_alarm_scheduler_version` >= 2 and have
-available playback/stop scripts before creation is offered. Updating its scripts/automations/templates is sufficient
-for an existing installation; helper definitions and saved values are preserved.
+available playback/stop scripts before creation is offered. The radio picker
+additionally requires version 5 and its new bundled source helpers; saved values
+and existing helper definitions are preserved.
 Partial setup is explicitly reported and can be resumed with **Finish setup**;
 existing helper edits are not overwritten. Review resumed values before enabling.
 An incomplete profile is never scheduled. Helpers, times and timers remain in
@@ -96,7 +131,7 @@ persistently disables and hides them instead. Their YAML helpers remain in HA,
 but scheduled/manual starts and Snooze resumption are blocked.
 
 Install/reload the current [HA package](../examples/home-assistant/README.md),
-including scheduler version **4**, its deletion helpers and preparation script.
+including scheduler version **5**, its deletion helpers and preparation script.
 Existing saved settings and initialization flags must not be reset.
 Older packages retain their existing controls but cannot Delete.
 
@@ -137,7 +172,7 @@ type with the profile's current duration/volume and current shared speaker/sourc
 No schedule is enabled or disabled by snoozing.
 
 For reliable captured ringing state and Snooze, replace the installed HA package
-with the current version (scheduler version **4**), including the new text and
+with the current version (scheduler version **5**), including the new text and
 date/time helpers. Check configuration and reload helpers, scripts, templates
 and automations; restart HA if `input_datetime` was not previously loaded.
 Do not rerun/reset initialization flags. Older packages still support the

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.10.0
+
+- Show Music Assistant radio names/logos below Alarm type in the Music alarm
+  editor. Select a station independently for each alarm and Save; Cancel and
+  switching types preserve normal draft behavior without starting playback.
+- Persist each station in HA for scheduled/manual playback and Snooze, with an
+  explicit shared-default option. Buzzer playback is unchanged.
+- Require scheduler package version 5 for radio selection. Include restoring
+  source helpers for bundled/new profiles, migrate existing native profiles on
+  first selection and delete their source helper with the alarm.
+- Preserve old-package editing and existing sources. Report missing libraries,
+  unavailable helpers and failed writes; retain saved choices during polling.
+- Document installation, fallback and migration with a demo radio-picker screenshot.
+
 ## 0.9.0
 
 - Add confirmed Delete actions to alarm rows and the editor, including incomplete

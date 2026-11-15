@@ -8,6 +8,8 @@ cards:
         name: Alarm 1
       - entity: input_select.clock_radio_alarm_1_type
         name: Type
+      - entity: input_text.clock_radio_alarm_1_music_source
+        name: Music station URI (empty uses default)
       - entity: sensor.clock_radio_alarm_1_wake_time
         name: Wake Time 1
       - entity: input_number.clock_radio_alarm_1_hour
@@ -42,6 +44,8 @@ cards:
         name: Alarm 2
       - entity: input_select.clock_radio_alarm_2_type
         name: Type
+      - entity: input_text.clock_radio_alarm_2_music_source
+        name: Music station URI (empty uses default)
       - entity: sensor.clock_radio_alarm_2_wake_time
         name: Wake Time 2
       - entity: input_number.clock_radio_alarm_2_hour

@@ -29,8 +29,9 @@ entities cards remain an alternative.
    - Set `media_player` in the Clock Radio HA app configuration to your Music
      Assistant speaker. The app safely updates `input_text.clock_radio_player`.
      Standalone native-HA use can still set that helper manually.
-   - `input_text.clock_radio_music_source`: a radio URI from your MA library,
-     e.g. `library://radio/123`, or an HTTP(S) radio stream.
+   - `input_text.clock_radio_music_source`: the default radio URI from your MA
+     library, e.g. `library://radio/123`, or an HTTP(S) radio stream. Each Music
+     alarm can override this by selecting a station in the app editor.
    - `input_text.clock_radio_buzzer_source`: a reachable HTTP(S) audio URL.
      For an existing HA file under `www/sounds/`, use an absolute URL such as
      `http://homeassistant:8123/local/sounds/wakeup.mp3` if that hostname is
@@ -56,9 +57,32 @@ time display in Alarm configuration, seven weekday switches, volume, duration an
 The app presents these as a compact alarm list and a wheel-time editor with
 repeat-day buttons. List enable switches save immediately; editor changes use
 Save or Cancel. Cancel does not modify the HA helpers.
-Any profile can be Music or Buzzer. Playback sources and the speaker are
-shared settings. Values restore across restarts rather than being reset by YAML
+Any profile can be Music or Buzzer. The speaker, default Music source and Buzzer
+sound are shared; each profile can override its Music station. Values restore
+across restarts rather than being reset by YAML
 `initial` fields.
+
+## Per-alarm Music Assistant radio
+
+Scheduler package **version 5** adds restoring
+`input_text.clock_radio_alarm_N_music_source` helpers, maximum 255 characters.
+The package defines these for bundled profiles 1/2. Update the installed package,
+check configuration and reload input text, templates and scripts; do not reset
+existing helper values or initialization flags.
+
+In the app editor, choose **Music**, select a radio below **Alarm type** and Save.
+The list comes from HA's Music Assistant radio library, including station logos,
+without requiring MA browsing credentials. Selecting does not play audio.
+**Use shared HA default** stores an empty override. Music playback falls back
+to `input_text.clock_radio_music_source` only when the profile's helper is empty
+or absent; unavailable/invalid helpers fail explicitly rather than playing a
+different station. Buzzer always uses `input_text.clock_radio_buzzer_source`.
+
+New app-created profiles include their source helper. Existing app-created
+profiles acquire it on their first saved station selection through HA's
+admin-only helper API. The source survives restarts and works with the app
+closed. Native HA users may set the same helper to a Music Assistant radio URI
+or HTTP(S) stream. Other profile settings and shared sources remain unchanged.
 
 Scheduling uses **Home Assistant's time zone**, checked at the start of each
 minute. It does not replay alarms missed while HA was stopped. Profiles can
@@ -84,7 +108,7 @@ The wake countdown remains separate from the fixed **10-minute** snooze.
 
 For an existing installation, replace this package including its new helpers,
 check configuration and reload the affected integrations. It now exposes
-`sensor.clock_radio_alarm_scheduler_version: 4`. Add
+`sensor.clock_radio_alarm_scheduler_version: 5`. Add
 `input_text.clock_radio_active_alarm`, `input_text.clock_radio_snoozed_alarm`
 and `input_datetime.clock_radio_snooze_until`, plus the deletion helpers below;
 do not reset existing profile or
@@ -95,7 +119,8 @@ Older packages retain Stop and the ringing screen, but cannot Snooze.
 and restores the speaker, then persists a deadline 600 seconds away.
 `script.clock_radio_resume_snooze` starts it once when due, even if its schedule
 is disabled. The captured type is preserved through edits; current
-volume/duration and shared speaker/source settings are used when it resumes.
+volume/duration, per-profile Music source and shared speaker/Buzzer settings are
+used when it resumes.
 The app may be closed. Future deadlines survive HA restarts; overdue snoozes
 resume once during startup. A new alarm or `script.clock_radio_stop` cancels a
 pending snooze. The app exposes **Cancel snoozed alarm** in Alarm configuration
