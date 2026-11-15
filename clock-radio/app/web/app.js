@@ -13,6 +13,14 @@ new ResizeObserver(([entry]) => {
   document.documentElement.style.setProperty("--banner-height", `${entry.contentRect.height}px`);
 }).observe(document.querySelector(".banners"));
 const PAGES = { clock: "The Clock", music: "Music overview", alarms: "Alarm configuration", settings: "Settings" };
+const pageIds = Object.keys(PAGES);
+const pageDots = pageIds.map(() => {
+  const dot = document.createElement("span");
+  dot.className = "page-indicator__dot";
+  dot.setAttribute("aria-hidden", "true");
+  return dot;
+});
+$("page-indicator").append(...pageDots);
 let model = null;
 let current = "clock";
 let musicPage = null;
@@ -73,10 +81,15 @@ function navigate() {
   }
   current = Object.hasOwn(PAGES, location.hash.slice(1)) ? location.hash.slice(1) : "clock";
   if (current !== "alarms") settingsPages?.closeAlarmEditor();
-  for (const page of Object.keys(PAGES)) $(`page-${page}`).hidden = page !== current;
+  for (const [index, page] of pageIds.entries()) {
+    $(`page-${page}`).hidden = page !== current;
+    pageDots[index].classList.toggle("is-active", page === current);
+  }
   $(`page-${current}`).tabIndex = -1;
   $(`page-${current}`).focus({ preventScroll: true });
-  $("page-position").textContent = `${PAGES[current]}. Swipe up/down or use Page Up/Down to change pages.`;
+  const position = `Page ${pageIds.indexOf(current) + 1} of ${pageIds.length}: ${PAGES[current]}`;
+  $("page-indicator").setAttribute("aria-label", position);
+  $("page-position").textContent = `${position}. Swipe up/down or use Page Up/Down to change pages.`;
   document.body.classList.toggle("on-clock", current === "clock");
   if (current !== "clock") document.body.classList.remove("is-night");
   frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" }, location.origin);
@@ -85,8 +98,7 @@ function navigate() {
 
 function changePage(step) {
   if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
-  const pages = Object.keys(PAGES);
-  location.hash = pages[(pages.indexOf(current) + step + pages.length) % pages.length];
+  location.hash = pageIds[(pageIds.indexOf(current) + step + pageIds.length) % pageIds.length];
 }
 
 function changeClockView(panel, step) {
@@ -223,7 +235,7 @@ addEventListener("message", (event) => {
   if (event.data.type === "clock-radio-page") changePage(event.data.step);
   if (event.data.type === "clock-radio-view") changeClockView(event.data.panel, event.data.step);
 });
-for (const page of Object.keys(PAGES).filter((page) => page !== "clock")) {
+for (const page of pageIds.filter((page) => page !== "clock")) {
   onSwipe($(`page-${page}`), { vertical: changePage });
 }
 addEventListener("hashchange", navigate);

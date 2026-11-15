@@ -35,6 +35,7 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
 
 There is no menu. Swipe **up/down** between pages; scroll to the edge first in
 Music/Alarm configuration/Settings. Keyboard users can use **Page Up/Down**.
+Four dots at the bottom show which page you are on; the active dot is grey.
 On the split clock,
 swipe **left/right** within each panel to save its clock face or widget.
 Full-screen faces and hiding the widget remain Settings options.

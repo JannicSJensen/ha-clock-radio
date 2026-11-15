@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.12.0
+
+- Add four persistent bottom dots to the main Clock, Music, Alarm configuration
+  and Settings pages. The active dot is grey and the others are darker; the dots
+  are non-interactive position indicators.
+- Announce the page name and position to screen readers. Reserve footer space
+  so the dots stay clear of playback controls, Save actions and status banners,
+  and dim the indicator with the clock's night mode.
+- Refresh the main-page and Sun night-mode documentation screenshots.
+
 ## 0.11.0
 
 - Redesign Settings with an iOS-inspired black appearance: rounded grouped

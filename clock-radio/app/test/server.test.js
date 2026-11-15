@@ -53,6 +53,7 @@ test("HTTP foundation works end to end with HA, hot reload, error paths and ingr
   const html = await home.text();
   assert.match(html, /href="\.\/styles.css"/);
   assert.match(html, /src="\.\/app.js"/);
+  assert.match(html, /id="page-indicator"[^>]+role="img"[^>]+aria-label="Page position"/);
   const js = await (await fetch(`${url}/app.js`)).text();
   assert.match(js, /getJson\("api\/state"/);
   const api = await (await fetch(`${url}/js/core/api.js`)).text();
