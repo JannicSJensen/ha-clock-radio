@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.15.1
+
+- Cache and revalidate static browser assets with content ETags, returning
+  body-free 304 responses while keeping updates and local edits fresh.
+- Reuse file reads/compressed representations and gzip larger text assets
+  without recompressing fonts or caching live API responses and commands.
+- Defer Music's UI and library loading until its first visit instead of
+  fetching recommendations in the background on the Clock page.
+
 ## 0.15.0
 
 - Replace the clock widget with a live countdown while Music or Buzzer alarms

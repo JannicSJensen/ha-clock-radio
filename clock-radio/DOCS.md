@@ -483,6 +483,25 @@ No speakers and no stations have explicit setup messages. Disconnected HA
 retains the last state as stale, shows a warning and disables commands; the
 clock continues. Missing configured players are listed on the dashboard.
 
+## Browser caching and performance
+
+Static HTML, JavaScript, CSS, fonts and icons are stored in the browser's private
+HTTP cache and revalidated with content-based ETags. Unchanged files return
+`304 Not Modified` without downloading the body again. Updated files are
+revalidated rather than held by a long cache lifetime, so releases do not need
+a manual cache clear. The app also reuses unchanged file reads and compressed
+representations in memory, checking file metadata so local edits still reload.
+Larger text assets use gzip when supported and smaller than the original;
+already-compressed fonts are not recompressed.
+
+Music's browser UI and initial library request are deferred until the first
+visit to **Music overview**. Returning to the page preserves its current view.
+Existing Music Assistant recommendation/artwork caches remain server-side.
+
+Live API responses, artwork proxies and commands remain `no-store`. The
+five-second state polling, immediate post-command refresh and alarm/Snooze
+updates are unchanged. Static caching does not provide an offline operating mode.
+
 ## Access and safety
 
 Ingress uses your existing Home Assistant login. Direct access on port 8100

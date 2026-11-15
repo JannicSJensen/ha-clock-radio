@@ -98,7 +98,7 @@ function navigate() {
   document.body.classList.toggle("on-clock", current === "clock");
   if (current !== "clock") document.body.classList.remove("is-night");
   frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" }, location.origin);
-  if (current === "music") musicPage?.update();
+  if (current === "music") renderMusic();
 }
 
 function changePage(step) {
@@ -187,6 +187,18 @@ async function stopSnooze(target) {
   renderClock();
 }
 
+function renderMusic() {
+  if (!model || (current !== "music" && !musicPage)) return;
+  const signature = JSON.stringify([model.music, model.config.locale]);
+  if (signature !== musicSignature) {
+    musicPage?.destroy();
+    musicPage = createMusicPage(model.music, ctx);
+    $("page-music").replaceChildren(musicPage.el);
+    musicSignature = signature;
+  }
+  musicPage.update();
+}
+
 function render() {
   if (!model) return;
   document.title = model.config.title;
@@ -202,14 +214,8 @@ function render() {
   notice("missing-players", model.missing_players.length ? `Missing configured speakers: ${model.missing_players.join(", ")}` : "");
   $("read-only").hidden = !model.read_only;
   renderClock();
-  const signature = JSON.stringify([model.music, model.config.locale]);
-  if (signature !== musicSignature) {
-    ctx.t = makeTranslator(model.config.locale);
-    musicPage?.destroy();
-    musicPage = createMusicPage(model.music, ctx);
-    $("page-music").replaceChildren(musicPage.el);
-    musicSignature = signature;
-  }
+  ctx.t = makeTranslator(model.config.locale);
+  renderMusic();
   if (!settingsPages) {
     settingsPages = createSettingsPages(ctx);
     $("page-alarms").append(settingsPages.alarmsEl);
@@ -219,7 +225,6 @@ function render() {
     nowPlaying = createNowPlayingScreen(ctx, { enabled: () => false });
     document.body.append(nowPlaying.el);
   }
-  musicPage.update();
   nowPlaying.update();
   settingsPages.update(model, pending > 0);
   if (!alarmScreen) {

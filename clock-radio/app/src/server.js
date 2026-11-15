@@ -1,6 +1,9 @@
 import fs from "node:fs/promises";
 import http from "node:http";
 import path from "node:path";
+import crypto from "node:crypto";
+import { promisify } from "node:util";
+import { gzip } from "node:zlib";
 import { RequestError } from "./dashboard.js";
 import { MAError } from "./ma-api.js";
 import { iconSvg } from "./icons.js";
@@ -12,6 +15,48 @@ const assets = new Map([
   ["/styles.css", ["styles.css", "text/css; charset=utf-8"]],
 ]);
 const assetTypes = { ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8" };
+const compress = promisify(gzip);
+
+function assetVariant(body) {
+  return { body, etag: `"${crypto.createHash("sha256").update(body).digest("base64url")}"` };
+}
+
+async function prepareAsset(body, type) {
+  const asset = { type, identity: assetVariant(body) };
+  if (body.length >= 1024 && /^(text\/|image\/svg\+xml$)/.test(type)) {
+    const compressed = await compress(body);
+    if (compressed.length < body.length) asset.gzip = assetVariant(compressed);
+  }
+  return asset;
+}
+
+function acceptsGzip(header = "") {
+  const encodings = new Map(header.split(",").map((part) => {
+    const [name, ...parameters] = part.trim().toLowerCase().split(";");
+    const quality = parameters.find((parameter) => parameter.trim().startsWith("q="));
+    const value = quality === undefined ? 1 : Number(quality.trim().slice(2));
+    return [name.trim(), value > 0 && value <= 1];
+  }));
+  return encodings.get("gzip") ?? encodings.get("*") ?? false;
+}
+
+function sendAsset(req, res, asset) {
+  const compressed = asset.gzip && acceptsGzip(req.headers["accept-encoding"]);
+  const variant = compressed ? asset.gzip : asset.identity;
+  res.setHeader("Cache-Control", "private, no-cache");
+  res.setHeader("Content-Type", asset.type);
+  res.setHeader("ETag", variant.etag);
+  if (asset.gzip) res.setHeader("Vary", "Accept-Encoding");
+  if (compressed) res.setHeader("Content-Encoding", "gzip");
+  const tags = req.headers["if-none-match"]?.split(",") ?? [];
+  if (tags.some((tag) => tag.trim() === "*" || tag.trim().replace(/^W\//, "") === variant.etag)) {
+    res.writeHead(304);
+    return res.end();
+  }
+  res.setHeader("Content-Length", variant.body.length);
+  res.writeHead(200);
+  res.end(req.method === "HEAD" ? undefined : variant.body);
+}
 
 export function staticAsset(pathname) {
   if (assets.has(pathname)) return assets.get(pathname);
@@ -40,6 +85,23 @@ async function readJson(req) {
 }
 
 export function createServer({ dashboard, webRoot, logger = console }) {
+  const fileCache = new Map();
+  const iconCache = new Map();
+  async function loadAsset(file, type) {
+    const filename = path.join(webRoot, file);
+    const stat = await fs.stat(filename);
+    const stamp = `${stat.mtimeMs}:${stat.ctimeMs}:${stat.size}:${stat.ino}`;
+    let cached = fileCache.get(filename);
+    if (cached?.stamp !== stamp) {
+      cached = { stamp, data: fs.readFile(filename).then((body) => prepareAsset(body, type)) };
+      fileCache.set(filename, cached);
+      cached.data = cached.data.catch((error) => {
+        if (fileCache.get(filename) === cached) fileCache.delete(filename);
+        throw error;
+      });
+    }
+    return cached.data;
+  }
   return http.createServer(async (req, res) => {
     res.setHeader("X-Content-Type-Options", "nosniff");
     res.setHeader("Referrer-Policy", "no-referrer");
@@ -79,9 +141,15 @@ export function createServer({ dashboard, webRoot, logger = console }) {
         res.end(req.method === "HEAD" ? undefined : image.body);
       };
       if (/^\/icons\/[a-z0-9-]+\.svg$/.test(pathname)) {
-        const svg = iconSvg(path.basename(pathname, ".svg"));
-        if (!svg) throw new RequestError("Icon not found.", 404);
-        return imageResponse({ type: "image/svg+xml", body: svg });
+        if (!iconCache.has(pathname)) {
+          const svg = iconSvg(path.basename(pathname, ".svg"));
+          if (!svg) throw new RequestError("Icon not found.", 404);
+          iconCache.set(pathname, prepareAsset(Buffer.from(svg), "image/svg+xml").catch((error) => {
+            iconCache.delete(pathname);
+            throw error;
+          }));
+        }
+        return sendAsset(req, res, await iconCache.get(pathname));
       }
       if (pathname.startsWith("/api/player/image/")) return imageResponse(await dashboard.playerImage(decodeURIComponent(pathname.slice("/api/player/image/".length))));
       if (pathname.startsWith("/api/music/")) {
@@ -99,14 +167,13 @@ export function createServer({ dashboard, webRoot, logger = console }) {
       }
       const asset = staticAsset(pathname);
       if (!asset) throw new RequestError("Not found.", 404);
-      let body;
-      try { body = await fs.readFile(path.join(webRoot, asset[0])); }
+      let response;
+      try { response = await loadAsset(asset[0], asset[1]); }
       catch (error) {
         if (error.code === "ENOENT") throw new RequestError("Not found.", 404);
         throw error;
       }
-      res.writeHead(200, { "Content-Type": asset[1] });
-      res.end(req.method === "HEAD" ? undefined : body);
+      sendAsset(req, res, response);
     } catch (error) {
       logger.warn(`HTTP request failed: ${error.message}`);
       const known = error instanceof RequestError || error instanceof MAError;
