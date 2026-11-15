@@ -9,6 +9,9 @@ import { createAlarmScreen } from "./js/components/alarm-screen.js";
 
 const $ = (id) => document.getElementById(id);
 const frame = $("clock-frame");
+new ResizeObserver(([entry]) => {
+  document.documentElement.style.setProperty("--banner-height", `${entry.contentRect.height}px`);
+}).observe(document.querySelector(".banners"));
 const PAGES = { clock: "The Clock", music: "Music overview", alarms: "Alarm configuration", settings: "Settings" };
 let model = null;
 let current = "clock";

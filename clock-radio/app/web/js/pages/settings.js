@@ -1,4 +1,5 @@
 import { h } from "../core/h.js";
+import { icon } from "../core/icons.js";
 import { CLOCK_CHOICES, parseClockOptions } from "../lib/clock-options.js";
 import { createAlarmPage } from "./alarms.js";
 
@@ -13,8 +14,19 @@ const names = {
 };
 const input = (name, type, props = {}) => h("input", { name, type, ...props });
 const select = (name, values, labels = names) => h("select", { name }, values.map((value) => h("option", { value }, labels[value] ?? value)));
-const field = (label, control) => h("label", { class: `setting-field${control.type === "checkbox" ? " setting-field--check" : ""}` }, h("span", null, label), control);
-const group = (title, ...fields) => h("section", { class: "setting-group" }, h("h3", null, title), h("div", { class: "setting-grid" }, fields));
+const field = (label, control) => {
+  const kind = control.tagName === "SELECT" ? "select" : control.type;
+  const value = kind === "checkbox"
+    ? h("span", { class: "setting-toggle" }, control, h("span", { class: "setting-toggle__track", "aria-hidden": "true" }))
+    : kind === "select" ? h("span", { class: "setting-control" }, control, icon("chevron-down")) : control;
+  return h("label", { class: `setting-field setting-field--${kind}` }, h("span", { class: "setting-field__label" }, label), value);
+};
+const groupIcons = { view: "view-dashboard-outline", time: "calendar-clock", colors: "palette", weather: "weather-partly-cloudy", night: "weather-night", music: "music-note" };
+const group = (title, name, fields, hint) => h("section", { class: `setting-group setting-group--${name}` },
+  h("h3", null, h("span", { class: "setting-group__icon" }, icon(groupIcons[name])), title),
+  h("div", { class: "setting-grid" }, fields), hint);
+const sourceValue = () => h("span", { class: "setting-source__value" });
+const source = (label, value) => h("div", { class: "setting-source" }, h("span", null, label), value);
 
 function setValues(form, values) {
   for (const [key, value] of Object.entries(values)) {
@@ -29,11 +41,12 @@ export function createSettingsPages(ctx) {
   const forms = [];
   function createForm(title, content, serialize, endpoint, getValues, available = () => true) {
     let dirty = false;
-    const status = h("p", { class: "form-status", role: "status" });
-    const save = h("button", { type: "submit", class: "btn btn--primary" }, "Save");
-    const reload = h("button", { type: "button", class: "btn" }, "Reload values");
-    const fieldset = h("fieldset", { class: "settings-fieldset" }, content, h("div", { class: "form-actions" }, save, reload));
-    const form = h("form", { class: "settings-card", "aria-label": title }, h("h2", null, title), fieldset, status);
+    const status = h("p", { class: "form-status", role: "status" }, "Changes apply when you save.");
+    const save = h("button", { type: "submit", class: "btn btn--primary" }, "Save changes");
+    const reload = h("button", { type: "button", class: "btn settings-reload", "aria-label": "Reload values", title: "Reload saved values" }, icon("reload"));
+    const fieldset = h("fieldset", { class: "settings-fieldset" }, h("div", { class: "settings-sections" }, content),
+      h("div", { class: "form-actions" }, status, reload, save));
+    const form = h("form", { class: "settings-card settings-clock", "aria-label": title }, h("h2", { class: "sr-only" }, title), fieldset);
     const record = { form, update(model, busy) {
       fieldset.disabled = busy || !ctx.canControl() || !available(model);
       if (!dirty) setValues(form, getValues(model));
@@ -63,37 +76,42 @@ export function createSettingsPages(ctx) {
     return form;
   }
 
-  const weatherInfo = h("p", { class: "settings-hint" });
+  const weatherEntity = sourceValue();
+  const sunEntity = sourceValue();
+  const weatherInfo = h("p", { class: "settings-hint" }, "Set weather_entity in the Home Assistant app configuration and restart to change the weather source. Empty disables weather.");
+  const clockInfo = h("p", { class: "settings-hint" });
+  const nightInfo = h("p", { class: "settings-hint" }, "Sun mode enables night colors below the horizon. Set sun_entity in the HA app configuration and restart to change its source. Night entity, hours and threshold are ignored in Sun mode. Room-light mode uses hysteresis; unavailable sensors retain the last night state.");
   const clock = createForm("Clock appearance",
     [
-      group("View",
+      group("View", "view", [
         field("Layout", select("layout", CLOCK_CHOICES.layout)),
         field("Widget clock", select("face", CLOCK_CHOICES.face)),
         field("Full-screen clock", select("full_face", CLOCK_CHOICES.full_face)),
-        field("Widget", select("widget", CLOCK_CHOICES.widget))),
-      group("Time and calendar",
+        field("Widget", select("widget", CLOCK_CHOICES.widget))]),
+      group("Time and calendar", "time", [
         field("Show seconds", input("seconds", "checkbox")),
         field("Second hand", select("second_hand", CLOCK_CHOICES.second_hand)),
         field("Time format", select("time_format", CLOCK_CHOICES.time_format)),
         field("Language", select("language", ["", "en", "fr", "de", "es", "it", "pt", "nl"], {
           "": "Automatic (device)", en: "English", fr: "French", de: "German", es: "Spanish", it: "Italian", pt: "Portuguese", nl: "Dutch",
         })),
-        field("First weekday", select("week_start", CLOCK_CHOICES.week_start))),
-      group("Colors",
+        field("First weekday", select("week_start", CLOCK_CHOICES.week_start))], clockInfo),
+      group("Colors", "colors", [
         field("Primary", input("primary", "color")), field("Accent", input("accent", "color")),
-        field("Seconds", input("seconds_color", "color")), field("Background", input("background", "color"))),
-      group("Weather and next alarm",
-        weatherInfo,
-        field("Place name (optional)", input("weather_name", "text", { maxlength: 256 })),
-        field("Next alarm", select("next_alarm_entity", [""]))),
-      group("Night mode",
+        field("Seconds", input("seconds_color", "color")), field("Background", input("background", "color"))]),
+      group("Weather and next alarm", "weather", [
+        source("Weather entity", weatherEntity),
+        field("Place name (optional)", input("weather_name", "text", { maxlength: 256, placeholder: "Use entity name" })),
+        field("Next alarm", select("next_alarm_entity", [""]))], weatherInfo),
+      group("Night mode", "night", [
         field("Mode", select("night_mode", CLOCK_CHOICES.night_mode)),
+        source("Sun entity", sunEntity),
         field("Night entity / illuminance sensor", select("night_entity", [""])),
         field("Start hour", input("night_start", "number", { min: 0, max: 23, required: true })),
         field("End hour", input("night_end", "number", { min: 0, max: 23, required: true })),
         field("Sensor threshold", input("night_threshold", "number", { min: 0, max: 10000, step: "any", required: true })),
         field("Night color", input("night_color", "color")),
-        field("Night brightness (%)", input("night_brightness", "number", { min: 20, max: 100, required: true }))),
+        field("Night brightness (%)", input("night_brightness", "number", { min: 20, max: 100, required: true }))], nightInfo),
     ],
     (form) => {
       const values = Object.fromEntries(new FormData(form));
@@ -104,15 +122,19 @@ export function createSettingsPages(ctx) {
     }, "api/settings/clock", (model) => model.config.clock);
   clock.querySelector('[name="night_entity"] option').textContent = "Choose an entity";
   clock.querySelector('[name="next_alarm_entity"] option').textContent = "Use the Clock Radio alarms";
-  const clockInfo = h("p", { class: "settings-hint" });
-  clock.append(clockInfo);
-
   const musicInfo = h("p", { class: "settings-hint" });
+  const musicState = sourceValue();
   const alarms = createAlarmPage(ctx);
-  const el = h("div", { class: "settings" },
-    h("header", { class: "settings-heading" }, h("h1", null, "Settings"), h("p", null, "Swipe down at the top for Alarm configuration, or up at the bottom for The Clock.")),
+  const el = h("div", { class: "settings settings--ios" },
+    h("nav", { class: "settings-navigation", "aria-label": "Settings navigation" },
+      h("a", { href: "#alarms" }, icon("chevron-left"), "Alarms"),
+      h("a", { href: "#clock" }, icon("clock-outline"), "The Clock")),
+    h("header", { class: "settings-heading" },
+      h("p", { class: "settings-kicker" }, "Clock Radio"),
+      h("h1", null, "Settings"), h("p", null, "Your clock, colors and night-time routine.")),
     clock,
-    h("section", { class: "settings-card" }, h("h2", null, "Music Assistant"), musicInfo),
+    group("Music Assistant", "music", [source("Library browsing", musicState)], musicInfo),
+    h("p", { class: "settings-hint settings-navigation-hint" }, "Swipe up/down between pages, or use Page Up/Down. Alarm configuration has its own page."),
   );
 
   function optionsFor(control, list, first, keep = "") {
@@ -128,13 +150,15 @@ export function createSettingsPages(ctx) {
   return { el, alarmsEl: alarms.el, closeAlarmEditor: alarms.closeEditor, update(model, busy) {
     alarms.update(model, busy);
     const entities = model.clock_entities;
-    weatherInfo.textContent = `Weather entity: ${model.config.clock.weather_entity || "not configured"}. Set weather_entity in the Home Assistant app configuration and restart the app.`;
+    weatherEntity.textContent = model.config.clock.weather_entity || "Not configured";
+    sunEntity.textContent = model.config.sun_entity;
+    musicState.textContent = model.music.library ? "Configured" : "Not configured";
     optionsFor(clock.elements.namedItem("night_entity"), entities.filter((item) => !item.entity_id.startsWith("weather.")), "Choose an entity", model.config.clock.night_entity);
     optionsFor(clock.elements.namedItem("next_alarm_entity"), entities.filter((item) => /^(sensor|input_datetime)\./.test(item.entity_id)), "Use the Clock Radio alarms", model.config.clock.next_alarm_entity);
     const language = clock.elements.namedItem("language");
     if (model.config.clock.language && ![...language.options].some((option) => option.value === model.config.clock.language)) language.add(new Option(model.config.clock.language, model.config.clock.language));
     for (const form of forms) form.update(model, busy);
-    clockInfo.textContent = `Clock time zone: ${model.clock.timeZone || "this device"}. Alarm schedules always use Home Assistant's time zone. Sun mode uses ${model.config.sun_entity}: below the horizon enables night colors; above restores daytime colors. Set sun_entity in the Home Assistant app configuration and restart to change it. The night entity, hours and threshold controls are not used in Sun mode. Room-light mode uses an HA illuminance sensor, with hysteresis; unavailable sensors retain their last state.`;
+    clockInfo.textContent = `Clock time zone: ${model.clock.timeZone || "this device"}. Alarm schedules always use Home Assistant's time zone.`;
     musicInfo.textContent = model.music.library ? "Music Assistant browsing is configured. The read-only access token stays on the server." : "For Discover, Albums, Artists, Podcasts, Playlists and Search, set music_assistant_token in the HA app options (Music Assistant → Settings → Profile). Set music_assistant_url if it is not discovered automatically. Restart the app after changing these options. Radio presets work without library access.";
   } };
 }

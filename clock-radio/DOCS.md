@@ -258,7 +258,16 @@ uses oversized digits with date/weather and the next alarm.
 | `night_entity`, `night_threshold` | HA night entity / room illuminance sensor and threshold; defaults empty and 5 |
 | `night_color`, `night_brightness` | Night color and brightness 20-100%; defaults `#ff2a1f` and 70 |
 
-Choose **Settings > Clock appearance > Night mode > Sun (below horizon)** to
+Settings uses an iOS-inspired black appearance with rounded grouped lists,
+trailing control values, color swatches and a seconds switch. All existing
+options remain available. **Save changes** applies the clock form; the circular
+reload button (**Reload values**) discards the draft and restores saved values.
+The floating action bar stays above connection/error notices. Drafts and focused
+controls survive background refreshes, and read-only/disconnected mode disables
+changes. Use the **Alarms** and **The Clock** links at the top or the existing
+swipe/keyboard navigation to change pages.
+
+Choose **Settings > Night mode > Mode > Sun (below horizon)** to
 follow the Sun entity set by `sun_entity` in **Settings > Apps > Clock Radio >
 Configuration** (default `sun.sun`; empty also uses this default). Save and
 restart the app after changing it. `below_horizon` enables
@@ -271,8 +280,9 @@ If the sun entity is missing, unavailable or invalid, a visible warning appears
 and the last known night state is retained (daytime on first start).
 Sun mode is opt-in; existing night modes and settings are unchanged.
 
-The Settings page can be scrolled to the Night mode controls. In Sun mode,
-the entity selector, hours and sensor threshold shown below are not used.
+The Settings page can be scrolled to the Night mode group. The configured
+**Sun entity** is shown as a read-only row. In Sun mode, the separate night-entity
+selector, hours and sensor threshold shown below are not used.
 
 ![Settings scrolled to Sun night mode, night color and brightness controls](../docs/screenshots/night-mode.png)
 

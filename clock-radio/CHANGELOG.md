@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.11.0
+
+- Redesign Settings with an iOS-inspired black appearance: rounded grouped
+  lists, subtle separators, colorful section icons, trailing values, color
+  swatches and a native keyboard-accessible seconds switch.
+- Keep Save changes and Reload values in a floating action bar that stays clear
+  of connection/error banners. Preserve all clock settings, unsaved drafts,
+  polling focus, explicit save errors and read-only/disconnected safeguards.
+- Show the configured Weather and Sun entities as read-only rows, keep their
+  HA app configuration guidance, and add links to Alarms and The Clock.
+- Refresh the Settings and Sun night-mode documentation screenshots.
+
 ## 0.10.1
 
 - Add a Sun entity field to the HA app configuration, defaulting to `sun.sun`.

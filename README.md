@@ -56,8 +56,8 @@ station logos and clock appearance may differ.
 | The Clock: analog face and calendar | Music overview: Radio and now-playing bar |
 | --- | --- |
 | ![The Clock with an analog face and calendar widget](docs/screenshots/clock.png) | ![Music overview with radio station artwork and playback controls](docs/screenshots/music.png) |
-| **Alarm configuration: independent profiles** | **Settings: clock appearance** |
-| ![Alarm configuration with Music and Buzzer profiles](docs/screenshots/alarms.png) | ![Settings with clock layout, time, colors and weather guidance](docs/screenshots/settings.png) |
+| **Alarm configuration: independent profiles** | **Settings: iOS-inspired dark appearance** |
+| ![Alarm configuration with Music and Buzzer profiles](docs/screenshots/alarms.png) | ![Black Settings page with grouped controls, a seconds switch and floating Save changes bar](docs/screenshots/settings.png) |
 
 The [illustrated configuration guide](clock-radio/DOCS.md) also shows the alarm
 editor and radio picker, both ringing-alarm screens, Sun night-mode settings and artwork player.
