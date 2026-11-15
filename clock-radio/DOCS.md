@@ -2,6 +2,10 @@
 
 ## Four pages and alarm helpers
 
+The HA alarm behavior below is the default. An opt-in
+[experimental Kiosk Satellite backend](#experimental-kiosk-satellite-alarm-backend)
+keeps this app's editor while using native device scheduling instead.
+
 All four main-page canvases and the app/loading background are pure black
 (`#000000`). Cards, controls and dialogs keep contrasting surfaces; clock
 colors can still be customized in Settings.
@@ -531,10 +535,18 @@ Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
   `0` to `1440` are accepted, with `0` disabling automatic return. Dialogs and
   pending saves pause the timeout; music and unsaved Settings drafts remain.
 - `media_player`: one HA entity ID, for example `media_player.sovevaerelse`.
-  Required for playback. Used by Music and every alarm; the app updates
+  Required for HA playback. Used by Music and HA-backed alarms; the app updates
   `input_text.clock_radio_player` without changing alarm times or enable choices.
   An unavailable configured player never falls back to another speaker.
   In read-only mode the helper is not changed and a mismatch is reported.
+  Experimental Kiosk mode never updates that HA helper.
+- `alarm_backend`: `home_assistant` (default) or experimental `kiosk_satellite`.
+  Restart after changing. Backend changes do not migrate, disable or delete
+  schedules on either system; remove native test alarms explicitly.
+- `kiosk_satellite_url`: Kiosk's LAN Remote Administration HTTP(S) origin,
+  without a path, credentials, query or fragment. Used only in experimental mode.
+- `kiosk_satellite_token`: Kiosk Remote API bearer token, masked in app options
+  and retained only on the server. Not an HA/MA token. Required in Kiosk mode.
 - `weather_entity`: optional HA weather entity ID, for example
   `weather.forecast_home`. The sole weather source for widgets and full-screen
   clocks. Empty disables weather; missing/unavailable entities show an error
@@ -551,6 +563,100 @@ Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
 - `music_assistant_token`: optional MA read-only access token. Stored only in
   Supervisor app options/environment, never dashboard YAML or browser state.
 
+## Experimental Kiosk Satellite alarm backend
+
+This prototype keeps **The Clock** and the existing alarm list/editor but saves
+native alarms on one configured Kiosk Satellite device. It is not a plugin.
+**Home Assistant remains the default backend.** Do not migrate important alarms
+until real-device tests have passed on your installed Kiosk/Android version.
+
+### Configure and connect
+
+1. Enable Kiosk **Remote Administration**, set its password, and confirm the
+   installed version offers native alarms and the `alarmsStatus`, `alarmSave`,
+   `alarmDelete`, `libraryPickerSource` and `libraryPickerList` commands.
+2. Obtain a Remote API token with Kiosk's `POST /api/login` endpoint. Its JSON
+   body takes `password` and optionally `ttl_days`; tokens expire after seven
+   days by default and must be renewed. See the [official Remote API authentication guide](https://github.com/jxlarrea/kiosk-satellite/blob/main/docs/remote-api.md#authentication).
+3. In **Settings > Apps > Clock Radio > Configuration**, set:
+
+   ```yaml
+   alarm_backend: kiosk_satellite
+   kiosk_satellite_url: "http://<echo-ip>:2324"
+   kiosk_satellite_token: "<remote-api-token>"
+   ```
+
+4. Save and restart Clock Radio. Check the **Experimental Kiosk alarms** banner.
+   Authentication, connection and malformed-response errors are explicit;
+   failed native requests never fall back to creating HA alarms.
+
+Use the Echo's LAN address, **not** `127.0.0.1:2325`: the secure-context proxy is
+local to the Echo, while this connection originates on the app server. HTTPS
+certificates must be trusted by the server; certificate checks are not disabled.
+The Remote API token is a powerful admin credential. Keep it private and use
+a trusted LAN or HTTPS. Browser API responses, logs and local snapshots do not
+include it. All tablets connected to this app manage the **same configured kiosk**.
+
+### Supported behavior and differences
+
+- **Add alarm** creates a confirmed, disabled `Clock Radio [TEST]` draft. Cancel
+  leaves it disabled. Only alarms with this prototype's generated
+  `clock-radio-<32 hex digits>` IDs appear or can be changed. Other native
+  alarms and all HA schedules are neither imported nor modified.
+- Time wheels, repeat days, Music/Buzzer and enable switches stay in our UI.
+  Schedules use the **Kiosk device's local time zone**, not HA's time zone.
+  No repeat days means **once**, unlike the default HA backend.
+- **Buzzer** uses the saved native tone; new drafts use Kiosk's built-in tone.
+  Set other native sounds on Kiosk. The app's twelve HA-hosted WAV choices
+  are not copied to the device.
+- **Music** selects radios from **Kiosk's own Music Assistant connection**.
+  Enable/configure Music Assistant and the local Sendspin player in Kiosk,
+  and add radio stations to that MA library. Playback targets this kiosk,
+  not the HA `media_player` option or another discovered room. The prototype
+  supports up to 500 radio entries and reports larger/invalid libraries.
+  No arbitrary music URI is accepted from the browser.
+- Kiosk's alarm engine tries the selected radio and uses the saved native
+  tone when music cannot play. Music still needs its source/network;
+  the tone does not. Existing music picks survive unrelated edits or toggles,
+  including a temporarily unavailable radio library. Switching to Buzzer
+  removes the native music pick; choose a radio again when switching back.
+- **Volume, Snooze length and Silence after are device-wide Kiosk settings**,
+  not per-alarm fields. Their HA-specific controls are hidden, not silently
+  ignored or mapped to fabricated values.
+- **Ringing, Stop and Snooze use Kiosk's native screen**, which may cover our
+  dashboard. The prototype does not open a second browser ringing screen.
+  Its native Remote API stops/snoozes all simultaneous alarms, so Clock Radio
+  deliberately does not expose those global operations.
+- Stop a native alarm before editing it. **Disable it before deleting it.**
+  These checks protect active alarms and unrelated native playback.
+- Saving/deleting requires Kiosk, not HA, to be reachable. Clock settings
+  and HA music controls retain their existing HA connection policy.
+  Read-only app mode still blocks all native writes.
+
+The app server makes bounded, authenticated native calls without retries and
+reads schedules back before reporting success. A timed-out save may have
+completed: refresh and inspect the native list before retrying. Native changes
+are never queued offline. Cached definitions retain their backend/device
+identity, are read-only and cannot recreate live ringing/Snooze state.
+
+### Safe testing and switching back
+
+1. Choose a test time that does not duplicate an enabled HA or personal native
+   alarm. This option intentionally leaves existing HA schedules running.
+2. Create and enable a short-term Buzzer test; repeat with a Music radio.
+3. Verify on the Echo with the dashboard closed, HA stopped and Wi-Fi off,
+   including native tone fallback and native Stop/Snooze. Separately test
+   screen-off behavior and a device restart. Mock tests do not prove that the
+   Echo can wake or make sound; device power and OS permissions still matter.
+4. Stop tests, disable them and delete them while the Kiosk backend is selected.
+   Only then switch `alarm_backend` to `home_assistant` and restart.
+5. If already switched back, delete the marked test alarms in Kiosk's native
+   alarm list or Remote Administration.
+
+**Changing the option, stopping Clock Radio or losing HA does not cancel saved
+native alarms.** Editing still needs the Clock Radio server; this feature does
+not add offline app-shell loading or direct browser-to-Kiosk control.
+
 ## Clock and controls
 
 The clock uses the tablet's system time, formatted in the configured/HA time zone.
@@ -564,14 +670,14 @@ players are listed on the dashboard.
 
 ## Offline snapshots and request deadlines
 
-After a successful HA synchronization, this browser saves clock appearance,
+After a successful alarm-backend synchronization, this browser saves clock appearance,
 time zone and alarm definitions in local storage. On reload it restores that
 snapshot immediately as **read-only**, until a fresh response confirms the
 connection. Failed requests and empty/disconnected responses never overwrite
-the last good snapshot. Reconnection replaces saved definitions with HA's
+the last good snapshot. Reconnection replaces saved definitions with the selected backend's
 current state, including deleted alarms; it never merges or replays changes.
 
-The offline banner includes the last synchronization date/time and explains
+With the default HA backend, the offline banner includes the last synchronization date/time and explains
 that HA alarm execution cannot be confirmed. Schedules remain inspectable,
 but alarm switches, editing/saving, speaker controls, Stop and Snooze are
 disabled. Cached data does not recreate ringing screens, Snooze countdowns,
@@ -579,6 +685,12 @@ next-alarm timestamps, weather readings or playback state. An already-open
 ringing screen stays visible during a disconnect, with its controls disabled.
 Sensor-driven night colors retain their last confirmed state while offline;
 clock time and scheduled night colors continue using the device's clock.
+
+With the experimental backend, Kiosk alarm controls remain available during
+an HA outage if the app server and Kiosk are reachable. If Kiosk disconnects,
+its cached definitions become read-only; HA music/clock controls still use
+HA's connection status. Native snapshots are scoped to the configured backend
+and kiosk origin and never restore live native ringing/Snooze state.
 
 Snapshots contain no credentials, artwork tokens or alarm/radio source URLs.
 They belong to this browser profile and origin (address/port), not to HA
@@ -594,11 +706,14 @@ after **30 seconds**, and alarm creation/deletion after **120 seconds** to
 allow HA provisioning/cleanup. Deadlines include reading the response body.
 State polling retries every five seconds when no request is already running.
 Changes are **never retried automatically**: after a timeout the operation
-may still complete in HA, so inspect refreshed saved values before retrying.
+may still complete on the selected backend, so inspect refreshed saved values
+before retrying. Native Kiosk calls also have a five-second per-request deadline.
 
-This is not an offline alarm engine. HA must be running to execute schedules;
+This browser is not an offline alarm engine. With the default HA backend,
+HA must be running to execute schedules;
 the browser cannot reliably wake a suspended Echo/tablet or replace HA's
-scheduler. There is no service worker or offline app-shell guarantee: a cold
+scheduler. In experimental Kiosk mode, the native device executes its confirmed
+alarms independently instead. There is no service worker or offline app-shell guarantee: a cold
 reload still needs the dashboard HTML/JavaScript to load from the server or
 browser HTTP cache. Keep the existing page open during a server outage.
 
@@ -655,7 +770,9 @@ Alarm source helper URLs are visible to users of this trusted-LAN editor.
 
 `npm run dev` always uses a fictional loopback HA, regardless of inherited
 `HA_URL`, `HA_TOKEN`, `SUPERVISOR_TOKEN`, `MA_URL` or `MA_TOKEN`. `DEMO=1` is an internal display flag,
-not a way to make `npm start` use mock data. Demo URLs never play real audio.
+not a way to make `npm start` use mock data. With `alarm_backend: kiosk_satellite`
+in the demo options, the URL/token are also replaced with a fictional loopback
+Kiosk; it never contacts the configured real device. Demo URLs never play real audio.
 
 ## Troubleshooting
 

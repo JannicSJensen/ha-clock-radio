@@ -54,8 +54,14 @@ dialogs and pending saves pause it. Music continues and Settings drafts remain.
 
 Clock settings and alarm definitions also persist as read-only browser
 snapshots, with explicit offline/last-sync status and bounded requests.
-No changes are queued or replayed; HA is still required to execute alarms.
+No changes are queued or replayed; HA is still required to execute HA-backed alarms.
 See [offline behavior and limits](clock-radio/DOCS.md#offline-snapshots-and-request-deadlines).
+
+An opt-in [experimental Kiosk Satellite backend](clock-radio/DOCS.md#experimental-kiosk-satellite-alarm-backend)
+keeps our alarm editor but executes marked native test alarms on the kiosk,
+including Music Assistant radio with local tone fallback. Configure it in the
+HA app options; existing HA schedules are never migrated or disabled.
+Switching back does not cancel native alarms.
 
 Set `media_player` in the HA app configuration: Music and every alarm use that
 one speaker, without player selection, grouping or Party.

@@ -9,23 +9,23 @@ const pad = (value) => String(value).padStart(2, "0");
 const validTime = (alarm) => Number.isInteger(alarm.hour) && alarm.hour >= 0 && alarm.hour <= 23
   && Number.isInteger(alarm.minute) && alarm.minute >= 0 && alarm.minute <= 59;
 export function canEditAlarm(alarm) {
-  return !alarm.deletion_pending && alarm.available && alarm.setup_complete && validTime(alarm) && ["Music", "Buzzer"].includes(alarm.type)
-    && Number.isInteger(alarm.volume) && alarm.volume >= 0 && alarm.volume <= 100
-    && Number.isInteger(alarm.duration) && alarm.duration >= 1 && alarm.duration <= 120;
+  return !alarm.deletion_pending && !alarm.native_busy && alarm.available && alarm.setup_complete && validTime(alarm) && ["Music", "Buzzer"].includes(alarm.type)
+    && (alarm.backend === "kiosk_satellite" || Number.isInteger(alarm.volume) && alarm.volume >= 0 && alarm.volume <= 100
+    && Number.isInteger(alarm.duration) && alarm.duration >= 1 && alarm.duration <= 120);
 }
 
 export function alarmSettings(alarm, enabled = alarm.enabled) {
   return {
     id: alarm.id, enabled, type: alarm.type, hour: alarm.hour, minute: alarm.minute,
-    volume: alarm.volume, duration: alarm.duration,
+    ...(alarm.backend === "kiosk_satellite" ? {} : { volume: alarm.volume, duration: alarm.duration }),
     days: Object.fromEntries(DAYS.map((day) => [day, alarm.days[day]])),
   };
 }
 
-export function repeatLabel(days) {
+export function repeatLabel(days, once = false) {
   const selected = DAYS.filter((day) => days[day]);
   if (selected.length === 7) return "Every day";
-  if (!selected.length) return "No repeat days";
+  if (!selected.length) return once ? "Once" : "No repeat days";
   if (selected.length === 5 && DAYS.slice(0, 5).every((day) => days[day])) return "Weekdays";
   if (selected.length === 2 && days.saturday && days.sunday) return "Weekends";
   return DAYS.flatMap((day, index) => days[day] ? [DAY_NAMES[index]] : []).join(", ");
@@ -36,7 +36,7 @@ export function alarmLabel(alarm, hour12) {
   const time = parts
     ? `${hour12 ? parts.hour : pad(parts.hour)}:${pad(parts.minute)}${hour12 ? parts.period ? " PM" : " AM" : ""}`
     : "--:--";
-  return `${time} · ${alarm.type || "Unavailable"} · ${repeatLabel(alarm.days)}`;
+  return `${time} · ${alarm.type || "Unavailable"} · ${repeatLabel(alarm.days, alarm.backend === "kiosk_satellite")}`;
 }
 
 function hour12For(model) {
@@ -72,6 +72,8 @@ export function createAlarmPage(ctx) {
   const add = h("button", { class: "alarm-icon-button alarm-icon-button--accent", type: "button", "aria-label": "Add alarm" }, icon("plus"));
   const stop = h("button", { class: "btn", type: "button" }, "Stop active alarm");
   stop.addEventListener("click", () => ctx.write("api/alarm/stop", {}));
+  const nativeInfo = h("p", { class: "banner banner--info", hidden: true },
+    "Experimental Kiosk backend: only Clock Radio [TEST] alarms are managed. Existing HA schedules and unrelated native alarms are untouched. Avoid duplicate wake-up times. Delete test alarms before switching back; changing the backend does not cancel them.");
 
   const title = h("h2", { id: "alarm-editor-title" });
   const cancel = h("button", { class: "alarm-icon-button", type: "button", "aria-label": "Cancel alarm changes" }, icon("close"));
@@ -112,6 +114,8 @@ export function createAlarmPage(ctx) {
     deleteTitle, deleteMessage, deleteStatus, h("div", { class: "alarm-delete__actions" }, keep, confirm));
 
   function deletionAllowed(model, id, busy) {
+    const alarm = model.alarms.alarms.find((item) => item.id === id);
+    if (model.alarms.backend === "kiosk_satellite" && (!alarm || alarm.enabled || alarm.native_busy)) return false;
     return !busy && !saving && !deleting && ctx.canControl() && model.alarms.can_delete
       && (!model.alarms.deleting || model.alarms.deleting === id);
   }
@@ -128,8 +132,10 @@ export function createAlarmPage(ctx) {
     }
     deleteId = id;
     deleteTitle.textContent = "Delete alarm?";
-    deleteMessage.textContent = `${alarmLabel(alarm, hour12For(model))}. This cannot be undone. Any ringing playback or snooze for this alarm will be stopped/cancelled. `
-      + (id <= 2 ? "The bundled profile will be disabled and hidden; its YAML helpers remain in HA." : "This alarm's helpers will be removed from HA.");
+    deleteMessage.textContent = model.alarms.backend === "kiosk_satellite"
+      ? `${alarmLabel(alarm, hour12For(model))}. This permanently removes this Clock Radio test alarm from Kiosk Satellite. HA schedules and other native alarms are not changed.`
+      : `${alarmLabel(alarm, hour12For(model))}. This cannot be undone. Any ringing playback or snooze for this alarm will be stopped/cancelled. `
+        + (id <= 2 ? "The bundled profile will be disabled and hidden; its YAML helpers remain in HA." : "This alarm's helpers will be removed from HA.");
     deleteStatus.textContent = "";
     deleteDialog.setAttribute("aria-modal", "true");
     deleteDialog.showModal();
@@ -179,7 +185,7 @@ export function createAlarmPage(ctx) {
     dirty = true;
     status.textContent = "Unsaved changes";
     volumeLabel.textContent = `${volume.value}%`;
-    repeat.textContent = repeatLabel(selectedDays);
+    repeat.textContent = repeatLabel(selectedDays, ctx.getModel().alarms.backend === "kiosk_satellite");
     for (const [day, button] of dayButtons) button.setAttribute("aria-pressed", String(selectedDays[day]));
   }
   const dayButtons = DAYS.map((day, index) => {
@@ -196,6 +202,11 @@ export function createAlarmPage(ctx) {
     return button;
   });
   const row = (label, control) => h("div", { class: "alarm-editor__row" }, h("span", null, label), control);
+  const volumeSettings = h("div", null, row("Volume", volumeLabel), h("div", { class: "alarm-editor__volume" }, volume),
+    row("Wake timer", h("label", { class: "alarm-editor__duration" }, duration, h("span", null, "min"))),
+    h("p", { class: "alarm-editor__hint" }, "The wake timer stops playback; it is not a snooze timer."));
+  const nativeSettings = h("p", { class: "alarm-editor__hint", hidden: true },
+    "Kiosk device local time. No repeat days means once. Volume, Snooze length and Silence after are device-wide Kiosk settings. Music uses this kiosk's Music Assistant/Sendspin player with its saved native tone as fallback; Buzzer uses the native tone. Use Kiosk to change tones and ringing defaults.");
   const fieldset = h("fieldset", { class: "settings-fieldset" },
     timeSlot, timeZone, createdInfo,
     h("section", { class: "alarm-editor__group" },
@@ -205,11 +216,7 @@ export function createAlarmPage(ctx) {
     h("section", { class: "alarm-editor__group" },
       row("Enabled", enabled.el),
       row("Alarm type", type),
-      stationPicker, soundPicker,
-      row("Volume", volumeLabel),
-      h("div", { class: "alarm-editor__volume" }, volume),
-      row("Wake timer", h("label", { class: "alarm-editor__duration" }, duration, h("span", null, "min")))),
-    h("p", { class: "alarm-editor__hint" }, "The wake timer stops playback; it is not a snooze timer."),
+      stationPicker, soundPicker, volumeSettings, nativeSettings),
     hint, reload);
   const form = h("form", { "aria-label": "Alarm editor" },
     h("header", { class: "alarm-editor__header" }, cancel, title, save),
@@ -228,9 +235,9 @@ export function createAlarmPage(ctx) {
     sound.value = savedSoundId;
     savedSound.hidden = !alarm.buzzer_source_set || Boolean(alarm.buzzer_sound_id);
     soundDirty = false;
-    volume.value = alarm.volume;
-    duration.value = alarm.duration;
-    repeat.textContent = repeatLabel(selectedDays);
+    volume.value = alarm.volume ?? 0;
+    duration.value = alarm.duration ?? 1;
+    repeat.textContent = repeatLabel(selectedDays, alarm.backend === "kiosk_satellite");
     volumeLabel.textContent = `${alarm.volume}%`;
     for (const [day, button] of dayButtons) button.setAttribute("aria-pressed", String(selectedDays[day]));
   }
@@ -261,6 +268,9 @@ export function createAlarmPage(ctx) {
     const alarm = model.alarms.alarms.find((item) => item.id === activeId);
     if (!alarm) { closeEditor(); ctx.toast("This alarm is no longer configured."); return; }
     const available = canEditAlarm(alarm);
+    const native = model.alarms.backend === "kiosk_satellite";
+    volumeSettings.hidden = native;
+    nativeSettings.hidden = !native;
     const disabled = busy || saving || !ctx.canControl() || !available || Boolean(model.alarms.delete_error);
     fieldset.disabled = disabled;
     save.disabled = disabled;
@@ -270,7 +280,8 @@ export function createAlarmPage(ctx) {
     if (!dirty && available) loadEditor(alarm);
     updateStations(model, alarm, disabled);
     updateSounds(alarm, disabled);
-    hint.textContent = model.alarms.delete_error || (!available ? "The HA alarm helpers are missing, unavailable, invalid or incomplete."
+    hint.textContent = model.alarms.delete_error || (native && alarm.native_busy ? "Stop this alarm on Kiosk before editing or deleting it."
+      : !available ? "The HA alarm helpers are missing, unavailable, invalid or incomplete."
       : !ctx.canControl() ? "Read-only or disconnected. Changes cannot be saved." : "");
   }
   function stopPreview() {
@@ -307,6 +318,11 @@ export function createAlarmPage(ctx) {
     status.textContent = "Sound preview failed. Check the connection and reload the app.";
   });
   function updateSounds(alarm, disabled) {
+    if (alarm.backend === "kiosk_satellite") {
+      soundPicker.hidden = true;
+      if (audio.getAttribute("src")) stopPreview();
+      return;
+    }
     soundPicker.hidden = type.value !== "Buzzer";
     sound.disabled = disabled || !alarm.can_select_sound;
     preview.disabled = sound.disabled || !ALARM_SOUNDS.some(({ id }) => id === sound.value);
@@ -324,12 +340,14 @@ export function createAlarmPage(ctx) {
     const stations = model.alarms.radio_stations ?? [];
     const radioError = model.alarms.radio_error;
     const unavailable = !alarm.can_select_radio;
-    stationHint.textContent = !model.connected ? "Offline. Reconnect to view or change radio stations." : alarm.music_source_error
+    const native = model.alarms.backend === "kiosk_satellite";
+    stationHint.textContent = native ? model.alarms.radio_error || "Choose a radio from Kiosk's own Music Assistant library. Plays on the kiosk; its native tone rings if music cannot play."
+      : !model.connected ? "Offline. Reconnect to view or change radio stations." : alarm.music_source_error
       || (unavailable ? "Update the HA alarm package to version 5, including its per-alarm Music Source helpers, to choose a station."
         : radioError || (!stations.length ? "No radio stations in Music Assistant. Add radios to its library; the list refreshes automatically."
           : "Choose a radio for this alarm only. Save applies your selection; no music plays now."));
     const options = [
-      { id: null, name: "Use shared HA default", image: null },
+      { id: null, name: native ? "Choose a Kiosk radio station" : "Use shared HA default", image: null },
       ...stations,
     ];
     if (selectedStation && !stations.some((station) => station.id === selectedStation)) {
@@ -359,7 +377,7 @@ export function createAlarmPage(ctx) {
     for (const option of options) {
       const input = stationInputs.get(option.id);
       input.checked = option.id === selectedStation;
-      input.disabled = disabled || unavailable || Boolean(option.saved) || (option.id !== null && Boolean(radioError));
+      input.disabled = disabled || unavailable || Boolean(option.saved) || native && option.id === null || (option.id !== null && Boolean(radioError));
     }
   }
   function openEditor(id, created = false) {
@@ -374,9 +392,10 @@ export function createAlarmPage(ctx) {
     status.textContent = "";
     reload.hidden = true;
     title.textContent = "Edit alarm";
-    timeZone.textContent = `Home Assistant time zone: ${model.clock.timeZone || "not available"}`;
+    const native = model.alarms.backend === "kiosk_satellite";
+    timeZone.textContent = native ? "Schedule uses the Kiosk device's local time zone, which may differ from this clock." : `Home Assistant time zone: ${model.clock.timeZone || "not available"}`;
     createdInfo.hidden = !created;
-    createdInfo.textContent = created ? "This alarm is already stored in HA. Cancel leaves it disabled without applying your edits." : "";
+    createdInfo.textContent = created ? `This alarm is already stored in ${native ? "Kiosk Satellite" : "HA"}. Cancel leaves it disabled without applying your edits.` : "";
     picker = createTimePicker({ hour12: hour12For(model), onInput: markDirty });
     timeSlot.replaceChildren(picker.el);
     dialog.setAttribute("aria-modal", "true");
@@ -391,13 +410,14 @@ export function createAlarmPage(ctx) {
     if (saving || save.disabled) return;
     const id = activeId;
     try {
-      if (enabled.control.checked && !DAYS.some((day) => selectedDays[day])) throw new Error("Select at least one weekday before enabling the alarm.");
+      const native = ctx.getModel().alarms.backend === "kiosk_satellite";
+      if (!native && enabled.control.checked && !DAYS.some((day) => selectedDays[day])) throw new Error("Select at least one weekday before enabling the alarm.");
       const values = {
         id, enabled: enabled.control.checked, type: type.value, ...picker.getTime(),
-        volume: Number(volume.value), duration: Number(duration.value), days: { ...selectedDays },
+        ...(!native ? { volume: Number(volume.value), duration: Number(duration.value) } : {}), days: { ...selectedDays },
       };
-      if (stationDirty) values.music_station_id = selectedStation;
-      if (soundDirty) values.buzzer_sound_id = sound.value || null;
+      if (stationDirty && (!native || type.value === "Music")) values.music_station_id = selectedStation;
+      if (soundDirty && !native) values.buzzer_sound_id = sound.value || null;
       saving = true;
       status.textContent = "Saving...";
       updateEditor(ctx.getModel(), true);
@@ -438,7 +458,7 @@ export function createAlarmPage(ctx) {
       const model = ctx.getModel();
       const alarm = model.alarms.alarms.find((item) => item.id === id);
       const desired = toggle.control.checked;
-      if (desired && !DAYS.some((day) => alarm.days[day])) {
+      if (model.alarms.backend !== "kiosk_satellite" && desired && !DAYS.some((day) => alarm.days[day])) {
         record.error = "Select repeat weekdays in the editor before enabling this alarm.";
         update(ctx.getModel(), false);
         return;
@@ -464,16 +484,18 @@ export function createAlarmPage(ctx) {
     if (await ctx.write("api/alarm/create", {})) {
       const created = ctx.getModel().alarms.alarms.find((alarm) => !before.has(alarm.id));
       if (created) openEditor(created.id, true);
-      else pageStatus.textContent = "Home Assistant created no new alarm. Refresh and inspect its helpers.";
+      else pageStatus.textContent = "The alarm backend confirmed no new alarm. Refresh and inspect its state.";
     } else pageStatus.textContent = ctx.writeError() || "The alarm could not be created.";
   });
   const el = h("div", { class: "settings alarm-page" },
     h("header", { class: "settings-heading alarm-page__heading" },
       h("h1", null, "Alarm configuration"), add),
-    addInfo, pageStatus, list, stop, dialog, deleteDialog);
+    nativeInfo, addInfo, pageStatus, list, stop, dialog, deleteDialog);
 
   function update(model, busy) {
     pageBusy = busy;
+    const native = model.alarms.backend === "kiosk_satellite";
+    nativeInfo.hidden = !native;
     const alarms = model.alarms.alarms;
     const ids = alarms.map((alarm) => alarm.id);
     for (const [id, record] of rows) {
@@ -496,7 +518,7 @@ export function createAlarmPage(ctx) {
         record.time.textContent = `${hour12 ? parts.hour : pad(parts.hour)}:${pad(parts.minute)}`;
         record.period.textContent = hour12 ? parts.period ? "PM" : "AM" : "";
       } else { record.time.textContent = "--:--"; record.period.textContent = ""; }
-      record.summary.textContent = `${alarm.type || "Unavailable"}${alarm.type === "Buzzer" && alarm.buzzer_sound_name ? ` · ${alarm.buzzer_sound_name}` : ""} · ${repeatLabel(alarm.days)}`;
+      record.summary.textContent = `${alarm.type || "Unavailable"}${alarm.type === "Buzzer" && alarm.buzzer_sound_name ? ` · ${alarm.buzzer_sound_name}` : ""} · ${repeatLabel(alarm.days, native)}`;
       const label = alarmLabel(alarm, hour12);
       record.el.setAttribute("aria-label", `Alarm: ${label}`);
       record.edit.setAttribute("aria-label", `Edit alarm: ${label}`);
@@ -512,22 +534,25 @@ export function createAlarmPage(ctx) {
         : record.saving ? "Saving..."
         : !alarm.setup_complete ? "Setup is incomplete. Finish setup before enabling."
         : !alarm.available ? `Missing or unavailable helpers: ${alarm.missing.join(", ")}.`
+        : alarm.native_busy ? "Stop this alarm on Kiosk before editing or deleting it."
+        : native && alarm.enabled ? "Disable this native alarm before deleting it. Use Kiosk's ringing screen for Stop and Snooze."
         : !canEditAlarm(alarm) ? "Invalid alarm settings. Check the Home Assistant helper values."
         : alarm.timer === "active" ? `Alarm is running${alarm.finishes_at ? ` until ${new Date(alarm.finishes_at).toLocaleTimeString()}` : ""}.`
         : model.alarms.snoozed?.id === alarm.id ? `Snoozed until ${new Date(model.alarms.snoozed.until).toLocaleTimeString()}.` : "");
-      record.resume.hidden = alarm.deletion_pending || alarm.id <= 2 || (alarm.available && alarm.setup_complete);
+      record.resume.hidden = native || alarm.deletion_pending || alarm.id <= 2 || (alarm.available && alarm.setup_complete);
       record.resume.disabled = busy || !ctx.canControl() || !model.alarms.can_create || alarm.enabled;
     }
     const incomplete = alarms.some((alarm) => alarm.id > 2 && (!alarm.available || !alarm.setup_complete));
     add.disabled = busy || !ctx.canControl() || !model.alarms.can_create || incomplete;
-    addInfo.textContent = !model.connected ? "Offline. Saved schedules are read-only; reconnect to change alarms."
+    addInfo.textContent = native ? model.alarms.error || "Native ringing screen and alarm defaults are provided by Kiosk Satellite. Only this backend's connection is required to edit these alarms."
+      : !model.connected ? "Offline. Saved schedules are read-only; reconnect to change alarms."
       : model.alarms.deleting ? "Finish the pending deletion before adding or deleting another alarm."
       : incomplete ? "Finish setting up the incomplete alarm before adding another."
       : model.alarms.can_create ? ""
       : "Update the HA alarm package to the dynamic scheduler to enable Add alarm.";
-    if (model.connected && !model.alarms.can_delete) addInfo.textContent += " Delete requires the version 4 HA package and available deletion helpers/scripts.";
+    if (!native && model.connected && !model.alarms.can_delete) addInfo.textContent += " Delete requires the version 4 HA package and available deletion helpers/scripts.";
     addInfo.hidden = !addInfo.textContent;
-    stop.hidden = !model.alarms.active_player && !model.alarms.snoozed;
+    stop.hidden = native || !model.alarms.active_player && !model.alarms.snoozed;
     stop.textContent = model.alarms.snoozed ? "Cancel snoozed alarm" : "Stop active alarm";
     stop.disabled = busy || !ctx.canControl() || !model.alarms.can_stop;
     if (model.alarms.active_error || model.alarms.delete_error) pageStatus.textContent = model.alarms.active_error || model.alarms.delete_error;

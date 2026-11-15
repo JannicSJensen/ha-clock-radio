@@ -64,8 +64,9 @@ function toast(message) {
   setTimeout(() => el.remove(), 4500);
 }
 const canControl = () => Boolean(model?.connected && !model.read_only);
+const canControlAlarms = () => Boolean(model && !model.read_only && !model.offline_snapshot && (model.alarms.connected ?? model.connected));
 const ctx = {
-  t: makeTranslator("en"), toast, canControl, getModel: () => model,
+  t: makeTranslator("en"), toast, canControl, canControlAlarms, getModel: () => model,
   getState: (id) => model?.players.find((player) => player.entity_id === id) ?? null,
   musicPlayers: () => model?.music.players ?? [],
   stations: () => model?.music.stations ?? [],
@@ -226,6 +227,8 @@ function render() {
   notice("connection-error", model.connection_error);
   notice("offline-status", offlineStatus(model));
   notice("snapshot-error", snapshots.error);
+  const native = model.alarms.backend === "kiosk_satellite";
+  notice("alarm-backend", native ? `Experimental Kiosk alarms: ${model.alarms.connected ? `connected (${model.alarms.native_phase})` : model.alarms.error || "offline"}. Kiosk supplies the native ringing screen.` : "");
   notice("config-error", model.config_error);
   notice("clock-error", [model.clock.error, model.clock.night_error, model.alarms.active_error].filter(Boolean).join(" "));
   notice("missing-players", model.missing_players.length ? `Missing configured speakers: ${model.missing_players.join(", ")}` : "");
@@ -270,10 +273,22 @@ async function poll() {
   polling = (async () => {
     try {
       const next = await getJson("api/state", { timeout: 8000 });
-      if (next.connected) {
+      if (next.alarms.backend === "kiosk_satellite") {
+        model = next;
+        if (!next.alarms.connected) {
+          const cached = snapshots.restore(next.alarms.error);
+          if (cached?.alarms.backend === "kiosk_satellite" && cached.alarms.backend_id === next.alarms.backend_id) {
+            model.alarms = { ...cached.alarms, error: next.alarms.error };
+          }
+        }
+        if (!pending) snapshots.save(model);
+      } else if (next.connected) {
         model = next;
         if (!pending) snapshots.save(model);
-      } else model = snapshots.restore(next.connection_error) ?? next;
+      } else {
+        const cached = snapshots.restore(next.connection_error);
+        model = cached && cached.alarms.backend === "home_assistant" ? cached : next;
+      }
       render();
     } catch (error) {
       console.warn(error.message);
@@ -295,7 +310,8 @@ async function poll() {
 }
 
 async function write(url, data) {
-  if (!canControl()) { toast("The dashboard is read-only or disconnected."); return false; }
+  const alarmWrite = /^api\/(?:alarm\/|settings\/alarm(?:$|-playback$))/.test(url);
+  if (!(alarmWrite ? canControlAlarms() : canControl())) { toast("The requested backend is read-only or disconnected."); return false; }
   pending++;
   checkIdleReturn();
   notice("command-error", "");
@@ -313,7 +329,7 @@ async function write(url, data) {
     return false;
   } finally {
     pending--;
-    if (!pending && model?.connected) snapshots.save(model);
+    if (!pending && model) snapshots.save(model);
     notice("snapshot-error", snapshots.error);
     checkIdleReturn();
     settingsPages?.update(model, pending > 0);

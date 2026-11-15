@@ -142,7 +142,7 @@ export function createAlarmScreen(ctx, { onOpen, onClose }) {
   }
   function update(model, pending) {
     busy = pending;
-    const nextActive = model.connected ? model.alarms.active : active;
+    const nextActive = model.alarms.backend === "kiosk_satellite" ? null : model.connected ? model.alarms.active : active;
     if (!nextActive) {
       if (el.open) {
         clearAction();

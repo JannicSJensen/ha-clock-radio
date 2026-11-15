@@ -53,8 +53,8 @@ export function validateCommand(body, { config, players, readOnly }) {
 }
 
 export class Dashboard {
-  constructor({ ha, configStore, music = null, radio = null, mediaPlayer = "", weatherEntity = "", sunEntity = "sun.sun", returnToClockMinutes = 2, readOnly = false, demo = false, version, logger = console }) {
-    Object.assign(this, { ha, configStore, music, radio, mediaPlayer, weatherEntity, sunEntity, returnToClockMinutes, readOnly, demo, version, logger });
+  constructor({ ha, configStore, music = null, radio = null, kiosk = null, mediaPlayer = "", weatherEntity = "", sunEntity = "sun.sun", returnToClockMinutes = 2, readOnly = false, demo = false, version, logger = console }) {
+    Object.assign(this, { ha, configStore, music, radio, kiosk, mediaPlayer, weatherEntity, sunEntity, returnToClockMinutes, readOnly, demo, version, logger });
     this.states = [];
     this.connected = false;
     this.connectionError = "Connecting to Home Assistant.";
@@ -71,7 +71,7 @@ export class Dashboard {
   }
 
   refresh() {
-    this.loading ??= this.fetchStates().finally(() => { this.loading = null; });
+    this.loading ??= Promise.all([this.fetchStates(), this.kiosk?.refresh()]).finally(() => { this.loading = null; });
     return this.loading;
   }
 
@@ -100,7 +100,7 @@ export class Dashboard {
     }
     const alarms = alarmSnapshot(this.states);
     this.alarmPlayerError = null;
-    if (this.mediaPlayer && !alarms.playback_missing.length
+    if (!this.kiosk && this.mediaPlayer && !alarms.playback_missing.length
         && alarms.alarms.every((alarm) => alarm.available) && alarms.player !== this.mediaPlayer && !this.alarmWrites.size) {
       if (this.readOnly) this.alarmPlayerError = "Read-only mode cannot apply the configured speaker to HA alarms. They still use the existing HA speaker helper.";
       else {
@@ -164,7 +164,9 @@ export class Dashboard {
       alarm.buzzer_source_set = Boolean(alarm.buzzer_source);
       delete alarm.buzzer_source;
     }
+    const native = this.kiosk?.snapshot();
     const clock = this.clockData.payload(config, alarms, this.states, this.haTimeZone);
+    if (native) clock.alarm = native.connected ? native.next_at : null;
     clock.error = [clock.error, this.timeZoneError].filter(Boolean).join(" ") || null;
     const errors = [clock.error, clock.night_error].filter(Boolean).join(" ");
     if (errors && errors !== this.clockError) this.logger.warn(errors);
@@ -185,7 +187,7 @@ export class Dashboard {
         stations: config.stations.map(({ id, name }) => ({ id, name })),
         clock: config.clock,
       },
-      players, alarms, clock,
+      players, alarms: native ?? { ...alarms, backend: "home_assistant", connected: this.connected }, clock,
       night_override: { entity_id: NIGHT_OVERRIDE_ENTITY, ...(this.clockData.override ?? { value: "Auto", available: false, error: null }) },
       clock_entities: this.states.filter((state) => /^(weather|sensor|input_datetime|input_boolean|binary_sensor|switch|sun)\./.test(state.entity_id))
         .map((state) => ({ entity_id: state.entity_id, name: state.attributes?.friendly_name || state.entity_id, device_class: state.attributes?.device_class ?? null })),
@@ -237,6 +239,7 @@ export class Dashboard {
   }
 
   async saveAlarm(body) {
+    if (this.kiosk) return this.kioskMutation(() => this.kiosk.save(body));
     await this.mutationReady();
     const { id } = validateAlarm(body);
     let musicSource;
@@ -270,6 +273,7 @@ export class Dashboard {
   }
 
   async createAlarm(body) {
+    if (this.kiosk) return this.kioskMutation(() => this.kiosk.create(body));
     await this.mutationReady();
     if (this.alarmWrites.size) throw new RequestError("An alarm is already being edited. Wait for that save to finish.", 409);
     this.alarmWrites.add("create");
@@ -278,6 +282,7 @@ export class Dashboard {
   }
 
   async deleteAlarm(body) {
+    if (this.kiosk) return this.kioskMutation(() => this.kiosk.delete(body));
     await this.mutationReady();
     validateDeleteAlarm(body);
     if (this.alarmWrites.size) throw new RequestError("An alarm operation is already in progress. Wait for it to finish.", 409);
@@ -292,6 +297,7 @@ export class Dashboard {
   }
 
   async saveAlarmPlayback(body) {
+    if (this.kiosk) throw new RequestError("Native Kiosk alarms do not use HA playback helpers. Configure alarm defaults on Kiosk Satellite.", 409);
     await this.mutationReady();
     const settings = validatePlaybackSettings(body, this.payload().players.map((player) => player.entity_id));
     try { await this.writeAlarmPlayback(settings); }
@@ -319,6 +325,7 @@ export class Dashboard {
   }
 
   async stopAlarm(body) {
+    if (this.kiosk) return this.kioskMutation(() => this.kiosk.control("stop", body));
     await this.mutationReady();
     if (this.alarmWrites.has("delete")) throw new RequestError("Wait for the alarm deletion to finish.", 409);
     if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some((key) => key !== "snoozed")) throw new RequestError("Stop alarm takes an empty object or a snoozed alarm context.");
@@ -343,6 +350,7 @@ export class Dashboard {
   }
 
   async snoozeAlarm(body) {
+    if (this.kiosk) return this.kioskMutation(() => this.kiosk.control("snooze", body));
     await this.mutationReady();
     if (this.alarmWrites.has("delete")) throw new RequestError("Wait for the alarm deletion to finish.", 409);
     if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length) throw new RequestError("Snooze alarm takes an empty object.");
@@ -358,6 +366,11 @@ export class Dashboard {
       throw new RequestError("The alarm could not be snoozed. Check the HA snooze script and try again.", 502);
     }
     await this.refresh();
+  }
+
+  async kioskMutation(action) {
+    if (this.readOnly) throw new RequestError("The dashboard is read-only.", 403);
+    return action();
   }
 
   async playRadio(body) {

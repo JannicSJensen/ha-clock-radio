@@ -33,8 +33,13 @@ function readSnapshot(raw) {
     && config.return_to_clock_minutes <= 1440, "return-to-clock timeout");
   check(["Auto", "Day", "Night"].includes(raw.night_override), "night override");
   const ids = new Set();
+  const backend = raw.backend ?? "home_assistant";
+  check(["home_assistant", "kiosk_satellite"].includes(backend), "alarm backend");
+  const native = backend === "kiosk_satellite";
+  if (native) check(typeof raw.backend_id === "string" && /^[a-f0-9]{16}$/.test(raw.backend_id), "Kiosk identity");
   return {
     schema: 1, saved_at: new Date(raw.saved_at).toISOString(),
+    backend, backend_id: native ? raw.backend_id : null,
     version: text(raw.version, "app version", 64),
     demo: boolean(raw.demo, "demo mode"), time_zone: zone(raw.time_zone),
     night_override: raw.night_override, night_active: boolean(raw.night_active, "night state"),
@@ -48,11 +53,12 @@ function readSnapshot(raw) {
       clock: parseClockOptions(config.clock),
     },
     alarms: raw.alarms.map((alarm) => {
-      check(object(alarm) && Number.isSafeInteger(alarm.id) && alarm.id > 0 && !ids.has(alarm.id), "alarm ID");
+      check(object(alarm) && (native ? typeof alarm.id === "string" && /^clock-radio-[a-f0-9]{32}$/.test(alarm.id)
+        : Number.isSafeInteger(alarm.id) && alarm.id > 0) && !ids.has(alarm.id), "alarm ID");
       ids.add(alarm.id);
       check(object(alarm.days) && Array.isArray(alarm.missing), "alarm helpers");
       const result = {
-        id: alarm.id, enabled: boolean(alarm.enabled, "alarm enabled state"),
+        id: alarm.id, ...(native ? { backend } : {}), enabled: boolean(alarm.enabled, "alarm enabled state"),
         type: alarm.type === null ? null : text(alarm.type, "alarm type", 32),
         available: boolean(alarm.available, "alarm availability"),
         setup_complete: boolean(alarm.setup_complete, "alarm setup"),
@@ -93,10 +99,12 @@ export class SnapshotStore {
   }
 
   save(model, now = Date.now()) {
-    if (!model.connected || model.offline_snapshot || model.alarms.deleting) return;
+    const native = model.alarms.backend === "kiosk_satellite";
+    if (!(native ? model.alarms.connected : model.connected) || model.offline_snapshot || model.alarms.deleting) return;
     try {
       const data = readSnapshot({
-        schema: 1, saved_at: model.updated_at, version: model.version, demo: model.demo,
+        schema: 1, saved_at: native ? model.alarms.updated_at : model.updated_at, version: model.version, demo: model.demo,
+        backend: model.alarms.backend, backend_id: model.alarms.backend_id,
         config: model.config, time_zone: model.clock.timeZone,
         night_override: model.night_override.value, night_active: model.clock.nightActive,
         alarms: model.alarms.alarms,
@@ -131,6 +139,8 @@ export class SnapshotStore {
         weatherDate: null, weatherHigh: null, weatherLow: null,
       },
       alarms: {
+        backend: data.backend, backend_id: data.backend_id, connected: false, updated_at: data.saved_at,
+        error: message, native_phase: "unknown", native_active: false, next_at: null,
         scheduler_version: null, player: config.default_player, music_source: "", buzzer_source: "",
         active_player: "", active: null, active_id: null, snoozed: null,
         active_error: null, deleting: null, delete_error: null,
@@ -153,10 +163,17 @@ export class SnapshotStore {
 }
 
 export function offlineStatus(model) {
-  if (model.connected) return "";
-  const saved = Date.parse(model.updated_at);
+  const native = model.alarms.backend === "kiosk_satellite";
+  if (model.connected && (!native || model.alarms.connected)) return "";
+  const saved = Date.parse(native ? model.alarms.updated_at : model.updated_at);
   const last = Number.isFinite(saved) ? ` Last synchronized: ${new Intl.DateTimeFormat(model.config.locale, {
     dateStyle: "short", timeStyle: "medium", timeZone: model.clock.timeZone || undefined,
   }).format(saved)}.` : " No confirmed alarm snapshot is available.";
+  if (native) {
+    const ha = model.connected ? "" : "Home Assistant is offline. ";
+    return ha + (model.alarms.connected
+      ? `Kiosk alarms are connected${model.read_only ? " (read-only)" : " and editable"}.`
+      : `Kiosk is offline. Saved native schedules are read-only.${last} Native execution cannot be confirmed from this dashboard.`);
+  }
   return `Offline - ${model.offline_snapshot ? "showing saved schedules" : "showing last received data"}. Read-only.${last} HA alarm execution cannot be confirmed.`;
 }

@@ -146,8 +146,6 @@ export function validateAlarm(body) {
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new RequestError("Alarm settings must be an object.");
   if (Object.keys(body).some((key) => !settingKeys.has(key))) throw new RequestError("Unknown alarm setting.");
   if (!Number.isSafeInteger(body.id) || body.id < 1) throw new RequestError("Alarm ID must be a positive safe integer.");
-  if (typeof body.enabled !== "boolean") throw new RequestError("enabled must be a boolean.");
-  if (!["Music", "Buzzer"].includes(body.type)) throw new RequestError("Alarm type must be Music or Buzzer.");
   if (Object.hasOwn(body, "music_station_id") && body.music_station_id !== null
       && (typeof body.music_station_id !== "string" || !/^ma-[a-f0-9]{16}$/.test(body.music_station_id))) {
     throw new RequestError("music_station_id must be a Music Assistant station ID or null for the shared HA default.");
@@ -156,13 +154,20 @@ export function validateAlarm(body) {
       && !ALARM_SOUNDS.some(({ id }) => id === body.buzzer_sound_id)) {
     throw new RequestError("buzzer_sound_id must be a built-in sound ID or null for the shared HA default.");
   }
-  for (const [key, min, max] of [["hour", 0, 23], ["minute", 0, 59], ["volume", 0, 100], ["duration", 1, 120]]) checkNumber(body[key], key, min, max);
+  validateAlarmSchedule(body);
+  for (const [key, min, max] of [["volume", 0, 100], ["duration", 1, 120]]) checkNumber(body[key], key, min, max);
+  return body;
+}
+
+export function validateAlarmSchedule(body, { allowOnce = false } = {}) {
+  if (typeof body.enabled !== "boolean") throw new RequestError("enabled must be a boolean.");
+  if (!["Music", "Buzzer"].includes(body.type)) throw new RequestError("Alarm type must be Music or Buzzer.");
+  for (const [key, min, max] of [["hour", 0, 23], ["minute", 0, 59]]) checkNumber(body[key], key, min, max);
   if (!body.days || typeof body.days !== "object" || Array.isArray(body.days)
       || Object.keys(body.days).length !== 7 || !WEEKDAYS.every((day) => typeof body.days[day] === "boolean")) {
     throw new RequestError("days must contain all seven weekdays as booleans.");
   }
-  if (body.enabled && !WEEKDAYS.some((day) => body.days[day])) throw new RequestError("Select at least one weekday before enabling the alarm.");
-  return body;
+  if (!allowOnce && body.enabled && !WEEKDAYS.some((day) => body.days[day])) throw new RequestError("Select at least one weekday before enabling the alarm.");
 }
 
 export async function saveAlarm(ha, body, states, logger, musicSource, buzzerSource) {

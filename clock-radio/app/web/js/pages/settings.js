@@ -126,7 +126,7 @@ export function createSettingsPages(ctx) {
   clock.querySelector('[name="next_alarm_entity"] option').textContent = "Use the Clock Radio alarms";
   const musicInfo = h("p", { class: "settings-hint" });
   const musicState = sourceValue();
-  const alarms = createAlarmPage(ctx);
+  const alarms = createAlarmPage({ ...ctx, canControl: ctx.canControlAlarms ?? ctx.canControl });
   const el = h("div", { class: "settings settings--ios" },
     h("nav", { class: "settings-navigation", "aria-label": "Settings navigation" },
       h("a", { href: "#alarms" }, icon("chevron-left"), "Alarms"),
@@ -162,7 +162,7 @@ export function createSettingsPages(ctx) {
     const language = clock.elements.namedItem("language");
     if (model.config.clock.language && ![...language.options].some((option) => option.value === model.config.clock.language)) language.add(new Option(model.config.clock.language, model.config.clock.language));
     for (const form of forms) form.update(model, busy);
-    clockInfo.textContent = `Clock time zone: ${model.clock.timeZone || "this device"}. Alarm schedules always use Home Assistant's time zone.`;
+    clockInfo.textContent = `Clock time zone: ${model.clock.timeZone || "this device"}. Alarm schedules use ${model.alarms.backend === "kiosk_satellite" ? "the Kiosk device's local time zone" : "Home Assistant's time zone"}.`;
     musicInfo.textContent = !model.connected ? "Reconnect to view Music Assistant configuration and library browsing."
       : model.music.library ? "Music Assistant browsing is configured. The read-only access token stays on the server." : "For Discover, Albums, Artists, Podcasts, Playlists and Search, set music_assistant_token in the HA app options (Music Assistant → Settings → Profile). Set music_assistant_url if it is not discovered automatically. Restart the app after changing these options. Radio presets work without library access.";
   } };

@@ -22,6 +22,14 @@ controls stay disabled until HA reconnects. Requests have deadlines, and
 timed-out changes are never replayed. This does not run alarms without HA or
 guarantee that a cold browser reload works without the dashboard server.
 
+For testing, select **kiosk_satellite** under **Alarm backend** in the HA app
+configuration and provide the kiosk's Remote Administration URL/API token.
+The existing editor then manages marked native test alarms, including Kiosk's
+Music Assistant radio with local tone fallback. HA remains the default, and
+existing HA schedules are untouched. Native ringing/defaults stay on Kiosk.
+**Switching back does not cancel native alarms.**
+See [setup, limitations and cleanup](DOCS.md#experimental-kiosk-satellite-alarm-backend).
+
 Buzzer alarms can each select one of twelve original built-in sounds.
 Update the HA alarm package to scheduler version 7 and configure a
 speaker-accessible HA internal URL; see [sound setup](DOCS.md#buzzer-alarm-sounds).

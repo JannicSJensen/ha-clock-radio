@@ -9,6 +9,7 @@ import { MusicService } from "./music.js";
 import { RadioLibrary } from "./radio-library.js";
 import { discoverMusicAssistant } from "./discovery.js";
 import { publishAlarmSounds } from "./alarm-sounds.js";
+import { KioskAlarms, kioskOptions } from "./kiosk-alarms.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const version = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;
@@ -20,6 +21,7 @@ try {
 }
 if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error("App options must be a JSON object.");
 if (options.read_only !== undefined && typeof options.read_only !== "boolean") throw new Error("read_only must be a boolean.");
+const nativeOptions = kioskOptions(options);
 const returnToClockMinutes = options.return_to_clock_minutes === undefined ? 2 : options.return_to_clock_minutes;
 if (!Number.isInteger(returnToClockMinutes) || returnToClockMinutes < 0 || returnToClockMinutes > 1440) {
   throw new Error("return_to_clock_minutes must be a whole number from 0 to 1440 (0 disables automatic return).");
@@ -43,7 +45,7 @@ const logger = Object.fromEntries(["debug", "info", "warn", "error"].map((name) 
 const port = Number(process.env.PORT ?? 8100);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("PORT must be an integer from 1 to 65535.");
 const token = process.env.SUPERVISOR_TOKEN || undefined;
-if ((token || process.env.HA_CONFIG_DIR) && options.read_only !== true) {
+if ((token || process.env.HA_CONFIG_DIR) && options.read_only !== true && !nativeOptions) {
   publishAlarmSounds(path.join(root, "web"), process.env.HA_CONFIG_DIR ?? "/homeassistant");
   logger.info("Original alarm sounds installed in Home Assistant www/clock-radio/sounds/v1.");
 }
@@ -65,7 +67,9 @@ if (!musicUrl && token && musicToken) {
 }
 const music = new MusicService({ ha, logger, url: musicUrl, token: musicToken });
 const radio = new RadioLibrary({ ha, music, logger });
-const dashboard = new Dashboard({ ha, configStore, music, radio, mediaPlayer, weatherEntity, sunEntity, returnToClockMinutes, readOnly: options.read_only === true, demo: process.env.DEMO === "1", version, logger });
+const kiosk = nativeOptions ? new KioskAlarms({ ...nativeOptions, logger }) : null;
+if (kiosk) logger.warn("Experimental Kiosk alarm backend enabled. Existing HA schedules are untouched. Native test alarms remain scheduled after switching back.");
+const dashboard = new Dashboard({ ha, configStore, music, radio, kiosk, mediaPlayer, weatherEntity, sunEntity, returnToClockMinutes, readOnly: options.read_only === true, demo: process.env.DEMO === "1", version, logger });
 const server = createServer({ dashboard, webRoot: path.join(root, "web"), logger });
 await dashboard.refresh();
 const timer = setInterval(() => dashboard.refresh(), 5000);

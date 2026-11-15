@@ -42,6 +42,11 @@ test("Supervisor packaging has persistent config, ingress and non-conflicting ta
   assert.equal(config.schema.sun_entity, "str?");
   assert.equal(config.options.return_to_clock_minutes, 2);
   assert.equal(config.schema.return_to_clock_minutes, "int(0,1440)");
+  assert.equal(config.options.alarm_backend, "home_assistant");
+  assert.equal(config.schema.alarm_backend, "list(home_assistant|kiosk_satellite)");
+  assert.equal(config.options.kiosk_satellite_url, "");
+  assert.equal(config.options.kiosk_satellite_token, "");
+  assert.equal(config.schema.kiosk_satellite_token, "password?");
   const translation = YAML.parse(read(path.join(addon, "translations/en.yaml")));
   assert.deepEqual(Object.keys(config.options).sort(), Object.keys(translation.configuration).sort());
   assert.ok(!("image" in config), "Supervisor should build locally");

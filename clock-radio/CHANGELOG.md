@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.19.0
+
+- Add an opt-in experimental `kiosk_satellite` alarm backend in the HA app
+  configuration, with a Remote Administration URL and server-only API token.
+  `home_assistant` remains the default; no schedules are migrated or disabled.
+- Keep Clock Radio's alarm list/time/repeat/type editor while storing marked
+  test alarms on Kiosk. Confirm changes by reading them back. Native execution
+  does not depend on HA or the dashboard; editing still needs the app server.
+- Support Kiosk's own Music Assistant radio library and local Sendspin player,
+  with a saved native tone as fallback. Buzzer drafts use the built-in tone.
+  Kiosk supplies volume/auto-silence defaults and the native ringing screen.
+- Keep unrelated native alarms untouched. Disable test alarms before deletion;
+  stop active alarms before edits. Stop/Snooze stay on Kiosk because its Remote
+  API applies those actions to every simultaneous native alarm.
+- Separate Kiosk alarm readiness from HA music/settings readiness and retain
+  backend/device-scoped read-only snapshots. Tokens and native music URIs never
+  enter browser snapshots. Turning the backend off does not cancel native alarms.
+
 ## 0.18.0
 
 - Keep a validated, read-only browser snapshot of clock settings and alarm
