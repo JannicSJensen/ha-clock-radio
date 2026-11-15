@@ -22,8 +22,8 @@ copy the standalone YAML file into your HA packages directory, check
 configuration and reload input selects (restart HA if necessary).
 Do not install duplicate definitions if the helper already exists.
 See the [clock configuration guide](../../clock-radio/DOCS.md#manual-clock-color-test)
-for behavior, status and error handling. The alarm package below stays at
-scheduler protocol 6.
+for behavior, status and error handling. The alarm package below uses
+scheduler protocol 7.
 
 ## Install
 
@@ -93,7 +93,26 @@ without requiring MA browsing credentials. Selecting does not play audio.
 **Use shared HA default** stores an empty override. Music playback falls back
 to `input_text.clock_radio_music_source` only when the profile's helper is empty
 or absent; unavailable/invalid helpers fail explicitly rather than playing a
-different station. Buzzer always uses `input_text.clock_radio_buzzer_source`.
+different station.
+
+Scheduler package **version 7** also supports an optional
+`input_text.clock_radio_alarm_N_buzzer_source`. The app creates this restoring
+native helper on the first saved Buzzer sound selection, including for bundled
+profiles 1/2; do not duplicate it in YAML. When absent or empty, Buzzer uses
+`input_text.clock_radio_buzzer_source` as before. Unknown/unavailable overrides
+fail explicitly rather than playing a different sound. Both manual/scheduled
+starts and captured Buzzer Snooze resumption use the profile's current sound.
+
+Clock Radio 0.16.0 includes twelve original MIT-licensed WAVs and local browser
+previews. Updating/restarting the app publishes them through its HA configuration
+mount to `www/clock-radio/sounds/v1/`. Configure a speaker-accessible HA internal
+URL under **Settings > System > Network** (external URL is used only if internal
+is unset). If `www` is new, restart HA once to expose `/local/`. Audio URLs do
+not include access tokens. The app verifies audio is reachable before saving.
+For a version 6 to 7 package upgrade, check configuration and reload scripts and
+templates only; do not reinitialize helpers. See the
+[Buzzer sound setup](../../clock-radio/DOCS.md#buzzer-alarm-sounds) for standalone
+hosting and the complete sound collection. Existing sound choices are unchanged.
 
 New app-created profiles include their source helper. Existing app-created
 profiles acquire it on their first saved station selection through HA's
@@ -125,7 +144,7 @@ The wake countdown remains separate from the fixed **10-minute** snooze.
 
 For an existing installation, replace this package including its new helpers,
 check configuration and reload the affected integrations. It now exposes
-`sensor.clock_radio_alarm_scheduler_version: 6`. Add
+`sensor.clock_radio_alarm_scheduler_version: 7`. Add
 `input_text.clock_radio_active_alarm`, `input_text.clock_radio_snoozed_alarm`
 and `input_datetime.clock_radio_snooze_until`, plus the deletion helpers below;
 do not reset existing profile or

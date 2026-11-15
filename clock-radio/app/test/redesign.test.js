@@ -10,7 +10,7 @@ import { ConfigStore, parseConfig } from "../src/config.js";
 import { MusicService, validPlayUri } from "../src/music.js";
 import { imageSource, pickImage } from "../src/ma-api.js";
 import { RadioLibrary } from "../src/radio-library.js";
-import { Dashboard } from "../src/dashboard.js";
+import { Dashboard, RequestError } from "../src/dashboard.js";
 import { createServer, staticAsset } from "../src/server.js";
 import { alarmSnapshot, saveAlarm, validateAlarm, validatePlaybackSettings } from "../src/alarms.js";
 import { CLOCK_DEFAULTS, parseClockOptions } from "../web/js/lib/clock-options.js";
@@ -79,6 +79,120 @@ test("Delete removes native profiles, preserves unrelated helpers and persistent
   assert.equal(fresh.enabled, false);
   assert.equal(fresh.hour, 6);
   assert.equal(fresh.volume, 50);
+});
+
+test("per-alarm sounds persist independently, preserve omitted choices and resume after snooze", async (t) => {
+  const app = await setup(t);
+  const initial = await app.get("api/state");
+  assert.equal(initial.alarms.buzzer_sounds.length, 12);
+  const shared = initial.alarms.buzzer_source;
+  for (const [id, buzzer_sound_id] of [[1, "morning-light"], [2, "daybreak-beep"]]) {
+    const alarm = (await app.get("api/state")).alarms.alarms.find((alarm) => alarm.id === id);
+    const body = { id, enabled: false, type: "Buzzer", hour: alarm.hour, minute: alarm.minute, volume: alarm.volume, duration: alarm.duration, days: alarm.days };
+    const before = app.calls.length;
+    const response = await app.post("api/settings/alarm", { ...body, buzzer_sound_id });
+    assert.equal(response.status, 200, await response.text());
+    assert.ok(!app.calls.slice(before).some((call) => call.domain === "music_assistant"), "Saving must not play sound");
+    const saved = (await app.get("api/state")).alarms.alarms.find((alarm) => alarm.id === id);
+    assert.equal(saved.buzzer_sound_id, buzzer_sound_id);
+    assert.equal(Object.hasOwn(saved, "buzzer_source"), false, "Do not expose full sound URLs");
+    const helper = app.states.find((state) => state.entity_id === `input_text.clock_radio_alarm_${id}_buzzer_source`);
+    assert.ok(helper.state.endsWith(`/local/clock-radio/sounds/v1/${buzzer_sound_id}.wav`));
+    assert.equal((await app.post("api/settings/alarm", { ...body, minute: 42 })).status, 200);
+    assert.equal((await app.get("api/state")).alarms.alarms.find((alarm) => alarm.id === id).buzzer_sound_id, buzzer_sound_id);
+    app.startAlarm(id);
+    const player = app.states.find((state) => state.entity_id === "media_player.bedroom");
+    assert.equal(player.attributes.media_content_id, helper.state);
+    assert.equal(player.attributes.repeat, "one");
+    await app.dashboard.refresh();
+    assert.equal((await app.post("api/alarm/snooze", {})).status, 200);
+    app.advanceAlarms(Date.now() + 601000);
+    assert.equal(player.attributes.media_content_id, helper.state);
+    await app.dashboard.refresh();
+    assert.equal((await app.post("api/alarm/stop", {})).status, 200);
+  }
+  const state = await app.get("api/state");
+  assert.equal(state.alarms.buzzer_source, shared);
+  assert.deepEqual(state.alarms.alarms.map((alarm) => alarm.buzzer_sound_id), ["morning-light", "daybreak-beep"]);
+  const first = state.alarms.alarms[0];
+  assert.equal((await app.post("api/settings/alarm", {
+    id: first.id, enabled: false, type: "Buzzer", hour: first.hour, minute: first.minute,
+    volume: first.volume, duration: first.duration, days: first.days, buzzer_sound_id: null,
+  })).status, 200);
+  app.startAlarm(1);
+  assert.equal(app.states.find((state) => state.entity_id === "media_player.bedroom").attributes.media_content_id, shared);
+});
+
+test("old packages, read-only mode, invalid sound IDs and inaccessible audio cannot write sound settings", async (t) => {
+  const app = await setup(t);
+  const alarm = (await app.get("api/state")).alarms.alarms[1];
+  const body = { id: 2, enabled: false, type: "Buzzer", hour: alarm.hour, minute: alarm.minute, volume: alarm.volume, duration: alarm.duration, days: alarm.days, buzzer_sound_id: "round-bell" };
+  const before = app.calls.length;
+  for (const id of ["../sound", "apple-radar", {}, 5]) {
+    assert.equal((await app.post("api/settings/alarm", { ...body, buzzer_sound_id: id })).status, 400);
+  }
+  const version = app.states.find((state) => state.entity_id === "sensor.clock_radio_alarm_scheduler_version");
+  version.state = "6";
+  assert.equal((await app.post("api/settings/alarm", body)).status, 409);
+  version.state = "7";
+  app.dashboard.readOnly = true;
+  assert.equal((await app.post("api/settings/alarm", body)).status, 403);
+  app.dashboard.readOnly = false;
+  app.ha.alarmSoundUrl = async () => { throw new RequestError("Audio is unreachable", 409); };
+  const failure = await app.post("api/settings/alarm", body);
+  assert.equal(failure.status, 409);
+  assert.match((await failure.json()).error, /Audio is unreachable/);
+  assert.equal(app.calls.length, before);
+  assert.equal(app.helperRequests.length, 0);
+});
+
+test("native alarm deletion owns its sound helper but leaves other alarm sounds untouched", async (t) => {
+  const app = await setup(t);
+  const id = (await (await app.post("api/alarm/create", {})).json()).alarm_id;
+  const alarm = (await app.get("api/state")).alarms.alarms.find((alarm) => alarm.id === id);
+  const source = `input_text.clock_radio_alarm_${id}_buzzer_source`;
+  assert.equal((await app.post("api/settings/alarm", {
+    id, enabled: false, type: "Buzzer", hour: 6, minute: 0, volume: 50, duration: 5,
+    days: alarm.days, buzzer_sound_id: "warm-keys",
+  })).status, 200);
+  assert.ok(app.states.some((state) => state.entity_id === source));
+  assert.equal((await app.post("api/alarm/delete", { id })).status, 200);
+  assert.ok(!app.states.some((state) => state.entity_id === source));
+});
+
+test("unconfirmed sound writes leave the affected alarm disabled and report its actual helper state", async (t) => {
+  const app = await setup(t);
+  const alarm = (await app.get("api/state")).alarms.alarms[1];
+  const original = app.ha.callService.bind(app.ha);
+  app.ha.callService = async (domain, service, data, ...rest) => {
+    if (data.entity_id === "input_text.clock_radio_alarm_2_buzzer_source") return [];
+    return original(domain, service, data, ...rest);
+  };
+  assert.equal((await app.post("api/settings/alarm", {
+    id: 2, enabled: true, type: "Buzzer", hour: alarm.hour, minute: alarm.minute,
+    volume: alarm.volume, duration: alarm.duration, days: alarm.days, buzzer_sound_id: "glass-drops",
+  })).status, 502);
+  const saved = (await app.get("api/state")).alarms.alarms[1];
+  assert.equal(saved.enabled, false);
+  assert.equal(saved.can_select_sound, false);
+  assert.match(saved.buzzer_source_error, /unavailable/);
+});
+
+test("original sound previews serve cached WAVs without touching HA playback", async (t) => {
+  const app = await setup(t);
+  const before = app.calls.length;
+  for (const { id } of (await app.get("api/state")).alarms.buzzer_sounds) {
+    const response = await fetch(`${app.url}/sounds/v1/${id}.wav`);
+    assert.equal(response.status, 200);
+    assert.equal(response.headers.get("content-type"), "audio/wav");
+    assert.equal(response.headers.get("cache-control"), "private, no-cache");
+    assert.equal(response.headers.get("content-encoding"), null);
+    const wav = Buffer.from(await response.arrayBuffer());
+    assert.equal(wav.toString("ascii", 0, 4), "RIFF");
+    const unchanged = await fetch(`${app.url}/sounds/v1/${id}.wav`, { headers: { "If-None-Match": response.headers.get("etag") } });
+    assert.equal(unchanged.status, 304);
+  }
+  assert.equal(app.calls.length, before);
 });
 
 test("deleting ringing Music and Buzzer alarms restores the speaker and removes their timers", async (t) => {

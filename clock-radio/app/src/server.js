@@ -14,7 +14,7 @@ const assets = new Map([
   ["/app.js", ["app.js", "text/javascript; charset=utf-8"]],
   ["/styles.css", ["styles.css", "text/css; charset=utf-8"]],
 ]);
-const assetTypes = { ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8" };
+const assetTypes = { ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8", ".html": "text/html; charset=utf-8", ".woff2": "font/woff2", ".txt": "text/plain; charset=utf-8", ".wav": "audio/wav" };
 const compress = promisify(gzip);
 
 function assetVariant(body) {
@@ -60,7 +60,7 @@ function sendAsset(req, res, asset) {
 
 export function staticAsset(pathname) {
   if (assets.has(pathname)) return assets.get(pathname);
-  if (!/^\/(js|css|fonts|clock)\/[a-zA-Z0-9_./-]+$/.test(pathname) || pathname.split("/").includes("..")) return null;
+  if (!/^\/(js|css|fonts|clock|sounds)\/[a-zA-Z0-9_./-]+$/.test(pathname) || pathname.split("/").includes("..")) return null;
   const type = assetTypes[path.extname(pathname)] ?? (pathname.endsWith("/LICENSE") ? "text/plain; charset=utf-8" : null);
   return type ? [pathname.slice(1), type] : null;
 }

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.16.0
+
+- Add twelve original, MIT-licensed Buzzer alarm sounds with a separate saved
+  choice for each alarm. Existing alarms keep their shared HA sound by default.
+- Preview a sound on the tablet/browser without playing the HA speaker.
+  Selection drafts survive polling; Cancel, unrelated edits and enable switches
+  preserve saved sound choices.
+- Publish bundled WAVs to HA's `www/clock-radio/sounds/v1` folder on app startup
+  using the new HA configuration mount. Public audio requests never include
+  access tokens. Read-only mode does not install files.
+- Require scheduler package version 7 for per-alarm Buzzer playback, including
+  Snooze resumption. Verify HA's configured internal/external audio URL before
+  saving; source errors remain visible instead of selecting another sound.
+
 ## 0.15.2
 
 - Fix Music/Buzzer snoozes failing to ring again when HA's whole-second time

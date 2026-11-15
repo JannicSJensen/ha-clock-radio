@@ -32,6 +32,7 @@ test("Supervisor packaging has persistent config, ingress and non-conflicting ta
   assert.equal(config.map[0].type, "app_config");
   assert.equal(config.map[0].read_only, false);
   assert.deepEqual(Object.keys(config.map[0]).sort(), ["path", "read_only", "type"]);
+  assert.deepEqual(config.map[1], { type: "homeassistant_config", read_only: false, path: "/homeassistant" });
   assert.equal(config.hassio_api, true);
   assert.ok(!("hassio_role" in config), "The default Supervisor role is implicit");
   assert.equal(config.schema.music_assistant_token, "password?");

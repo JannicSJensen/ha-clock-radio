@@ -1,6 +1,7 @@
 import { h } from "../core/h.js";
 import { icon } from "../core/icons.js";
 import { createTimePicker, timeParts } from "../components/time-picker.js";
+import { ALARM_SOUNDS, soundFile } from "../lib/alarm-sounds.js";
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -61,6 +62,8 @@ export function createAlarmPage(ctx) {
   let selectedStation = null;
   let stationDirty = false;
   let stationSignature = "";
+  let soundDirty = false;
+  let previewSequence = 0;
   const stationInputs = new Map();
   let picker = null;
   const pageStatus = h("p", { class: "form-status", role: "alert" });
@@ -84,6 +87,15 @@ export function createAlarmPage(ctx) {
   const stationList = h("div", { class: "alarm-stations__list", role: "radiogroup", "aria-label": "Alarm radio station" });
   const stationPicker = h("section", { class: "alarm-stations", hidden: true },
     h("h3", null, "Radio station"), stationHint, stationList);
+  const savedSound = h("option", { value: "saved", disabled: true, hidden: true }, "Saved HA sound");
+  const sound = h("select", { name: "buzzer_sound_id", "aria-label": "Buzzer sound" },
+    h("option", { value: "" }, "Use shared HA default"),
+    ALARM_SOUNDS.map(({ id, name }) => h("option", { value: id }, name)), savedSound);
+  const soundHint = h("p", { class: "alarm-editor__hint", role: "status" });
+  const preview = h("button", { class: "btn", type: "button" }, "Preview sound");
+  const audio = h("audio", { preload: "none" });
+  const soundPicker = h("section", { hidden: true },
+    h("div", { class: "alarm-editor__row" }, h("span", null, "Sound"), sound), soundHint, preview);
   const volume = h("input", { id: "alarm-volume", name: "volume", type: "range", min: 0, max: 100, step: 1, "aria-label": "Volume" });
   const volumeLabel = h("output", { for: "alarm-volume", class: "alarm-editor__value" });
   const duration = h("input", { name: "duration", type: "number", min: 1, max: 120, step: 1, required: true, "aria-label": "Wake timer (minutes)" });
@@ -193,7 +205,7 @@ export function createAlarmPage(ctx) {
     h("section", { class: "alarm-editor__group" },
       row("Enabled", enabled.el),
       row("Alarm type", type),
-      stationPicker,
+      stationPicker, soundPicker,
       row("Volume", volumeLabel),
       h("div", { class: "alarm-editor__volume" }, volume),
       row("Wake timer", h("label", { class: "alarm-editor__duration" }, duration, h("span", null, "min")))),
@@ -211,6 +223,11 @@ export function createAlarmPage(ctx) {
     type.value = alarm.type;
     selectedStation = alarm.music_station_id ?? (alarm.music_source_set ? "saved" : null);
     stationDirty = false;
+    const savedSoundId = alarm.buzzer_sound_id ?? (alarm.buzzer_source_set ? "saved" : "");
+    if (sound.value !== savedSoundId && audio.getAttribute("src")) stopPreview();
+    sound.value = savedSoundId;
+    savedSound.hidden = !alarm.buzzer_source_set || Boolean(alarm.buzzer_sound_id);
+    soundDirty = false;
     volume.value = alarm.volume;
     duration.value = alarm.duration;
     repeat.textContent = repeatLabel(selectedDays);
@@ -222,6 +239,7 @@ export function createAlarmPage(ctx) {
     if (dialog.open) dialog.close();
   }
   dialog.addEventListener("close", () => {
+    stopPreview();
     dialog.removeAttribute("aria-modal");
     activeId = null;
     dirty = false;
@@ -251,8 +269,53 @@ export function createAlarmPage(ctx) {
     picker.setDisabled(disabled);
     if (!dirty && available) loadEditor(alarm);
     updateStations(model, alarm, disabled);
+    updateSounds(alarm, disabled);
     hint.textContent = model.alarms.delete_error || (!available ? "The HA alarm helpers are missing, unavailable, invalid or incomplete."
       : !ctx.canControl() ? "Read-only or disconnected. Changes cannot be saved." : "");
+  }
+  function stopPreview() {
+    previewSequence++;
+    audio.pause();
+    audio.removeAttribute("src");
+    audio.load();
+    preview.textContent = "Preview sound";
+  }
+  sound.addEventListener("change", () => {
+    stopPreview();
+    soundDirty = true;
+    markDirty();
+    updateEditor(ctx.getModel(), pageBusy);
+  });
+  preview.addEventListener("click", async () => {
+    if (audio.getAttribute("src")) { stopPreview(); return; }
+    const selected = ALARM_SOUNDS.find(({ id }) => id === sound.value);
+    if (!selected || preview.disabled) return;
+    const sequence = ++previewSequence;
+    audio.src = soundFile(selected.id);
+    preview.textContent = "Stop preview";
+    try { await audio.play(); }
+    catch (error) {
+      if (sequence !== previewSequence) return;
+      stopPreview();
+      status.textContent = `Sound preview failed: ${error.message}`;
+    }
+  });
+  audio.addEventListener("ended", stopPreview);
+  audio.addEventListener("error", () => {
+    if (!audio.getAttribute("src")) return;
+    stopPreview();
+    status.textContent = "Sound preview failed. Check the connection and reload the app.";
+  });
+  function updateSounds(alarm, disabled) {
+    soundPicker.hidden = type.value !== "Buzzer";
+    sound.disabled = disabled || !alarm.can_select_sound;
+    preview.disabled = sound.disabled || !ALARM_SOUNDS.some(({ id }) => id === sound.value);
+    if (soundPicker.hidden || disabled) {
+      if (audio.getAttribute("src")) stopPreview();
+    }
+    soundHint.textContent = alarm.buzzer_source_error || (!alarm.can_select_sound
+      ? "Update the HA alarm package to scheduler version 7 to choose a sound for each alarm."
+      : `${ALARM_SOUNDS.find(({ id }) => id === sound.value)?.description ?? "Keep the shared HA Buzzer sound."} Preview plays on this device only; Save applies the sound to this alarm.`);
   }
   function updateStations(model, alarm, disabled) {
     stationPicker.hidden = type.value !== "Music";
@@ -333,6 +396,7 @@ export function createAlarmPage(ctx) {
         volume: Number(volume.value), duration: Number(duration.value), days: { ...selectedDays },
       };
       if (stationDirty) values.music_station_id = selectedStation;
+      if (soundDirty) values.buzzer_sound_id = sound.value || null;
       saving = true;
       status.textContent = "Saving...";
       updateEditor(ctx.getModel(), true);
@@ -431,7 +495,7 @@ export function createAlarmPage(ctx) {
         record.time.textContent = `${hour12 ? parts.hour : pad(parts.hour)}:${pad(parts.minute)}`;
         record.period.textContent = hour12 ? parts.period ? "PM" : "AM" : "";
       } else { record.time.textContent = "--:--"; record.period.textContent = ""; }
-      record.summary.textContent = `${alarm.type || "Unavailable"} · ${repeatLabel(alarm.days)}`;
+      record.summary.textContent = `${alarm.type || "Unavailable"}${alarm.type === "Buzzer" && alarm.buzzer_sound_name ? ` · ${alarm.buzzer_sound_name}` : ""} · ${repeatLabel(alarm.days)}`;
       const label = alarmLabel(alarm, hour12);
       record.el.setAttribute("aria-label", `Alarm: ${label}`);
       record.edit.setAttribute("aria-label", `Edit alarm: ${label}`);

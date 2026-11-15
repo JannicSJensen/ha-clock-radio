@@ -1,6 +1,8 @@
 import http from "node:http";
+import fs from "node:fs";
 import { WebSocketServer } from "ws";
 import { WEEKDAYS, alarmEntities, alarmSnapshot } from "../src/alarms.js";
+import { ALARM_SOUNDS, soundMediaPath, soundFile } from "../web/js/lib/alarm-sounds.js";
 
 export const DEMO_HA_TOKEN = "clock-radio-demo";
 export const DEMO_MA_TOKEN = "clock-radio-music-demo";
@@ -84,7 +86,7 @@ export function demoStates() {
   states.push({ entity_id: "script.clock_radio_snooze", state: "off", attributes: {} });
   states.push({ entity_id: "script.clock_radio_resume_snooze", state: "off", attributes: {} });
   states.push({ entity_id: "input_datetime.clock_radio_snooze_until", state: "2000-01-01 00:00:00", attributes: { timestamp: 946684800 } });
-  states.push({ entity_id: "sensor.clock_radio_alarm_scheduler_version", state: "6", attributes: {} });
+  states.push({ entity_id: "sensor.clock_radio_alarm_scheduler_version", state: "7", attributes: {} });
   return states;
 }
 
@@ -120,10 +122,11 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
     if (!deletionReady(id)) throw new Error("Invalid alarm deletion helpers.");
     if (entity("input_text.clock_radio_deleting_alarm")?.state === String(id) || entity(`input_boolean.clock_radio_alarm_${id}_deleted`)?.state === "on") throw new Error("This alarm is deleted or deletion is in progress.");
     const selected = entity(`input_text.clock_radio_alarm_${id}_music_source`);
+    const buzzer = entity(`input_text.clock_radio_alarm_${id}_buzzer_source`);
     const source = type === "Music"
       ? selected && selected.state !== "" ? selected.state : entity("input_text.clock_radio_music_source").state
-      : entity("input_text.clock_radio_buzzer_source").state;
-    if (!/^(https?:\/\/|library:\/\/|radiobrowser:\/\/)\S+$/.test(source)) throw new Error("Invalid demo alarm source.");
+      : buzzer && buzzer.state !== "" ? buzzer.state : entity("input_text.clock_radio_buzzer_source").state;
+    if (!(type === "Buzzer" ? /^https?:\/\/\S+$/ : /^(https?:\/\/|library:\/\/|radiobrowser:\/\/)\S+$/).test(source)) throw new Error("Invalid demo alarm source.");
     cleanupAlarm();
     entity("input_text.clock_radio_snoozed_alarm").state = "";
     const player = entity(entity("input_text.clock_radio_player").state);
@@ -160,6 +163,13 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
       res.writeHead(status, { "Content-Type": "application/json" });
       res.end(JSON.stringify(data));
     };
+    const sound = ALARM_SOUNDS.find(({ id }) => url.pathname === soundMediaPath(id));
+    if (sound && ["GET", "HEAD"].includes(req.method)) {
+      if (req.headers.authorization) return reply(400, { error: "Public alarm sounds must not receive access tokens." });
+      const body = fs.readFileSync(new URL(`../web/${soundFile(sound.id)}`, import.meta.url));
+      res.writeHead(200, { "Content-Type": "audio/wav", "Content-Length": body.length });
+      return res.end(req.method === "HEAD" ? undefined : body);
+    }
     if (url.pathname.startsWith("/radio-logo/")) {
       artworkRequests.push(url.pathname);
       if (req.headers.authorization) return reply(400, { error: "Public radio logos must not receive access tokens." });
@@ -177,7 +187,7 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
         advanceAlarms();
         return reply(200, states);
       }
-      if (req.method === "GET" && url.pathname === "/api/config") return reply(200, { time_zone: "Europe/Copenhagen" });
+      if (req.method === "GET" && url.pathname === "/api/config") return reply(200, { time_zone: "Europe/Copenhagen", internal_url: `http://127.0.0.1:${server.address().port}`, external_url: null });
       if (req.method === "GET" && url.pathname.startsWith("/api/media_player_proxy/")) {
         artworkRequests.push(url.pathname);
         if (playerArtworkStatus !== 200) return reply(playerArtworkStatus, { error: "Demo player artwork unavailable." });

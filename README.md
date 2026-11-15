@@ -22,7 +22,9 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
    wake timers. A compact list offers enable switches; tap a time to edit with
    hour/minute wheels and circular repeat-day buttons. Music alarms offer
    Music Assistant radio logos below Alarm type, with a separate saved station
-   for each alarm (HA package version 5). Install the
+   for each alarm (HA package version 5). Buzzer alarms offer twelve original
+   sounds with independent choices and browser previews (HA package version 7).
+   Install the
    [alarm package](examples/home-assistant/README.md)
    once; **Add alarm** creates additional persistent HA helpers and timers.
    New alarms start disabled; existing profiles are not duplicated. **Delete**

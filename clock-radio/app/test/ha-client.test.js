@@ -45,3 +45,35 @@ test("HA connection rejects missing credentials and unsafe URLs", () => {
   }
   assert.throws(() => new HAClient({ url: "http://ha" }), /token/);
 });
+
+test("built-in sound URLs use HA's public address and never send authentication to public audio", async () => {
+  const calls = [];
+  const ha = new HAClient({
+    url: "http://supervisor/core", token: "test",
+    fetchImpl: async (url, options) => {
+      calls.push({ url, options });
+      return url.endsWith("/api/config")
+        ? Response.json({ internal_url: "http://ha.lan:8123/", external_url: "https://external.example" })
+        : new Response(null, { headers: { "Content-Type": "audio/wav" } });
+    },
+  });
+  assert.equal(await ha.alarmSoundUrl("morning-light"), "http://ha.lan:8123/local/clock-radio/sounds/v1/morning-light.wav");
+  assert.equal(calls[1].options.method, "HEAD");
+  assert.equal(calls[1].options.headers, undefined);
+  assert.equal(calls[1].options.redirect, "error");
+  await assert.rejects(ha.alarmSoundUrl("missing"), /Unknown/);
+});
+
+test("missing, unsafe or inaccessible HA sound URLs fail explicitly", async () => {
+  for (const config of [{}, { internal_url: "http://user:pass@ha" }, { internal_url: "ftp://ha" }, { internal_url: "https://ha?secret=1" }]) {
+    const ha = new HAClient({ url: "http://ha", token: "test", fetchImpl: async () => Response.json(config) });
+    await assert.rejects(ha.alarmSoundUrl("round-bell"), /Home Assistant/);
+  }
+  for (const response of [new Response(null, { status: 404 }), new Response("login", { headers: { "Content-Type": "text/html" } })]) {
+    const ha = new HAClient({
+      url: "http://ha", token: "test",
+      fetchImpl: async (url) => url.endsWith("/api/config") ? Response.json({ external_url: "https://ha" }) : response,
+    });
+    await assert.rejects(ha.alarmSoundUrl("round-bell"), /not accessible/);
+  }
+});

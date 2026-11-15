@@ -1,5 +1,5 @@
 name: Clock Radio
-version: "0.15.2"
+version: "0.16.0"
 slug: clock_radio
 url: https://github.com/JannicSJensen/ha-clock-radio
 description: Nightstand clock, music overview and Home Assistant alarm settings
@@ -22,6 +22,9 @@ map:
   - type: app_config
     read_only: false
     path: /config
+  - type: homeassistant_config
+    read_only: false
+    path: /homeassistant
 options:
   media_player: ""
   weather_entity: ""

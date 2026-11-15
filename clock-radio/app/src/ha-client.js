@@ -1,4 +1,6 @@
 import WebSocket from "ws";
+import { ALARM_SOUNDS, soundMediaPath } from "../web/js/lib/alarm-sounds.js";
+import { RequestError } from "./errors.js";
 
 export class HAClient {
   constructor({ url, token, fetchImpl = globalThis.fetch }) {
@@ -47,6 +49,23 @@ export class HAClient {
     if (typeof config.time_zone !== "string") throw new Error("Home Assistant did not return its time zone.");
     new Intl.DateTimeFormat("en", { timeZone: config.time_zone });
     return config.time_zone;
+  }
+
+  async alarmSoundUrl(id) {
+    if (!ALARM_SOUNDS.some((sound) => sound.id === id)) throw new RequestError("Unknown built-in alarm sound.");
+    const config = await this.request("config");
+    const base = config.internal_url || config.external_url;
+    if (typeof base !== "string" || !URL.canParse(base)) throw new RequestError("Set a speaker-accessible Home Assistant internal URL in Settings > System > Network before choosing a built-in sound.", 409);
+    const parsed = new URL(base);
+    if (!["http:", "https:"].includes(parsed.protocol) || parsed.username || parsed.password || parsed.search || parsed.hash) {
+      throw new RequestError("The Home Assistant URL for alarm sounds must be HTTP(S), without credentials, query or fragment.", 409);
+    }
+    const url = `${base.replace(/\/+$/, "")}${soundMediaPath(id)}`;
+    const response = await this.fetch(url, { method: "HEAD", redirect: "error", signal: AbortSignal.timeout(8000) });
+    if (!response.ok || !response.headers.get("content-type")?.startsWith("audio/")) {
+      throw new RequestError("The built-in sound is not accessible through Home Assistant. Update/restart Clock Radio to install sounds, check the HA internal URL and restart HA once if its www folder is new.", 409);
+    }
+    return url;
   }
 
   requestWs(message) {

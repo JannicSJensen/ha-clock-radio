@@ -5,6 +5,7 @@ import { alarmEntities, alarmSnapshot, canCreateAlarm, deleteAlarm, provisionAla
 import { availableTabs } from "./music.js";
 import { fetchImage } from "./images.js";
 import { parseClockOptions } from "../web/js/lib/clock-options.js";
+import { ALARM_SOUNDS, alarmSoundId } from "../web/js/lib/alarm-sounds.js";
 export { RequestError } from "./errors.js";
 
 const extraFields = { play_station: "station_id", volume_set: "volume_level", media_seek: "seek_position", shuffle_set: "shuffle", repeat_set: "repeat" };
@@ -150,6 +151,7 @@ export class Dashboard {
     alarms.can_create = canCreateAlarm(alarms);
     alarms.radio_stations = (this.radio?.stations ?? []).map(({ id, name, image }) => ({ id, name, image }));
     alarms.radio_error = this.radio?.error ?? (this.radio ? null : "Music Assistant radio library is unavailable.");
+    alarms.buzzer_sounds = ALARM_SOUNDS;
     for (const alarm of alarms.alarms) {
       const source = alarm.music_source;
       const station = this.radio?.stations.find((item) => item.uri === source);
@@ -157,6 +159,10 @@ export class Dashboard {
       delete alarm.music_source;
       alarm.music_station_id = station?.id ?? null;
       alarm.music_station_name = station?.name ?? null;
+      alarm.buzzer_sound_id = alarmSoundId(alarm.buzzer_source);
+      alarm.buzzer_sound_name = ALARM_SOUNDS.find(({ id }) => id === alarm.buzzer_sound_id)?.name ?? null;
+      alarm.buzzer_source_set = Boolean(alarm.buzzer_source);
+      delete alarm.buzzer_source;
     }
     const clock = this.clockData.payload(config, alarms, this.states, this.haTimeZone);
     clock.error = [clock.error, this.timeZoneError].filter(Boolean).join(" ") || null;
@@ -233,6 +239,7 @@ export class Dashboard {
     await this.mutationReady();
     const { id } = validateAlarm(body);
     let musicSource;
+    let buzzerSource;
     if (Object.hasOwn(body, "music_station_id")) {
       if (body.music_station_id === null) musicSource = "";
       else {
@@ -249,7 +256,12 @@ export class Dashboard {
     if (this.alarmWrites.has(id) || this.alarmWrites.has("playback") || this.alarmWrites.has("create") || this.alarmWrites.has("delete")) throw new RequestError("An alarm is already being edited. Try again when the save finishes.", 409);
     this.alarmWrites.add(id);
     try {
-      await saveAlarm(this.ha, body, this.states, this.logger, musicSource);
+      if (Object.hasOwn(body, "buzzer_sound_id")) {
+        const profile = alarmSnapshot(this.states).alarms.find((alarm) => alarm.id === id);
+        if (!profile?.can_select_sound) throw new RequestError(profile?.buzzer_source_error || "Update the HA alarm package to scheduler version 7 before selecting a Buzzer sound.", 409);
+        buzzerSource = body.buzzer_sound_id === null ? "" : await this.ha.alarmSoundUrl(body.buzzer_sound_id);
+      }
+      await saveAlarm(this.ha, body, this.states, this.logger, musicSource, buzzerSource);
     } finally {
       this.alarmWrites.delete(id);
       await this.refresh();

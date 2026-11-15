@@ -164,7 +164,7 @@ template:
   - sensor:
       - name: Clock Radio Alarm Scheduler Version
         unique_id: clock_radio_alarm_scheduler_version
-        state: "6"
+        state: "7"
       - name: Clock Radio Alarm 1 Wake Time
         unique_id: clock_radio_alarm_1_wake_time
         icon: mdi:eye
@@ -480,7 +480,10 @@ script:
               {{ selected[0].state if selected and selected[0].state != ''
                  else states('input_text.clock_radio_music_source') }}
             {% else %}
-              {{ states('input_text.clock_radio_buzzer_source') }}
+              {% set selected = states.input_text
+                  | selectattr('entity_id', 'eq', 'input_text.' ~ prefix ~ '_buzzer_source') | list %}
+              {{ selected[0].state if selected and selected[0].state != ''
+                 else states('input_text.clock_radio_buzzer_source') }}
             {% endif %}
       - if: >-
           {{ not has_value('input_text.clock_radio_deleting_alarm')
@@ -498,6 +501,7 @@ script:
              or kind not in ['Music', 'Buzzer']
              or (alarm | int > 2 and not is_state('input_boolean.' ~ prefix ~ '_initialized', 'on'))
              or not (source is match('^(https?://|library://|radiobrowser://)'))
+             or (kind == 'Buzzer' and not (source is match('^https?://')))
              or not is_number(states('input_number.' ~ prefix ~ '_volume'))
              or not is_number(states('input_number.' ~ prefix ~ '_duration')) }}
         then:

@@ -43,7 +43,7 @@ test("initialization is guarded, schedules use weekdays and HH:MM, and timer/sta
   assert.deepEqual(config.script.clock_radio_play_alarm.fields.alarm.selector, { text: { multiline: false } },
     "HA package merging must retain the selector type instead of dropping an empty mapping");
   assert.match(config.script.clock_radio_cleanup.sequence[0].target.entity_id, /states.timer/);
-  assert.equal(config.template[0].sensor.find((sensor) => sensor.unique_id === "clock_radio_alarm_scheduler_version").state, "6");
+  assert.equal(config.template[0].sensor.find((sensor) => sensor.unique_id === "clock_radio_alarm_scheduler_version").state, "7");
   for (const required of ["_enabled", "weekday", "_hour", "_minute", "is_number"]) {
     assert.ok(loop.sequence[1].if.includes(required));
   }
@@ -67,6 +67,7 @@ test("Music playback uses each profile's restoring source, falling back only whe
   assert.match(source, /selected\[0\].state != ''/);
   assert.match(source, /clock_radio_music_source/);
   assert.match(source, /clock_radio_buzzer_source/);
+  assert.match(source, /prefix ~ '_buzzer_source'/);
   assert.ok(!config.script.clock_radio_initialize.sequence.some((step) => JSON.stringify(step).includes("_music_source")));
 });
 

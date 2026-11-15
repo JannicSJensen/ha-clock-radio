@@ -8,6 +8,7 @@ import { createServer } from "./server.js";
 import { MusicService } from "./music.js";
 import { RadioLibrary } from "./radio-library.js";
 import { discoverMusicAssistant } from "./discovery.js";
+import { publishAlarmSounds } from "./alarm-sounds.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const version = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;
@@ -38,6 +39,10 @@ const logger = Object.fromEntries(["debug", "info", "warn", "error"].map((name) 
 const port = Number(process.env.PORT ?? 8100);
 if (!Number.isInteger(port) || port < 1 || port > 65535) throw new Error("PORT must be an integer from 1 to 65535.");
 const token = process.env.SUPERVISOR_TOKEN || undefined;
+if ((token || process.env.HA_CONFIG_DIR) && options.read_only !== true) {
+  publishAlarmSounds(path.join(root, "web"), process.env.HA_CONFIG_DIR ?? "/homeassistant");
+  logger.info("Original alarm sounds installed in Home Assistant www/clock-radio/sounds/v1.");
+}
 const ha = new HAClient({
   url: token ? "http://supervisor/core" : process.env.HA_URL,
   token: token ?? process.env.HA_TOKEN,

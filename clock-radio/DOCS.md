@@ -77,7 +77,8 @@ browsing URL/token is not required.
 **Use shared HA default** clears this alarm's override and uses
 `input_text.clock_radio_music_source`. Existing alarms keep this default until
 you save a station. **Cancel** discards the station draft. Switching to Buzzer
-hides the list without losing its selection; Buzzer still uses its shared sound.
+hides the list without losing its selection; Buzzer uses its independently
+selected sound or shared default.
 The saved radio also applies when that Music alarm resumes from Snooze.
 Draft station choices survive polling without moving keyboard focus.
 
@@ -147,6 +148,62 @@ existing helper edits are not overwritten. Review resumed values before enabling
 An incomplete profile is never scheduled. Helpers, times and timers remain in
 HA after app restarts and work with the tablet/app closed.
 
+### Buzzer alarm sounds
+
+Set **Alarm type > Buzzer**, choose **Sound**, then **Save alarm**. Each alarm
+has its own choice. **Use shared HA default** keeps using
+`input_text.clock_radio_buzzer_source`; existing alarms retain that default.
+Changing only the time, enabled switch or other settings preserves the sound.
+Sound drafts survive polling; Cancel discards them.
+
+The twelve original sounds are **Morning Light, Glass Drops, Warm Keys,
+Woodland Tap, Orbit Pulse, Calm Steps, Bright Start, Round Bell, Soft Signal,
+Silver Beat, Slow Sunrise** and **Daybreak Beep**. They are synthesized from
+original patterns, licensed under this repository's MIT license, and are not
+Apple recordings or copies of Apple melodies. Regenerate the WAVs with
+`node dev/generate-sounds.js` from `clock-radio/app`.
+
+**Preview sound** plays once on the tablet/browser, not the HA speaker. It
+stops when you change sounds, leave the editor, switch to Music or save.
+Selecting or saving a sound never starts alarm playback.
+
+Setup for app 0.16.0 and scheduler package **version 7**:
+
+1. Update/restart the Clock Radio app. Its new HA configuration mount publishes
+   the bundled WAVs to HA's `www/clock-radio/sounds/v1/`. Only those versioned
+   files are installed; unrelated files and modified originals are not replaced.
+   Read-only mode does not publish files.
+2. Replace the [HA alarm package](../examples/home-assistant/clock_radio_alarms.yaml),
+   check configuration, and reload **scripts and templates**. No new YAML
+   helpers, initialization reset or alarm rescheduling is required for 6 to 7.
+3. Configure HA's **Settings > System > Network > Home Assistant URL** with an
+   internal HTTP(S) URL reachable from Music Assistant and your speaker. If only
+   an external URL is configured, it is used instead. Credentials, query strings
+   and fragments are not accepted. The app checks that the public WAV is
+   reachable before changing any alarm helpers.
+4. If HA's `www` directory did not exist before installation, restart HA once
+   so its `/local/` route is available. The WAVs are public static files; no HA
+   token is embedded in their URLs or sent when checking/playing them.
+
+On the first saved sound choice, the app creates a restoring, admin-only native
+text helper `input_text.clock_radio_alarm_N_buzzer_source` and explicitly writes
+the chosen absolute audio URL (or empty for shared default). Do not duplicate it
+in YAML, give it an `initial` value, or reset an existing sound. Unavailable or
+unknown existing helpers show an error rather than silently changing the sound.
+Saving verifies HA accepted the source. Failed writes leave the schedule
+disabled and the error visible; inspect the saved values before enabling again.
+Deleting a native alarm also removes its sound helper.
+
+HA plays and repeats the selected WAV until Stop or the wake timer expires,
+including after Snooze. Playback works with the tablet and app closed. Version
+6 retains existing shared Buzzer playback and reliable Snooze but cannot offer
+per-alarm sound selection.
+
+Standalone deployments must copy `app/web/sounds/v1/` into HA's
+`www/clock-radio/sounds/v1/`, or set `HA_CONFIG_DIR` to the mounted HA configuration
+directory before starting the server. HA's internal/external URL is still
+required; the app's ingress URL and Supervisor proxy URL are not media URLs.
+
 ## Deleting alarms
 
 Use the red trash button on an alarm row or **Delete alarm** in its editor.
@@ -165,7 +222,7 @@ persistently disables and hides them instead. Their YAML helpers remain in HA,
 but scheduled/manual starts and Snooze resumption are blocked.
 
 Install/reload the current [HA package](../examples/home-assistant/README.md),
-including scheduler version **6**, its deletion helpers and preparation script.
+including scheduler version **7**, its deletion helpers and preparation script.
 Existing saved settings and initialization flags must not be reset.
 Packages without the deletion helpers retain their existing controls but cannot Delete.
 
@@ -217,11 +274,12 @@ pretending snooze has ended. A stale cancellation cannot dismiss a replacement
 alarm: the stop request must match the current snoozed ID, type and deadline.
 
 A new alarm replaces a pending snooze. Resuming uses the captured Music/Buzzer
-type with the profile's current duration/volume and current shared speaker/source.
+type with the profile's current duration/volume, shared speaker and current
+per-alarm source (or shared source when no override is saved).
 No schedule is enabled or disabled by snoozing.
 
 For reliable captured ringing state and Snooze, replace the installed HA package
-with the current version (scheduler version **6**), including the new text and
+with the current version (scheduler version **7**), including the new text and
 date/time helpers. Check configuration and reload helpers, scripts, templates
 and automations; restart HA if `input_datetime` was not previously loaded.
 Do not rerun/reset initialization flags. Older packages still support the
