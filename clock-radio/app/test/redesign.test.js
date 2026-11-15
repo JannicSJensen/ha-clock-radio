@@ -775,7 +775,7 @@ test("four-page HTTP integration browses Dasher music, plays only registered ite
   const html = await (await fetch(app.url)).text();
   const menus = [...html.matchAll(/data-page="([^"]+)"/g)].map((match) => match[1]);
   assert.deepEqual(menus, []);
-  assert.deepEqual([...html.matchAll(/<section id="page-([^"]+)"/g)].map((match) => match[1]), ["clock", "music", "alarms", "settings"]);
+  assert.deepEqual([...html.matchAll(/<section id="page-([^"]+)"/g)].map((match) => match[1]), ["clock", "alarms", "music", "settings"]);
   assert.match(html, /id="page-alarms" class="page settings-page" aria-label="Alarm configuration" hidden/);
   const settings = await (await fetch(`${app.url}/js/pages/settings.js`)).text();
   assert.doesNotMatch(settings, /Alarm playback|api\/settings\/alarm-playback/);
@@ -1091,6 +1091,8 @@ test("adding alarms provisions scoped persistent helpers and leaves existing pro
     assert.equal(profile.days.monday, true);
     assert.equal(profile.days.sunday, false);
     assert.equal(profile.timer, "idle");
+    assert.equal(profile.can_select_radio, true);
+    assert.equal(app.states.find((state) => state.entity_id === `input_text.clock_radio_alarm_${id}_music_source`).state, "");
   }
   assert.equal(app.helperRequests.length, 32);
   assert.ok(app.helperRequests.every((request) => !Object.hasOwn(request, "initial")));
@@ -1117,6 +1119,65 @@ test("legacy schedulers and invalid creation requests cannot create HA helpers",
   app.states.find((state) => state.entity_id === "sensor.clock_radio_alarm_scheduler_version").state = "1";
   assert.equal((await app.post("api/alarm/create", {})).status, 409);
   assert.equal(app.helperRequests.length, 0);
+});
+
+test("native radio text helpers start unknown and initialize before setup completes", async (t) => {
+  const app = await setup(t);
+  const original = app.ha.callService.bind(app.ha);
+  let initialized = 0;
+  app.ha.callService = async (domain, service, data) => {
+    if (domain === "input_text" && data.entity_id === "input_text.clock_radio_alarm_3_music_source") {
+      assert.equal(service, "set_value");
+      assert.equal(data.value, "");
+      assert.equal(app.states.find((state) => state.entity_id === data.entity_id).state, "unknown");
+      assert.equal(app.states.find((state) => state.entity_id === "input_boolean.clock_radio_alarm_3_initialized").state, "off");
+      initialized++;
+    }
+    return original(domain, service, data);
+  };
+  assert.equal((await app.post("api/alarm/create", {})).status, 200);
+  assert.equal(initialized, 1);
+  assert.equal((await app.get("api/state")).alarms.alarms[2].can_select_radio, true);
+});
+
+test("failed or unconfirmed radio initialization leaves setup disabled and can resume without duplicate helpers", async (t) => {
+  for (const failure of ["error", "no-op"]) {
+    await t.test(failure, async (t) => {
+      const app = await setup(t);
+      const original = app.ha.callService.bind(app.ha);
+      app.ha.callService = async (domain, service, data) => {
+        if (domain === "input_text" && data.entity_id === "input_text.clock_radio_alarm_3_music_source") {
+          if (failure === "error") throw new Error("Radio initialization failed");
+          return;
+        }
+        return original(domain, service, data);
+      };
+      assert.equal((await app.post("api/alarm/create", {})).status, 502);
+      const partial = (await app.get("api/state")).alarms.alarms[2];
+      assert.equal(partial.setup_complete, false);
+      assert.equal(partial.enabled, false);
+      assert.equal(partial.can_select_radio, false);
+      assert.equal(app.states.find((state) => state.entity_id === "input_text.clock_radio_alarm_3_music_source").state, "unknown");
+      app.ha.callService = original;
+      await original("input_number", "set_value", { entity_id: "input_number.clock_radio_alarm_3_volume", value: 40 });
+      if (failure === "error") {
+        const source = app.states.find((state) => state.entity_id === "input_text.clock_radio_alarm_3_music_source");
+        source.state = "unavailable";
+        const before = app.calls.length;
+        assert.equal((await app.post("api/alarm/create", { id: 3 })).status, 502);
+        assert.equal(source.state, "unavailable");
+        assert.equal(app.calls.length, before);
+        source.state = "unknown";
+      }
+      assert.equal((await app.post("api/alarm/create", { id: 3 })).status, 200);
+      const resumed = (await app.get("api/state")).alarms.alarms[2];
+      assert.equal(resumed.setup_complete, true);
+      assert.equal(resumed.enabled, false);
+      assert.equal(resumed.can_select_radio, true);
+      assert.equal(resumed.volume, 40);
+      assert.equal(app.helperRequests.length, 16);
+    });
+  }
 });
 
 test("partial helper creation is visible, disabled and resumable without duplicate entities", async (t) => {
@@ -1156,8 +1217,11 @@ test("failed initialization cannot be enabled and resuming preserves existing he
   assert.equal((await app.post("api/settings/alarm", settings)).status, 409);
   app.ha.callService = original;
   await original("input_number", "set_value", { entity_id: "input_number.clock_radio_alarm_3_volume", value: 40 });
+  const station = app.radio.stations[0].uri;
+  await original("input_text", "set_value", { entity_id: "input_text.clock_radio_alarm_3_music_source", value: station });
   assert.equal((await app.post("api/alarm/create", { id: 3 })).status, 200);
   assert.equal((await app.get("api/state")).alarms.alarms[2].volume, 40);
+  assert.equal(app.states.find((state) => state.entity_id === "input_text.clock_radio_alarm_3_music_source").state, station);
 });
 
 test("the configured speaker is the only target and synchronizes all alarm schedules safely", async (t) => {

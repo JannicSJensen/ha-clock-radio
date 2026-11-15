@@ -243,6 +243,17 @@ export async function provisionAlarm(ha, states, body, logger) {
         if (definition.domain === "input_number") await ha.callService("input_number", "set_value", { entity_id: definition.entity_id, value: definition.value });
         else if (definition.domain === "input_boolean" && definition.key !== "enabled" && definition.value) await ha.callService("input_boolean", "turn_on", { entity_id: definition.entity_id });
       }
+      const source = definitions.find((definition) => definition.entity_id === alarmMusicSourceEntity(id));
+      if (source) {
+        const state = fresh.find((state) => state.entity_id === source.entity_id).state;
+        if (state === "unavailable") throw new Error(`${source.entity_id} is unavailable. Restore it in HA before finishing setup.`);
+        if (created.includes(source) || state === "unknown") {
+          await ha.callService("input_text", "set_value", { entity_id: source.entity_id, value: "" });
+          if ((await ha.states()).find((state) => state.entity_id === source.entity_id)?.state !== "") {
+            throw new Error(`HA did not initialize ${source.entity_id}. Use Finish setup to retry.`);
+          }
+        }
+      }
       await ha.callService("input_boolean", "turn_on", { entity_id: initialized });
       const result = alarmSnapshot(await ha.states()).alarms.find((alarm) => alarm.id === id);
       if (!result?.available || !result.setup_complete || result.enabled || result.timer === null) throw new Error("HA alarm setup did not finish.");

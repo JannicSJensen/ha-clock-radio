@@ -89,6 +89,29 @@ source helper; existing app-created profiles receive it through HA's admin-only
 API when their first station choice is saved. Do not reset initialization flags.
 Older packages can still edit existing alarm settings but cannot choose a station.
 
+HA can create a native text helper with state `unknown`, not an empty string.
+The app explicitly initializes new per-alarm sources to empty (shared default)
+and verifies the result before finishing setup. **Finish setup** can initialize
+an unknown source on a disabled, incomplete profile without resetting saved
+station values or other existing helper edits.
+
+If an already-complete profile created by an older app release has this problem,
+first confirm that its Music Source helper is `unknown`, not `unavailable` and
+not a saved station URI. In HA **Developer tools > Actions**, initialize only
+that helper once, replacing `3` with the affected profile's helper ID:
+
+```yaml
+action: input_text.set_value
+target:
+  entity_id: input_text.clock_radio_alarm_3_music_source
+data:
+  value: ""
+```
+
+Then select a station and save in the alarm editor. Do not clear an existing
+station URI or reset alarm initialization flags. An `unavailable` helper still
+requires restoring its HA integration; the app does not silently reset it.
+
 An empty or failed library shows an explicit message. Add radios to Music
 Assistant's library; normal radio refresh is every five minutes (one minute after
 an error). A previously saved station missing from the current library remains

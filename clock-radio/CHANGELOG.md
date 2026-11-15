@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.14.4
+
+- Initialize and verify newly created Music Source helpers before marking an
+  alarm ready, fixing disabled radio selection caused by HA's `unknown` state.
+- Recover unknown sources during incomplete setup retries while preserving saved
+  stations and other helper edits. Keep failed/no-op initialization recoverable
+  and genuinely unavailable helpers explicit.
+- Match native text-helper defaults in the demo/tests and document one-time
+  recovery for already-complete profiles created by older releases.
+
 ## 0.14.3
 
 - Remove numbered alarm names from the list, editor, delete confirmation,

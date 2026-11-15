@@ -354,7 +354,7 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
           socket.send(JSON.stringify({ type: "result", id: message.id, success: false, error: { message: "Entity already exists." } }));
           return;
         }
-        const state = domain === "input_boolean" ? "off" : domain === "timer" ? "idle" : domain === "input_select" ? message.options[0] : domain === "input_text" ? "" : String(message.min);
+        const state = domain === "input_boolean" ? "off" : domain === "timer" ? "idle" : domain === "input_select" ? message.options[0] : domain === "input_text" ? "unknown" : String(message.min);
         states.push({ entity_id, state, attributes: { friendly_name: message.name, min: message.min, max: message.max, step: message.step, options: message.options } });
         nativeHelpers.set(entity_id, { domain, id: objectId, name: message.name });
         socket.send(JSON.stringify({ type: "result", id: message.id, success: true, result: { id: objectId, name: message.name } }));
