@@ -50,6 +50,45 @@ test("legacy packages still show the ringing screen but cannot offer snooze", ()
   assert.equal(alarmSnapshot(states).active, null, "Do not guess between multiple legacy timers");
 });
 
+test("packages with fractional-deadline bugs retain Stop but cannot create new snoozes", () => {
+  const demo = createDemoAPI();
+  demo.startAlarm(2);
+  const version = demo.states.find((state) => state.entity_id === "sensor.clock_radio_alarm_scheduler_version");
+  for (const old of ["3", "4", "5", "unknown"]) {
+    version.state = old;
+    const snapshot = alarmSnapshot(demo.states);
+    assert.equal(snapshot.active.type, "Buzzer");
+    assert.equal(snapshot.can_stop, true);
+    assert.equal(snapshot.can_snooze, false);
+  }
+  version.state = "6";
+  assert.equal(alarmSnapshot(demo.states).can_snooze, true);
+});
+
+test("exact and recovery triggers resume legacy fractional snoozes once for either captured type", () => {
+  for (const [id, type, delay] of [[1, "Music", 4], [2, "Buzzer", 4], [1, "Music", 60004], [2, "Buzzer", 60004]]) {
+    const demo = createDemoAPI();
+    demo.startAlarm(id);
+    const entity = (name) => demo.states.find((state) => state.entity_id === name);
+    entity("input_text.clock_radio_snoozed_alarm").state = entity("input_text.clock_radio_active_alarm").state;
+    entity("input_text.clock_radio_active_alarm").state = "";
+    entity("input_text.clock_radio_active_player").state = "";
+    entity(`timer.clock_radio_alarm_${id}`).state = "idle";
+    entity(`input_select.clock_radio_alarm_${id}_type`).state = type === "Music" ? "Buzzer" : "Music";
+    const timestamp = Date.parse("2030-01-01T06:10:00.875Z") / 1000;
+    entity("input_datetime.clock_radio_snooze_until").attributes.timestamp = timestamp;
+    const triggerAt = Math.floor(timestamp) * 1000 + delay;
+    demo.advanceAlarms(Math.floor(timestamp) * 1000 - 1);
+    assert.equal(alarmSnapshot(demo.states).active, null);
+    demo.advanceAlarms(triggerAt);
+    const resumed = alarmSnapshot(demo.states);
+    assert.equal(resumed.active.type, type);
+    assert.equal(resumed.snoozed, null);
+    demo.advanceAlarms(triggerAt + 100);
+    assert.deepEqual(alarmSnapshot(demo.states).active, resumed.active);
+  }
+});
+
 test("invalid captured context/deadlines surface errors and unavailable snooze helpers block commands", () => {
   const demo = createDemoAPI();
   demo.startAlarm(1);

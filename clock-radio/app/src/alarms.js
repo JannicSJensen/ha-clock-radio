@@ -113,7 +113,8 @@ export function alarmSnapshot(states) {
       && deletionState && deletionValid && !deleteError && scriptAvailable("prepare_delete")
       && scriptAvailable("cleanup") && scriptAvailable("play_alarm")
       && [1, 2].every((id) => ["on", "off"].includes(index.get(`input_boolean.${prefix(id)}_deleted`)?.state))),
-    can_snooze: Boolean(active && captured && profile.timer === "active" && !activeError && scriptAvailable("snooze")
+    can_snooze: Boolean(Number(index.get("sensor.clock_radio_alarm_scheduler_version")?.state) >= 6
+      && active && captured && profile.timer === "active" && !activeError && scriptAvailable("snooze")
       && scriptAvailable("resume_snooze") && index.has("input_text.clock_radio_snoozed_alarm")
       && !["unknown", "unavailable"].includes(index.get("input_text.clock_radio_snoozed_alarm").state)
       && typeof snoozeAt === "number" && Number.isFinite(snoozeAt)

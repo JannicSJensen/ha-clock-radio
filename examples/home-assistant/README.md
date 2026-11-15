@@ -23,7 +23,7 @@ configuration and reload input selects (restart HA if necessary).
 Do not install duplicate definitions if the helper already exists.
 See the [clock configuration guide](../../clock-radio/DOCS.md#manual-clock-color-test)
 for behavior, status and error handling. The alarm package below stays at
-scheduler protocol 5.
+scheduler protocol 6.
 
 ## Install
 
@@ -125,15 +125,24 @@ The wake countdown remains separate from the fixed **10-minute** snooze.
 
 For an existing installation, replace this package including its new helpers,
 check configuration and reload the affected integrations. It now exposes
-`sensor.clock_radio_alarm_scheduler_version: 5`. Add
+`sensor.clock_radio_alarm_scheduler_version: 6`. Add
 `input_text.clock_radio_active_alarm`, `input_text.clock_radio_snoozed_alarm`
 and `input_datetime.clock_radio_snooze_until`, plus the deletion helpers below;
 do not reset existing profile or
 initialization helpers. Restart HA if date/time helpers were not loaded before.
-Older packages retain Stop and the ringing screen, but cannot Snooze.
+Older packages retain Stop and the ringing screen, but the app requires version 6
+for reliable Snooze.
 
 `script.clock_radio_snooze` captures the ringing profile/type, stops playback
 and restores the speaker, then persists a deadline 600 seconds away.
+The deadline rounds up to a whole second so it matches HA's time-trigger
+precision. The due check also accepts older fractional deadlines at their
+displayed whole second. A minute-based recovery trigger catches due snoozes
+missed during automation reloads; clearing the captured context prevents repeats.
+To upgrade an existing version 5 installation, replace the package, check
+configuration and reload scripts, automations and template entities. No new
+helpers or reinitialization are required. Cancel any overdue snooze before
+reloading if you do not want it to ring immediately.
 `script.clock_radio_resume_snooze` starts it once when due, even if its schedule
 is disabled. The captured type is preserved through edits; current
 volume/duration, per-profile Music source and shared speaker/Buzzer settings are

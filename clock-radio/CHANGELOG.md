@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.15.2
+
+- Fix Music/Buzzer snoozes failing to ring again when HA's whole-second time
+  trigger ran before a fractional-second stored deadline.
+- Scheduler package version 6 stores whole-second deadlines, accepts legacy
+  fractional deadlines at the trigger's precision and retries missed due
+  snoozes once per minute without starting an alarm twice.
+- Require the corrected HA package before offering new snoozes; existing
+  ringing alarms retain Stop. Update the installed package and reload scripts,
+  automations and templates; updating the app alone cannot repair HA scheduling.
+
 ## 0.15.1
 
 - Cache and revalidate static browser assets with content ETags, returning

@@ -128,8 +128,8 @@ export function createAlarmScreen(ctx, { onOpen, onClose }) {
     if (document.activeElement !== volume && Number.isFinite(player?.volume_level)) volume.value = String(Math.round(player.volume_level * 100));
     snooze.disabled = locked || !model.alarms.can_snooze;
     snoozeHint.textContent = model.alarms.can_snooze ? "Ring again in 10 minutes"
-      : Number(model.alarms.scheduler_version) >= 3 ? "Snooze is unavailable. Check the HA alarm scripts and helpers."
-      : "Update the HA alarm package to enable 10-minute Snooze.";
+      : Number(model.alarms.scheduler_version) >= 6 ? "Snooze is unavailable. Check the HA alarm scripts and helpers."
+      : "Update the HA alarm package to scheduler version 6 for reliable Snooze.";
     slide.setDisabled(locked || !model.alarms.can_stop);
     const policyMessage = !model.connected ? "Disconnected. Reconnect to stop or snooze the alarm."
       : model.read_only ? "Read-only. Use Home Assistant to stop or snooze the alarm."

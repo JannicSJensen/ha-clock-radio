@@ -165,9 +165,9 @@ persistently disables and hides them instead. Their YAML helpers remain in HA,
 but scheduled/manual starts and Snooze resumption are blocked.
 
 Install/reload the current [HA package](../examples/home-assistant/README.md),
-including scheduler version **5**, its deletion helpers and preparation script.
+including scheduler version **6**, its deletion helpers and preparation script.
 Existing saved settings and initialization flags must not be reset.
-Older packages retain their existing controls but cannot Delete.
+Packages without the deletion helpers retain their existing controls but cannot Delete.
 
 If a deletion fails, its profile remains visible and disabled with a pending
 deletion message. Check the reported HA permissions/helper or speaker error
@@ -221,12 +221,19 @@ type with the profile's current duration/volume and current shared speaker/sourc
 No schedule is enabled or disabled by snoozing.
 
 For reliable captured ringing state and Snooze, replace the installed HA package
-with the current version (scheduler version **5**), including the new text and
+with the current version (scheduler version **6**), including the new text and
 date/time helpers. Check configuration and reload helpers, scripts, templates
 and automations; restart HA if `input_datetime` was not previously loaded.
 Do not rerun/reset initialization flags. Older packages still support the
 ringing screen when exactly one alarm timer and an active speaker identify it,
-but Snooze is disabled with an upgrade message.
+but Snooze now requires scheduler version **6** and is disabled with an upgrade
+message on older packages. Version 6 fixes fractional-second deadlines that
+could cause the one-shot time trigger to run before the due check accepted it.
+New deadlines use whole seconds, and a minute-based recovery trigger catches
+missed due snoozes. Existing version 5 installations need scripts, automations
+and templates reloaded after replacing the package; no helper values or
+initialization flags should be reset. Cancel an overdue snooze first if you
+do not want the recovery trigger to ring it during the update.
 The Snooze deadline survives HA restarts: future snoozes remain pending, and
 an overdue snooze rings once when HA starts again. Ordinary alarms missed while
 HA was down are not replayed.

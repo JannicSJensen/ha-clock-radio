@@ -164,7 +164,7 @@ template:
   - sensor:
       - name: Clock Radio Alarm Scheduler Version
         unique_id: clock_radio_alarm_scheduler_version
-        state: "5"
+        state: "6"
       - name: Clock Radio Alarm 1 Wake Time
         unique_id: clock_radio_alarm_1_wake_time
         icon: mdi:eye
@@ -328,7 +328,7 @@ script:
         target:
           entity_id: input_datetime.clock_radio_snooze_until
         data:
-          timestamp: "{{ as_timestamp(now()) + 600 }}"
+          timestamp: "{{ (as_timestamp(now()) + 600) | round(0, 'ceil') | int }}"
       - action: input_text.set_value
         target:
           entity_id: input_text.clock_radio_snoozed_alarm
@@ -346,7 +346,7 @@ script:
           {{ (snoozed.get('id', '') | string) is match('^[1-9][0-9]*$')
              and snoozed.get('type') in ['Music', 'Buzzer']
              and state_attr('input_datetime.clock_radio_snooze_until', 'timestamp') is number
-             and state_attr('input_datetime.clock_radio_snooze_until', 'timestamp') <= as_timestamp(now()) }}
+             and (state_attr('input_datetime.clock_radio_snooze_until', 'timestamp') | int) <= as_timestamp(now()) }}
       - if: >-
           {{ not has_value('input_text.clock_radio_deleting_alarm')
              or not (states('input_text.clock_radio_deleting_alarm') == ''
@@ -636,6 +636,12 @@ automation:
     triggers:
       - trigger: time
         at: input_datetime.clock_radio_snooze_until
+      - trigger: time_pattern
+        minutes: "/1"
+        seconds: "0"
+    conditions:
+      - condition: template
+        value_template: "{{ states('input_text.clock_radio_snoozed_alarm') not in ['', 'unknown', 'unavailable'] }}"
     actions:
       - action: script.clock_radio_resume_snooze
   - id: clock_radio_startup

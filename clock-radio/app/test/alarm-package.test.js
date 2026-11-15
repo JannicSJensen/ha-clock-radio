@@ -43,7 +43,7 @@ test("initialization is guarded, schedules use weekdays and HH:MM, and timer/sta
   assert.deepEqual(config.script.clock_radio_play_alarm.fields.alarm.selector, { text: { multiline: false } },
     "HA package merging must retain the selector type instead of dropping an empty mapping");
   assert.match(config.script.clock_radio_cleanup.sequence[0].target.entity_id, /states.timer/);
-  assert.equal(config.template[0].sensor.find((sensor) => sensor.unique_id === "clock_radio_alarm_scheduler_version").state, "5");
+  assert.equal(config.template[0].sensor.find((sensor) => sensor.unique_id === "clock_radio_alarm_scheduler_version").state, "6");
   for (const required of ["_enabled", "weekday", "_hour", "_minute", "is_number"]) {
     assert.ok(loop.sequence[1].if.includes(required));
   }
@@ -83,15 +83,18 @@ test("ringing context is captured, 10-minute snooze survives restart and stop/ne
   assert.ok(play.indexOf(capture) > play.findIndex((step) => step.action === "timer.start"));
   const snooze = config.script.clock_radio_snooze.sequence;
   assert.equal(snooze.find((step) => step.action === "script.clock_radio_cleanup").action, "script.clock_radio_cleanup");
-  assert.equal(snooze.find((step) => step.action === "input_datetime.set_datetime").data.timestamp, "{{ as_timestamp(now()) + 600 }}");
+  assert.equal(snooze.find((step) => step.action === "input_datetime.set_datetime").data.timestamp, "{{ (as_timestamp(now()) + 600) | round(0, 'ceil') | int }}");
   assert.equal(snooze.at(-1).target.entity_id, "input_text.clock_radio_snoozed_alarm");
   assert.match(snooze[1].if, /'active'/);
   assert.equal(snooze[1].then[0].error, true);
   const resume = config.script.clock_radio_resume_snooze.sequence;
-  assert.match(resume[1].value_template, /<= as_timestamp\(now\(\)\)/);
+  assert.match(resume[1].value_template, /timestamp'\) \| int\) <= as_timestamp\(now\(\)\)/);
   assert.equal(resume.at(-1).data.variables.alarm_type, "{{ snoozed['type'] }}");
   assert.ok(resume.some((step) => step.target?.entity_id === "input_text.clock_radio_snoozed_alarm"));
-  assert.equal(config.automation.find((item) => item.id === "clock_radio_snooze_finished").triggers[0].at, "input_datetime.clock_radio_snooze_until");
+  const finished = config.automation.find((item) => item.id === "clock_radio_snooze_finished");
+  assert.equal(finished.triggers[0].at, "input_datetime.clock_radio_snooze_until");
+  assert.deepEqual(finished.triggers[1], { trigger: "time_pattern", minutes: "/1", seconds: "0" });
+  assert.match(finished.conditions[0].value_template, /not in \['', 'unknown', 'unavailable'\]/);
   assert.equal(config.automation.find((item) => item.id === "clock_radio_startup").actions.at(-1).action, "script.clock_radio_resume_snooze");
   const clearsPending = (step) => step.target?.entity_id === "input_text.clock_radio_snoozed_alarm" && step.data?.value === "";
   assert.ok(config.script.clock_radio_stop.sequence.some(clearsPending));

@@ -333,7 +333,10 @@ export class Dashboard {
     await this.mutationReady();
     if (this.alarmWrites.has("delete")) throw new RequestError("Wait for the alarm deletion to finish.", 409);
     if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length) throw new RequestError("Snooze alarm takes an empty object.");
-    if (!alarmSnapshot(this.states).can_snooze) throw new RequestError("No alarm can be snoozed. Update the HA alarm package and check that an alarm is ringing.", 409);
+    const snapshot = alarmSnapshot(this.states);
+    if (!snapshot.can_snooze) throw new RequestError(Number(snapshot.scheduler_version) >= 6
+      ? "No alarm can be snoozed. Check the HA alarm helpers and that an alarm is ringing."
+      : "Update the HA alarm package to scheduler version 6 for reliable Snooze.", 409);
     try {
       await this.ha.callService("script", "clock_radio_snooze", {});
     } catch (error) {

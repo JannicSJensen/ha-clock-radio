@@ -84,7 +84,7 @@ export function demoStates() {
   states.push({ entity_id: "script.clock_radio_snooze", state: "off", attributes: {} });
   states.push({ entity_id: "script.clock_radio_resume_snooze", state: "off", attributes: {} });
   states.push({ entity_id: "input_datetime.clock_radio_snooze_until", state: "2000-01-01 00:00:00", attributes: { timestamp: 946684800 } });
-  states.push({ entity_id: "sensor.clock_radio_alarm_scheduler_version", state: "5", attributes: {} });
+  states.push({ entity_id: "sensor.clock_radio_alarm_scheduler_version", state: "6", attributes: {} });
   return states;
 }
 
@@ -141,7 +141,7 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
   function advanceAlarms(now = Date.now()) {
     const snoozed = entity("input_text.clock_radio_snoozed_alarm")?.state;
     const until = entity("input_datetime.clock_radio_snooze_until")?.attributes.timestamp;
-    if (snoozed && Number.isFinite(until) && until * 1000 <= now) {
+    if (snoozed && Number.isFinite(until) && Math.floor(until) * 1000 <= now) {
       const alarm = JSON.parse(snoozed);
       if (!deletionReady(alarm.id)) throw new Error("Invalid alarm deletion helpers.");
       if (entity("input_text.clock_radio_deleting_alarm")?.state === String(alarm.id) || entity(`input_boolean.clock_radio_alarm_${alarm.id}_deleted`)?.state === "on") {
@@ -235,7 +235,7 @@ export function createDemoAPI({ states = demoStates(), library = demoLibrary(), 
         cleanupAlarm();
         entity("input_text.clock_radio_snoozed_alarm").state = active;
         const until = entity("input_datetime.clock_radio_snooze_until");
-        until.attributes.timestamp = Math.floor(Date.now() / 1000) + 600;
+        until.attributes.timestamp = Math.ceil(Date.now() / 1000 + 600);
         until.state = new Date(until.attributes.timestamp * 1000).toISOString();
         return reply(200, []);
       }

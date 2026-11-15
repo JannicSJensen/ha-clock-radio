@@ -861,7 +861,9 @@ test("ringing alarm API snoozes both types for 600 seconds, exposes the next wak
     assert.equal(state.alarms.active_player, "");
     assert.equal(state.alarms.snoozed.type, type);
     assert.equal(state.alarms.snoozed.id, id);
-    assert.ok(Math.abs(Date.parse(state.alarms.snoozed.until) - before - 600000) < 1500);
+    assert.equal(Date.parse(state.alarms.snoozed.until) % 1000, 0, "Persist a whole-second deadline matching HA's time trigger");
+    assert.ok(Date.parse(state.alarms.snoozed.until) >= before + 600000);
+    assert.ok(Date.parse(state.alarms.snoozed.until) < Date.now() + 601000);
     assert.equal(state.clock.alarm, state.alarms.snoozed.until);
     assert.equal(state.players[0].state, "idle");
     assert.equal(state.players[0].volume_level, 0.3);
@@ -887,6 +889,21 @@ test("ringing alarm API snoozes both types for 600 seconds, exposes the next wak
   assert.equal(stopped.active, null);
   assert.equal(stopped.active_player, "");
   assert.ok(stopped.alarms.every((alarm) => alarm.timer === "idle"));
+});
+
+test("old scheduler packages cannot accept new snoozes but still allow stopping the alarm", async (t) => {
+  const app = await setup(t);
+  app.startAlarm(2);
+  app.states.find((state) => state.entity_id === "sensor.clock_radio_alarm_scheduler_version").state = "5";
+  await app.dashboard.refresh();
+  const before = app.calls.length;
+  assert.equal((await app.get("api/state")).alarms.can_snooze, false);
+  const rejected = await app.post("api/alarm/snooze", {});
+  assert.equal(rejected.status, 409);
+  assert.match((await rejected.json()).error, /scheduler version 6/);
+  assert.equal(app.calls.length, before);
+  assert.equal((await app.post("api/alarm/stop", {})).status, 200);
+  assert.equal((await app.get("api/state")).alarms.active, null);
 });
 
 test("scoped snooze cancellation handles both alarm types without accepting stale targets", async (t) => {
