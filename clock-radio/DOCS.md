@@ -11,6 +11,16 @@ There is no menu. Swipe **up/down** between **The Clock**, **Alarm configuration
 form inputs. Scroll to the top/bottom first in Alarm configuration, Music and
 Settings: ordinary scrolling never changes pages mid-scroll. Open player dialogs
 and sliders do not trigger page swipes.
+After two minutes without touch, mouse, scrolling or keyboard activity, Alarm
+configuration, Music and Settings automatically return to The Clock. Set
+`return_to_clock_minutes` in **Settings > Apps > Clock Radio > Configuration**
+to change the timeout (whole minutes, 0-1440; `0` disables it), then restart the
+app. Activity and page changes restart the countdown. Open editors/dialogs,
+ringing alarms, held touch/pointer gestures and pending saves pause it; a fresh
+countdown starts when they finish. Returning to the clock does not stop music,
+change HA alarms or discard unsaved inline Settings values. Background state
+polling does not count as activity; an overdue idle page returns when a
+backgrounded browser becomes active again.
 Four dots at the bottom of every main page show your position, left to right:
 Clock, Alarm configuration, Music, Settings. The active page has a grey dot;
 the other dots are darker. They are position indicators, not buttons. Screen
@@ -516,6 +526,10 @@ separate from the automatic ringing-alarm screen.
 Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
 
 - `log_level`: `debug`, `info` (default), `warning` or `error`.
+- `return_to_clock_minutes`: minutes of inactivity before Alarm configuration,
+  Music or Settings returns to The Clock. Defaults to `2`; whole numbers from
+  `0` to `1440` are accepted, with `0` disabling automatic return. Dialogs and
+  pending saves pause the timeout; music and unsaved Settings drafts remain.
 - `media_player`: one HA entity ID, for example `media_player.sovevaerelse`.
   Required for playback. Used by Music and every alarm; the app updates
   `input_text.clock_radio_player` without changing alarm times or enable choices.

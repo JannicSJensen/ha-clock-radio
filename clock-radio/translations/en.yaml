@@ -8,6 +8,9 @@ configuration:
   sun_entity:
     name: Sun entity
     description: HA Sun entity ID used by Sun night mode, for example sun.sun. Empty uses sun.sun. Below the horizon enables night colors; above restores daytime colors. Select Sun mode in the dashboard settings and restart the app after changing this entity.
+  return_to_clock_minutes:
+    name: Return to clock after inactivity (minutes)
+    description: Return from Alarm configuration, Music or Settings after this many minutes without touch, mouse, scroll or keyboard activity. Default 2; 0 disables it. Open dialogs and pending saves pause the timeout. Music continues and Settings drafts are retained. Restart after changing.
   log_level:
     name: Log level
     description: How much the app writes to its log. Restart after changing.

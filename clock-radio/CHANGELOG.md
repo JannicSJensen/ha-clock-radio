@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.17.0
+
+- Return Alarm configuration, Music and Settings to The Clock after two minutes
+  of inactivity. Configure `return_to_clock_minutes` in the HA app options
+  (0-1440 whole minutes; `0` disables it), then restart the app.
+- Touch, pointer, scroll and keyboard activity restart the countdown. Open
+  editors/dialogs, ringing alarms, held pointers and pending saves pause it.
+  Polling does not reset it; overdue background pages return when visible again.
+- Keep music playing, HA alarm schedules unchanged and unsaved inline Settings
+  drafts intact. No HA scheduler package update is required.
+
 ## 0.16.0
 
 - Add twelve original, MIT-licensed Buzzer alarm sounds with a separate saved

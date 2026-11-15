@@ -53,8 +53,8 @@ export function validateCommand(body, { config, players, readOnly }) {
 }
 
 export class Dashboard {
-  constructor({ ha, configStore, music = null, radio = null, mediaPlayer = "", weatherEntity = "", sunEntity = "sun.sun", readOnly = false, demo = false, version, logger = console }) {
-    Object.assign(this, { ha, configStore, music, radio, mediaPlayer, weatherEntity, sunEntity, readOnly, demo, version, logger });
+  constructor({ ha, configStore, music = null, radio = null, mediaPlayer = "", weatherEntity = "", sunEntity = "sun.sun", returnToClockMinutes = 2, readOnly = false, demo = false, version, logger = console }) {
+    Object.assign(this, { ha, configStore, music, radio, mediaPlayer, weatherEntity, sunEntity, returnToClockMinutes, readOnly, demo, version, logger });
     this.states = [];
     this.connected = false;
     this.connectionError = "Connecting to Home Assistant.";
@@ -179,6 +179,7 @@ export class Dashboard {
       config: {
         title: config.title, locale: config.locale, time_zone: config.time_zone,
         sun_entity: this.sunEntity,
+        return_to_clock_minutes: this.returnToClockMinutes,
         clock_24h: config.clock_24h, show_seconds: config.show_seconds,
         default_player: this.mediaPlayer,
         stations: config.stations.map(({ id, name }) => ({ id, name })),

@@ -7,6 +7,7 @@ import { createNowPlayingScreen } from "./js/components/nowplaying-screen.js";
 import { createSettingsPages } from "./js/pages/settings.js";
 import { createAlarmScreen } from "./js/components/alarm-screen.js";
 import { snoozeKey } from "./js/components/snooze-panel.js";
+import { IdleReturn } from "./js/core/idle-return.js";
 
 const $ = (id) => document.getElementById(id);
 const frame = $("clock-frame");
@@ -38,6 +39,16 @@ let currentSnoozeKey = null;
 let snoozeStopping = false;
 let snoozeError = "";
 let snoozeConfirmation = null;
+const idleReturn = new IdleReturn();
+const activePointers = new Set();
+
+function checkIdleReturn() {
+  if (idleReturn.expired({
+    minutes: model?.config.return_to_clock_minutes,
+    paused: !model || current === "clock" || pending > 0 || activePointers.size > 0
+      || Boolean(document.querySelector('dialog[open], [role="dialog"][aria-modal="true"]')),
+  })) location.hash = "clock";
+}
 
 function notice(id, message) {
   $(id).textContent = message ?? "";
@@ -85,6 +96,7 @@ function navigate() {
     return;
   }
   current = Object.hasOwn(PAGES, location.hash.slice(1)) ? location.hash.slice(1) : "clock";
+  idleReturn.reset();
   if (current !== "alarms") settingsPages?.closeAlarmEditor();
   for (const [index, page] of pageIds.entries()) {
     $(`page-${page}`).hidden = page !== current;
@@ -99,6 +111,7 @@ function navigate() {
   if (current !== "clock") document.body.classList.remove("is-night");
   frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" }, location.origin);
   if (current === "music") renderMusic();
+  checkIdleReturn();
 }
 
 function changePage(step) {
@@ -240,6 +253,7 @@ function render() {
     document.body.append(alarmScreen.el);
   }
   alarmScreen.update(model, pending > 0);
+  checkIdleReturn();
   policy();
   if (!getPref("touch-navigation-hint")) {
     toast("Swipe up/down between pages (scroll to the edge first). Swipe left/right within clock panels. Keyboard: Page Up/Down.");
@@ -271,6 +285,7 @@ async function poll() {
 async function write(url, data) {
   if (!canControl()) { toast("The dashboard is read-only or disconnected."); return false; }
   pending++;
+  checkIdleReturn();
   notice("command-error", "");
   settingsPages?.update(model, true);
   alarmScreen?.update(model, true);
@@ -286,6 +301,7 @@ async function write(url, data) {
     return false;
   } finally {
     pending--;
+    checkIdleReturn();
     settingsPages?.update(model, pending > 0);
     alarmScreen?.update(model, pending > 0);
     renderClock();
@@ -311,6 +327,23 @@ for (const page of pageIds.filter((page) => page !== "clock")) {
   onSwipe($(`page-${page}`), { vertical: changePage });
 }
 addEventListener("hashchange", navigate);
+for (const type of ["pointermove", "keydown", "input", "wheel", "scroll", "touchstart", "touchmove", "touchend"]) {
+  addEventListener(type, () => idleReturn.reset(), { capture: true, passive: true });
+}
+addEventListener("pointerdown", (event) => {
+  activePointers.add(event.pointerId);
+  idleReturn.reset();
+  checkIdleReturn();
+}, { capture: true, passive: true });
+for (const type of ["pointerup", "pointercancel"]) {
+  addEventListener(type, (event) => {
+    activePointers.delete(event.pointerId);
+    idleReturn.reset();
+    checkIdleReturn();
+  }, { capture: true, passive: true });
+}
+addEventListener("blur", () => { activePointers.clear(); checkIdleReturn(); });
+document.addEventListener("visibilitychange", () => { activePointers.clear(); checkIdleReturn(); });
 addEventListener("keydown", (event) => {
   if (event.key === "Escape") nowPlaying?.close({ dismiss: true });
   if (["PageUp", "PageDown"].includes(event.key) && !event.target.closest("input,textarea,select,[role=dialog]")) {
@@ -329,3 +362,4 @@ addEventListener("fullscreenchange", () => { $("fullscreen").textContent = docum
 navigate();
 await poll();
 setInterval(poll, 5000);
+setInterval(checkIdleReturn, 1000);

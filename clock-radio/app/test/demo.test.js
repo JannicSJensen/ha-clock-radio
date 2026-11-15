@@ -50,6 +50,7 @@ test("demo starts without real credentials, stays connected and shuts down clean
   assert.equal(initial.config.stations.length, 4);
   assert.equal(initial.config.clock.weather_entity, "weather.bedroom");
   assert.equal(initial.config.sun_entity, "sun.bedroom");
+  assert.equal(initial.config.return_to_clock_minutes, 2);
   assert.equal(initial.clock.weatherConfigured, true);
   assert.equal(initial.clock.weatherHigh, 22);
   const response = await fetch(`http://127.0.0.1:${port}/api/command`, {
@@ -69,6 +70,30 @@ test("startup defaults missing and empty Sun options to sun.sun", async (t) => {
   for (const options of [{}, { sun_entity: "" }]) {
     const app = await startDemo(t, options);
     assert.equal((await app.state()).config.sun_entity, "sun.sun");
+  }
+});
+
+test("startup publishes configured idle timeouts, including disabled and maximum values", async (t) => {
+  for (const return_to_clock_minutes of [0, 1, 1440]) {
+    const app = await startDemo(t, { return_to_clock_minutes });
+    assert.equal((await app.state()).config.return_to_clock_minutes, return_to_clock_minutes);
+  }
+});
+
+test("startup rejects invalid return-to-clock options before connecting", (t) => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "clock-radio-idle-options-"));
+  t.after(() => fs.rmSync(dir, { recursive: true }));
+  const optionsFile = path.join(dir, "options.json");
+  for (const return_to_clock_minutes of [null, true, "2", -1, 1.5, 1441, [], {}]) {
+    fs.writeFileSync(optionsFile, JSON.stringify({ return_to_clock_minutes }));
+    const child = spawnSync(process.execPath, ["src/index.js"], {
+      cwd: fileURLToPath(new URL("../", import.meta.url)),
+      env: { ...process.env, OPTIONS_FILE: optionsFile, CONFIG_DIR: dir },
+      encoding: "utf8", timeout: 5000,
+    });
+    assert.ifError(child.error);
+    assert.equal(child.status, 1, child.stderr);
+    assert.match(child.stderr, /return_to_clock_minutes must be a whole number from 0 to 1440/);
   }
 });
 

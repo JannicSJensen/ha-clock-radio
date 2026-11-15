@@ -47,6 +47,11 @@ On the split clock,
 swipe **left/right** within each panel to save its clock face or widget.
 Full-screen faces and hiding the widget remain Settings options.
 
+After two minutes of inactivity on Alarm configuration, Music or Settings, the
+clock returns automatically. Configure `return_to_clock_minutes` in the HA app
+options (`0` disables it) and restart. Activity restarts the countdown; open
+dialogs and pending saves pause it. Music continues and Settings drafts remain.
+
 Set `media_player` in the HA app configuration: Music and every alarm use that
 one speaker, without player selection, grouping or Party.
 Set `weather_entity` there as well and restart the app to enable weather in

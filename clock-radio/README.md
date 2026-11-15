@@ -11,6 +11,11 @@ receive those credentials. It controls your Home Assistant speakers and does
 not play alarm audio in the browser. The optional **Preview sound** button
 plays a short preview on the tablet/browser only.
 
+Alarm configuration, Music and Settings return to The Clock after two minutes
+of inactivity. Set `return_to_clock_minutes` in the HA app configuration to
+change it (`0` disables it), then restart. Open dialogs and pending saves pause
+the countdown; music and unsaved Settings drafts are preserved.
+
 Buzzer alarms can each select one of twelve original built-in sounds.
 Update the HA alarm package to scheduler version 7 and configure a
 speaker-accessible HA internal URL; see [sound setup](DOCS.md#buzzer-alarm-sounds).

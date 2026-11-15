@@ -20,6 +20,10 @@ try {
 }
 if (!options || typeof options !== "object" || Array.isArray(options)) throw new Error("App options must be a JSON object.");
 if (options.read_only !== undefined && typeof options.read_only !== "boolean") throw new Error("read_only must be a boolean.");
+const returnToClockMinutes = options.return_to_clock_minutes === undefined ? 2 : options.return_to_clock_minutes;
+if (!Number.isInteger(returnToClockMinutes) || returnToClockMinutes < 0 || returnToClockMinutes > 1440) {
+  throw new Error("return_to_clock_minutes must be a whole number from 0 to 1440 (0 disables automatic return).");
+}
 const mediaPlayer = process.env.MEDIA_PLAYER ?? options.media_player ?? "";
 if (typeof mediaPlayer !== "string" || (mediaPlayer && !/^media_player\.[a-z0-9_]+$/.test(mediaPlayer))) throw new Error("media_player must be a single Home Assistant media_player entity ID.");
 const weatherEntity = options.weather_entity === undefined ? "" : options.weather_entity;
@@ -61,7 +65,7 @@ if (!musicUrl && token && musicToken) {
 }
 const music = new MusicService({ ha, logger, url: musicUrl, token: musicToken });
 const radio = new RadioLibrary({ ha, music, logger });
-const dashboard = new Dashboard({ ha, configStore, music, radio, mediaPlayer, weatherEntity, sunEntity, readOnly: options.read_only === true, demo: process.env.DEMO === "1", version, logger });
+const dashboard = new Dashboard({ ha, configStore, music, radio, mediaPlayer, weatherEntity, sunEntity, returnToClockMinutes, readOnly: options.read_only === true, demo: process.env.DEMO === "1", version, logger });
 const server = createServer({ dashboard, webRoot: path.join(root, "web"), logger });
 await dashboard.refresh();
 const timer = setInterval(() => dashboard.refresh(), 5000);

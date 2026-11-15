@@ -40,6 +40,8 @@ test("Supervisor packaging has persistent config, ingress and non-conflicting ta
   assert.equal(config.schema.weather_entity, "str?");
   assert.equal(config.options.sun_entity, "sun.sun");
   assert.equal(config.schema.sun_entity, "str?");
+  assert.equal(config.options.return_to_clock_minutes, 2);
+  assert.equal(config.schema.return_to_clock_minutes, "int(0,1440)");
   const translation = YAML.parse(read(path.join(addon, "translations/en.yaml")));
   assert.deepEqual(Object.keys(config.options).sort(), Object.keys(translation.configuration).sort());
   assert.ok(!("image" in config), "Supervisor should build locally");
