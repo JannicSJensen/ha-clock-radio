@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.14.1
+
+- Use pure black for the shared app canvas and all four main-page backgrounds,
+  fixing the Alarm page and loading/disconnected gaps rather than relying on
+  page-specific overrides.
+- Preserve card/control/dialog contrast and configurable clock colors. Add
+  shared-background asset checks and refresh the affected Alarm screenshots.
+
 ## 0.14.0
 
 - Reorder the main pages to Clock, Alarm configuration, Music overview, Settings.

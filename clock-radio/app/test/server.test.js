@@ -64,7 +64,12 @@ test("HTTP foundation works end to end with HA, hot reload, error paths and ingr
   assert.match(api, /fetch\(`\.\/\$\{url\}`/);
   const styles = await fetch(`${url}/styles.css`);
   assert.equal(styles.status, 200);
-  assert.match(await styles.text(), /\.clock-page,\s*#page-music\s*\{\s*background:\s*#000;/);
+  const css = await styles.text();
+  assert.match(css, /html, body\s*\{[^}]*background:\s*var\(--bg\)/);
+  assert.match(css, /\.page\s*\{[^}]*background:\s*var\(--bg\)/);
+  const tokens = await fetch(`${url}/css/tokens.css`);
+  assert.equal(tokens.status, 200);
+  assert.match(await tokens.text(), /--bg:\s*#000;/);
   const musicStyles = await fetch(`${url}/css/music.css`);
   assert.equal(musicStyles.status, 200);
   assert.match(await musicStyles.text(), /\.np\s*\{[^}]*background:\s*#000;/);

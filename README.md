@@ -29,10 +29,12 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
 3. **Music overview** - Dasher's layout with swipeable Discover,
    Radio, Albums, Artists, Podcasts, Playlists and Search tabs, sticky
    now-playing bar and artwork player with seeking, shuffle, repeat and volume.
-   The page and now-playing bar use a pure-black background, with contrasting cards.
    Full library browsing needs a Music Assistant read-only token in app options.
 4. **Settings** - persistent clock appearance, time/calendar, weather labels,
    night mode and Music Assistant connection guidance.
+
+All four main-page canvases default to pure black; cards and controls retain
+their contrast. Clock colors remain configurable in Settings.
 
 There is no menu. Swipe **up/down** between pages; scroll to the edge first in
 Alarm configuration/Music/Settings. Keyboard users can use **Page Up/Down**.

@@ -2,6 +2,10 @@
 
 ## Four pages and alarm helpers
 
+All four main-page canvases and the app/loading background are pure black
+(`#000000`). Cards, controls and dialogs keep contrasting surfaces; clock
+colors can still be customized in Settings.
+
 There is no menu. Swipe **up/down** between **The Clock**, **Alarm configuration**,
 **Music overview** and **Settings**, or use keyboard **Page Up/Down** outside
 form inputs. Scroll to the top/bottom first in Alarm configuration, Music and

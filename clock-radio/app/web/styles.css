@@ -12,12 +12,11 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
 .online { color: var(--accent); }
 .stage { position: relative; flex: 1; min-width: 0; min-height: 0; overflow: hidden; padding-bottom: var(--page-indicator-height); }
-.page { width: 100%; height: 100%; }
+.page { width: 100%; height: 100%; background: var(--bg); }
 .page-indicator { position: absolute; z-index: 1; bottom: 0; left: 0; right: 0; display: flex; align-items: center; justify-content: center; gap: 8px; height: var(--page-indicator-height); padding-bottom: env(safe-area-inset-bottom, 0px); background: #000; pointer-events: none; }
 .page-indicator__dot { width: 7px; height: 7px; border-radius: 50%; background: #3a3a3e; }
 .page-indicator__dot.is-active { background: #9b9ba0; }
 .is-night .page-indicator__dot { opacity: .4; }
-.clock-page, #page-music { background: #000; }
 #clock-frame { display: block; border: 0; width: 100%; height: 100%; }
 .clock-focus { position: absolute; right: 18px; top: 16px; padding: 8px 12px; border-radius: 10px; background: #161616; color: #a6a6a6; opacity: .2; font-size: 11px; }
 .clock-focus:hover, .clock-focus:focus-visible { opacity: 1; }
