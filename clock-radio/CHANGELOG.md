@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.20.0
+
+- Keep alarm sound configuration in Clock Radio for both backends. Kiosk
+  alarms can select music/radios, their speaker, and native buzzer/fallback
+  tones in the existing alarm editor.
+- Browse Kiosk's configured Music Assistant, Home Assistant and Sonos sources
+  on demand, including paged lists and folders. Never force Sendspin or start
+  playback while browsing/saving. Direct-URL native alarms remain unsupported.
+- Preserve saved native music and tones during schedule edits and enable
+  toggles. Following Kiosk's music or tone default is now an explicit choice.
+  Existing alarms are not migrated or rewritten on upgrade.
+- Keep credentials, raw music records and device paths server-side. Validate
+  choices, recheck speaker/tone availability and active-alarm state, confirm
+  saves on Kiosk, and retain read-only offline snapshots. HA selectors and
+  playback behavior are unchanged.
+
 ## 0.19.1
 
 - Make experimental Kiosk-backed Music alarms follow Kiosk's own

@@ -70,7 +70,9 @@ function readSnapshot(raw) {
         buzzer_source_set: boolean(alarm.buzzer_source_set, "sound source"),
         buzzer_sound_id: alarm.buzzer_sound_id,
       };
-      check(result.buzzer_sound_id === null || ALARM_SOUNDS.some(({ id }) => id === result.buzzer_sound_id), "sound ID");
+      check(result.buzzer_sound_id === null || (native
+        ? result.buzzer_sound_id === "builtin" || /^ks-tone-[a-f0-9]{24}$/.test(result.buzzer_sound_id)
+        : ALARM_SOUNDS.some(({ id }) => id === result.buzzer_sound_id)), "sound ID");
       for (const key of ["hour", "minute", "volume", "duration"]) {
         check(alarm[key] === null || typeof alarm[key] === "number" && Number.isFinite(alarm[key]), `alarm ${key}`);
         result[key] = alarm[key];

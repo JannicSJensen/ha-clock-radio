@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import { isDeepStrictEqual } from "node:util";
 import { RequestError } from "./errors.js";
 import { WEEKDAYS, validateAlarmSchedule } from "./alarms.js";
 
@@ -6,6 +7,9 @@ const object = (value) => value !== null && typeof value === "object" && !Array.
 const managed = (id) => typeof id === "string" && /^clock-radio-[a-f0-9]{32}$/.test(id);
 const text = (value) => typeof value === "string" && value.length <= 1024;
 const nativeDays = (days) => WEEKDAYS.flatMap((day, i) => days[day] ? [(i + 1) % 7] : []).sort();
+const sources = ["ma", "ha", "sonos"];
+const choiceId = (kind, value) => `ks-${kind}-${crypto.createHash("sha256").update(JSON.stringify(value)).digest("hex").slice(0, 24)}`;
+const musicId = (pick) => choiceId("music", [pick.source, pick.speaker ?? "", pick.item?.id ?? pick.random]);
 
 export function kioskOptions(options) {
   const backend = options.alarm_backend ?? "home_assistant";
@@ -36,6 +40,9 @@ export class KioskAlarms {
     this.error = "Connecting to Kiosk Satellite.";
     this.status = { alarms: [], ids: [], phase: "idle" };
     this.busy = false;
+    this.musicChoices = new Map();
+    this.speakers = new Map();
+    this.tones = new Map();
   }
 
   async command(name, params = {}, mutation = false) {
@@ -59,11 +66,105 @@ export class KioskAlarms {
     } catch { throw new RequestError(`Kiosk Satellite returned an invalid response (HTTP ${response.status}).${uncertain}`, 502); }
     if (object(result) && result.ok === false) {
       const detail = result?.error === "duplicate" ? "Another Kiosk alarm already has that time and repeat days."
+        : result?.error === "no_source" ? "Configure a Music Assistant, Home Assistant or Sonos music source on Kiosk Satellite."
         : "Check the Kiosk version, configuration and Remote Administration logs.";
       throw new RequestError(`Kiosk Satellite rejected ${name}. ${detail}`, 502);
     }
     if (!response.ok || !object(result) || result.ok !== true) throw new RequestError(`Kiosk Satellite request failed (HTTP ${response.status}).${uncertain}`, 502);
     return result.data;
+  }
+
+  remember(map, id, value) {
+    map.delete(id);
+    map.set(id, value);
+    if (map.size > 2000) map.delete(map.keys().next().value);
+    return id;
+  }
+
+  async soundOptions() {
+    const data = await this.command("listNotificationSounds");
+    if (!object(data) || !Array.isArray(data.sounds) || data.sounds.length > 2000
+        || !data.sounds.every((name) => text(name) && name && name.length <= 255 && !/[/\\]/.test(name) && ![".", "..", "builtin"].includes(name))
+        || new Set(data.sounds).size !== data.sounds.length) throw new RequestError("Kiosk returned an invalid sound catalog.", 502);
+    return { sounds: [
+      { id: null, name: "Use Kiosk tone default" }, { id: "builtin", name: "Kiosk built-in alarm" },
+      ...data.sounds.map((name) => ({ id: this.remember(this.tones, choiceId("tone", name), name), name })),
+    ] };
+  }
+
+  async musicOptions(params = {}) {
+    if (!object(params) || Object.keys(params).some((key) => !["source", "speaker", "category", "parent", "offset"].includes(key))
+        || Object.values(params).some((value) => !text(value))
+        || params.source !== undefined && !sources.includes(params.source)
+        || params.offset !== undefined && !/^(0|[1-9]\d{0,5})$/.test(params.offset)) throw new RequestError("Invalid native music browser settings.");
+    const savedSpeaker = this.status.alarms.map((alarm) => alarm.music).find((pick) => object(pick)
+      && pick.source === params.source && choiceId("speaker", [pick.source, pick.speaker ?? ""]) === params.speaker);
+    const requestedSpeaker = params.speaker === undefined ? null : this.speakers.get(params.speaker)
+      ?? (savedSpeaker ? { source: savedSpeaker.source, pick: savedSpeaker.speaker ?? "" } : null);
+    if (params.speaker !== undefined && (!requestedSpeaker || requestedSpeaker.source !== params.source)) throw new RequestError("This Kiosk speaker choice expired. Refresh the music choices.", 409);
+    let info = await this.command("libraryPickerSource", {
+      ...(params.source ? { source: params.source } : {}),
+      ...(requestedSpeaker ? { speaker: requestedSpeaker.pick } : {}),
+    });
+    const validate = () => {
+      if (!object(info) || !sources.includes(info.source) || params.source && info.source !== params.source
+          || !Array.isArray(info.sources) || !Array.isArray(info.speakers) || !Array.isArray(info.categories)
+          || !info.speakers.every((sp) => object(sp) && text(sp.pick) && text(sp.name) && typeof sp.available === "boolean")
+          || !info.categories.every((cat) => object(cat) && text(cat.key) && cat.key && text(cat.kind))) {
+        throw new RequestError("Kiosk returned an invalid or unsupported native music source.", 502);
+      }
+    };
+    validate();
+    const speaker = requestedSpeaker
+      ? info.speakers.find((sp) => sp.pick === requestedSpeaker.pick)
+      : info.speakers.find((sp) => sp.available && sp.pick === info.followed) ?? info.speakers.find((sp) => sp.available);
+    if (requestedSpeaker && !speaker?.available) throw new RequestError("The selected Kiosk music speaker is unavailable.", 409);
+    if (info.source === "ha" && speaker && !requestedSpeaker) {
+      info = await this.command("libraryPickerSource", { source: "ha", speaker: speaker.pick });
+      validate();
+    }
+    const source = info.source;
+    const categories = [
+      ...(info.browse === true ? [{ key: "browse", kind: "folder" }] : []), ...info.categories,
+    ];
+    const category = params.category ?? categories.find((cat) => cat.kind === "radio")?.key
+      ?? categories.find((cat) => cat.key === "favorites")?.key ?? categories[0]?.key;
+    if (params.category !== undefined && !categories.some((cat) => cat.key === category)) throw new RequestError("This native music category is unavailable.", 409);
+    const base = { source, speaker: speaker?.pick ?? "" };
+    const parent = params.parent === undefined ? null : this.musicChoices.get(params.parent);
+    if (params.parent !== undefined && (!parent || parent.pick.source !== source
+        || parent.pick.speaker !== base.speaker || !parent.pick.item.expandable)) throw new RequestError("This music folder choice expired. Refresh the music choices.", 409);
+    const offset = Number(params.offset ?? 0);
+    const page = !speaker || !category ? { items: [], more: false }
+      : parent ? await this.command("libraryPickerOpen", { ...base, item: parent.pick.item })
+      : category === "browse" ? await this.command("libraryPickerBrowse", base)
+      : await this.command("libraryPickerList", { ...base, category, offset });
+    if (!object(page) || !Array.isArray(page.items) || page.items.length > 1000
+        || page.more !== undefined && typeof page.more !== "boolean" || page.more && !page.items.length) {
+      throw new RequestError("Kiosk returned an invalid music library page.", 502);
+    }
+    const items = page.items.map((entry) => {
+      if (!object(entry) || !text(entry.id) || !entry.id || !text(entry.title) || !text(entry.kind)
+          || entry.raw !== undefined && !object(entry.raw)) throw new RequestError("Kiosk returned an invalid music item.", 502);
+      const item = { id: entry.id, kind: entry.kind, title: entry.title, playable: entry.playable !== false, expandable: entry.expandable === true };
+      if (entry.raw) item.raw = Object.fromEntries(Object.entries(entry.raw)
+        .filter(([, value]) => typeof value === "string" || typeof value === "boolean" || typeof value === "number" && Number.isFinite(value)));
+      const pick = { source, item, shuffle: false, speaker: speaker.pick, speakerName: speaker.name };
+      const id = this.remember(this.musicChoices, musicId(pick), { pick });
+      return { id, name: item.title, kind: item.kind, playable: item.playable, expandable: item.expandable };
+    });
+    if (new Set(items.map((item) => item.id)).size !== items.length) throw new RequestError("Kiosk returned duplicate music items.", 502);
+    return {
+      sources: info.sources.filter((key) => sources.includes(key)), source, categories, category: category ?? "",
+      speakers: info.speakers.map((sp) => ({
+        id: this.remember(this.speakers, choiceId("speaker", [source, sp.pick]), { source, pick: sp.pick }),
+        name: sp.name, available: sp.available,
+      })),
+      speaker: speaker ? choiceId("speaker", [source, speaker.pick]) : null,
+      items, more: !parent && category !== "browse" && page.more === true, offset: offset + items.length,
+      note: speaker ? "Select music and its speaker for this alarm. Save applies the choice; nothing plays now."
+        : "No available speakers for this source. Check its configuration on Kiosk.",
+    };
   }
 
   refresh() {
@@ -121,11 +222,15 @@ export class KioskAlarms {
         hour: Number(alarm.time.slice(0, 2)), minute: Number(alarm.time.slice(3)), volume: null, duration: null,
         days: Object.fromEntries(WEEKDAYS.map((day, i) => [day, alarm.days.includes((i + 1) % 7)])),
         missing: [], available: true, setup_complete: true, deletion_pending: false, timer: null, finishes_at: null,
-        can_select_radio: false, can_select_sound: false, music_source_error: null, buzzer_source_error: null,
-        music_station_id: null,
+        can_select_radio: this.connected, can_select_sound: this.connected, music_source_error: null, buzzer_source_error: null,
+        music_station_id: object(alarm.music) ? musicId(alarm.music) : null,
+        music_source: object(alarm.music) ? alarm.music.source : null,
+        music_speaker_id: object(alarm.music) ? choiceId("speaker", [alarm.music.source, alarm.music.speaker ?? ""]) : null,
+        music_speaker_name: object(alarm.music) ? alarm.music.speakerName ?? "" : "",
         music_station_name: alarm.music?.item?.title ?? (alarm.music === "none" ? null : "Kiosk Alarm music default"),
-        music_source_set: alarm.music !== "none", buzzer_source_set: true,
-        buzzer_sound_id: null, buzzer_sound_name: alarm.tone === "builtin" ? "Kiosk built-in tone" : "Kiosk configured tone",
+        music_source_set: alarm.music !== "none", buzzer_source_set: Boolean(alarm.tone),
+        buzzer_sound_id: !alarm.tone ? null : alarm.tone === "builtin" ? "builtin" : choiceId("tone", alarm.tone),
+        buzzer_sound_name: !alarm.tone ? "Kiosk tone default" : alarm.tone === "builtin" ? "Kiosk built-in alarm" : alarm.tone,
       })),
     };
   }
@@ -176,17 +281,40 @@ export class KioskAlarms {
   }
 
   save(body) {
-    if (!object(body) || Object.keys(body).some((key) => !["id", "enabled", "type", "hour", "minute", "days"].includes(key))) throw new RequestError("Unknown Kiosk alarm setting. Configure music in Kiosk Settings > Alarms > Alarm music, then reload Clock Radio.");
+    if (!object(body) || Object.keys(body).some((key) => !["id", "enabled", "type", "hour", "minute", "days", "music_station_id", "buzzer_sound_id"].includes(key))) throw new RequestError("Unknown Kiosk alarm setting.");
     validateAlarmSchedule(body, { allowOnce: true });
+    const hasMusic = Object.hasOwn(body, "music_station_id");
+    const hasTone = Object.hasOwn(body, "buzzer_sound_id");
+    const music = hasMusic && body.music_station_id !== null ? this.musicChoices.get(body.music_station_id)?.pick : null;
+    const tone = body.buzzer_sound_id === null ? "" : body.buzzer_sound_id === "builtin" ? "builtin" : this.tones.get(body.buzzer_sound_id);
+    if (hasMusic && (body.type !== "Music" || body.music_station_id !== null && !music?.item.playable)) throw new RequestError("Select an available native music item in Clock Radio before saving.", 409);
+    if (hasTone && typeof tone !== "string") throw new RequestError("Select an available native buzzer tone in Clock Radio before saving.", 409);
     return this.mutate(async () => {
+      this.requireAlarm(body.id);
+      if (music) {
+        const info = await this.command("libraryPickerSource", { source: music.source, speaker: music.speaker });
+        if (info?.source !== music.source || !info?.speakers?.some((sp) => sp.pick === music.speaker && sp.available === true)) throw new RequestError("The selected Kiosk music source or speaker is unavailable.", 409);
+      }
+      if (hasTone && ![null, "builtin"].includes(body.buzzer_sound_id)) {
+        const options = await this.soundOptions();
+        if (!options.sounds.some(({ id }) => id === body.buzzer_sound_id) || this.tones.get(body.buzzer_sound_id) !== tone) throw new RequestError("The selected Kiosk sound is no longer available.", 409);
+      }
+      if (music || hasTone) {
+        if (this.loading) await this.loading;
+        await this.refresh();
+        if (!this.connected) throw new RequestError(this.error, 503);
+      }
       const current = this.requireAlarm(body.id);
       const alarm = { ...current, time: `${String(body.hour).padStart(2, "0")}:${String(body.minute).padStart(2, "0")}`, days: nativeDays(body.days), on: body.enabled };
       delete alarm.next;
       if (body.type === "Buzzer") alarm.music = "none";
-      else delete alarm.music;
+      else if (hasMusic && music) alarm.music = structuredClone(music);
+      else if (hasMusic || current.music === "none") delete alarm.music;
+      if (hasTone) alarm.tone = tone;
       await this.command("alarmSave", { alarm }, true);
       await this.verify(body.id, (saved) => Boolean(saved) && saved.on === alarm.on && saved.time === alarm.time
-        && JSON.stringify([...saved.days].sort()) === JSON.stringify(alarm.days) && saved.music === alarm.music);
+        && JSON.stringify([...saved.days].sort()) === JSON.stringify(alarm.days) && isDeepStrictEqual(saved.music, alarm.music)
+        && saved.tone === alarm.tone);
     });
   }
 

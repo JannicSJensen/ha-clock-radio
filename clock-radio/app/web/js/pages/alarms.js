@@ -2,6 +2,7 @@ import { h } from "../core/h.js";
 import { icon } from "../core/icons.js";
 import { createTimePicker, timeParts } from "../components/time-picker.js";
 import { ALARM_SOUNDS, soundFile } from "../lib/alarm-sounds.js";
+import { createKioskAlarmPicker } from "../components/kiosk-alarm-picker.js";
 
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -206,9 +207,10 @@ export function createAlarmPage(ctx) {
     row("Wake timer", h("label", { class: "alarm-editor__duration" }, duration, h("span", null, "min"))),
     h("p", { class: "alarm-editor__hint" }, "The wake timer stops playback; it is not a snooze timer."));
   const nativeSettings = h("p", { class: "alarm-editor__hint", hidden: true },
-    "Kiosk device local time. No repeat days means once. Volume, Snooze length and Silence after are device-wide Kiosk settings. Buzzer uses the native tone. Use Kiosk to change tones and ringing defaults.");
+    "Kiosk device local time. No repeat days means once. Volume, Snooze length and Silence after are device-wide Kiosk settings. Native scheduling and ringing stay on Kiosk.");
   const nativeMusicSettings = h("p", { class: "alarm-editor__hint", hidden: true },
-    "Music follows Kiosk Settings > Alarms > Alarm music. Choose and preview Music > Radios there, including its source and speaker. Saving or toggling a Music alarm replaces any per-alarm music override with that default. If no music is configured or playback fails, Kiosk uses the saved native tone.");
+    "Choose music, its speaker and a fallback tone here. Music still needs the selected HA/MA/Sonos source and network. Direct-URL native alarms are not supported by this Kiosk version. If music cannot play, Kiosk uses the saved native tone.");
+  const nativePicker = createKioskAlarmPicker({ onChange: markDirty });
   const fieldset = h("fieldset", { class: "settings-fieldset" },
     timeSlot, timeZone, createdInfo,
     h("section", { class: "alarm-editor__group" },
@@ -218,7 +220,7 @@ export function createAlarmPage(ctx) {
     h("section", { class: "alarm-editor__group" },
       row("Enabled", enabled.el),
       row("Alarm type", type),
-      stationPicker, soundPicker, volumeSettings, nativeSettings, nativeMusicSettings),
+      stationPicker, soundPicker, nativePicker.el, volumeSettings, nativeSettings, nativeMusicSettings),
     hint, reload);
   const form = h("form", { "aria-label": "Alarm editor" },
     h("header", { class: "alarm-editor__header" }, cancel, title, save),
@@ -226,6 +228,7 @@ export function createAlarmPage(ctx) {
   const dialog = h("dialog", { class: "alarm-editor", role: "dialog", "aria-labelledby": "alarm-editor-title" }, form);
 
   function loadEditor(alarm) {
+    if (alarm.backend === "kiosk_satellite") nativePicker.load(alarm);
     selectedDays = { ...alarm.days };
     picker.setTime(alarm.hour, alarm.minute);
     enabled.control.checked = alarm.enabled;
@@ -248,6 +251,7 @@ export function createAlarmPage(ctx) {
     if (dialog.open) dialog.close();
   }
   dialog.addEventListener("close", () => {
+    nativePicker.close();
     stopPreview();
     dialog.removeAttribute("aria-modal");
     activeId = null;
@@ -261,6 +265,7 @@ export function createAlarmPage(ctx) {
   type.addEventListener("change", () => updateEditor(ctx.getModel(), pageBusy));
   reload.addEventListener("click", () => {
     dirty = false;
+    nativePicker.close();
     updateEditor(ctx.getModel(), false);
     status.textContent = "Saved values reloaded.";
     reload.hidden = true;
@@ -281,6 +286,7 @@ export function createAlarmPage(ctx) {
     picker.setDisabled(disabled);
     if (!dirty && available) loadEditor(alarm);
     nativeMusicSettings.hidden = !native || type.value !== "Music";
+    nativePicker.update({ native, disabled, type: type.value });
     updateStations(model, alarm, disabled);
     updateSounds(alarm, disabled);
     hint.textContent = model.alarms.delete_error || (native && alarm.native_busy ? "Stop this alarm on Kiosk before editing or deleting it."
@@ -417,6 +423,7 @@ export function createAlarmPage(ctx) {
         id, enabled: enabled.control.checked, type: type.value, ...picker.getTime(),
         ...(!native ? { volume: Number(volume.value), duration: Number(duration.value) } : {}), days: { ...selectedDays },
       };
+      if (native) Object.assign(values, nativePicker.values());
       if (stationDirty && !native) values.music_station_id = selectedStation;
       if (soundDirty && !native) values.buzzer_sound_id = sound.value || null;
       saving = true;
@@ -545,7 +552,7 @@ export function createAlarmPage(ctx) {
     }
     const incomplete = alarms.some((alarm) => alarm.id > 2 && (!alarm.available || !alarm.setup_complete));
     add.disabled = busy || !ctx.canControl() || !model.alarms.can_create || incomplete;
-    addInfo.textContent = native ? model.alarms.error || "Music follows Kiosk Settings > Alarms > Alarm music. Saving or toggling a Music alarm replaces its previous music override with that default. Native ringing and alarm defaults stay on Kiosk. Only this backend's connection is required to edit these alarms."
+    addInfo.textContent = native ? model.alarms.error || "Choose each alarm's music, speaker and native buzzer tone in Clock Radio. Saved choices are preserved when changing schedules or toggles. Native ringing and device-wide defaults stay on Kiosk. Only this backend's connection is required to edit these alarms."
       : !model.connected ? "Offline. Saved schedules are read-only; reconnect to change alarms."
       : model.alarms.deleting ? "Finish the pending deletion before adding or deleting another alarm."
       : incomplete ? "Finish setting up the incomplete alarm before adding another."

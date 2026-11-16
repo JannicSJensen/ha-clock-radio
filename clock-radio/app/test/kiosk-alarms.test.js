@@ -25,7 +25,7 @@ async function setup(t) {
   let haOffline = false;
   const haCalls = [];
   const dashboard = new Dashboard({
-    kiosk, version: "0.19.1", demo: true, mediaPlayer: "media_player.different",
+    kiosk, version: "0.20.0", demo: true, mediaPlayer: "media_player.different",
     configStore: { current: parseConfig({ time_zone: "Europe/Copenhagen" }), load() {} }, logger,
     ha: {
       async states() { if (haOffline) throw new Error("Fictional HA offline"); return demoStates(); },
@@ -78,7 +78,7 @@ test("native status and mutations are independent of HA; existing HA and unrelat
   assert.equal(f.haCalls.length, 0);
 });
 
-test("Music follows Kiosk's Alarm music setting without copying a source, radio or speaker; Buzzer forces the native tone", async (t) => {
+test("Music can inherit Kiosk's default without forcing a source or speaker; Buzzer forces the native tone", async (t) => {
   const f = await setup(t);
   f.offline();
   await f.dashboard.createAlarm({});
@@ -90,7 +90,7 @@ test("Music follows Kiosk's Alarm music setting without copying a source, radio 
   assert.equal(native.tone, "builtin");
   assert.equal(native.speak, false);
   assert.equal(f.kiosk.snapshot().alarms[0].music_station_name, "Kiosk Alarm music default");
-  assert.equal(f.kiosk.snapshot().alarms[0].can_select_radio, false);
+  assert.equal(f.kiosk.snapshot().alarms[0].can_select_radio, true);
   assert.deepEqual(f.kiosk.snapshot().radio_stations, []);
   assert.equal(f.kiosk.snapshot().radio_error, null);
   await f.dashboard.saveAlarm(alarmSettings(f.kiosk.snapshot().alarms[0], false));
@@ -104,28 +104,149 @@ test("Music follows Kiosk's Alarm music setting without copying a source, radio 
   assert.equal(f.haCalls.length, 0);
   const payload = JSON.stringify(f.dashboard.payload());
   for (const secret of [DEMO_KIOSK_TOKEN, "fictional-secret", "library://radio/1", f.url]) assert.ok(!payload.includes(secret), secret);
-  await assert.rejects(f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), music_station_id: "ks-radio-0123456789abcdef" }), /Configure music in Kiosk/);
+  await assert.rejects(f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), music_station_id: "ks-radio-0123456789abcdef" }), /Select an available native music/);
 });
 
-test("legacy per-alarm music stays untouched until saved, then is removed and verified as native inheritance", async (t) => {
+test("schedule saves and toggles preserve native music; default inheritance is an explicit choice", async (t) => {
   const f = await setup(t);
   await f.dashboard.createAlarm({});
   const native = f.alarms.find(({ id }) => id === f.kiosk.snapshot().alarms[0].id);
-  native.music = { source: "ma", item: { id: "library://radio/1", title: "Previous station" }, speaker: "previous-speaker" };
+  native.music = { source: "ma", item: { id: "library://radio/1", title: "Previous station" }, shuffle: false, speaker: "previous-speaker", speakerName: "Previous speaker" };
   const before = structuredClone(native);
   await f.dashboard.refresh();
   assert.deepEqual(native, before, "Polling must not migrate existing schedules");
   assert.equal(f.kiosk.snapshot().alarms[0].music_station_name, "Previous station");
   f.mode.ignoreSaves = true;
-  await assert.rejects(f.dashboard.saveAlarm(alarmSettings(f.kiosk.snapshot().alarms[0])), /not confirmed/);
+  await assert.rejects(f.dashboard.saveAlarm(alarmSettings(f.kiosk.snapshot().alarms[0], true)), /not confirmed/);
   assert.deepEqual(f.alarms.find(({ id }) => id === native.id), before);
   f.mode.ignoreSaves = false;
   await f.dashboard.saveAlarm(alarmSettings(f.kiosk.snapshot().alarms[0], true));
   const saved = f.alarms.find(({ id }) => id === native.id);
-  const { music, ...expected } = before;
-  assert.deepEqual(saved, { ...expected, on: true }, "Toggling removes the legacy music override without changing other native settings");
+  assert.deepEqual(saved, { ...before, on: true }, "Toggling must preserve every saved native music field");
   assert.equal(f.kiosk.snapshot().alarms[0].type, "Music");
+  assert.equal(f.kiosk.snapshot().alarms[0].music_station_name, "Previous station");
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), music_station_id: null });
+  assert.equal(Object.hasOwn(f.alarms.find(({ id }) => id === native.id), "music"), false);
   assert.equal(f.kiosk.snapshot().alarms[0].music_station_name, "Kiosk Alarm music default");
+});
+
+test("native catalogs expose opaque choices, page radios, and save the explicitly selected speaker", async (t) => {
+  const f = await setup(t);
+  f.offline();
+  await f.dashboard.createAlarm({});
+  const catalog = await f.kiosk.musicOptions();
+  assert.equal(catalog.source, "ma");
+  assert.equal(catalog.items[0].name, "Morning Radio");
+  assert.equal(catalog.more, true);
+  const external = catalog.speakers.find(({ name }) => name === "Bedroom speaker");
+  const local = catalog.speakers.find(({ name }) => name.includes("Sendspin"));
+  assert.equal(catalog.speaker, external.id, "Do not force Kiosk's local Sendspin renderer");
+  const second = await f.kiosk.musicOptions({ source: "ma", speaker: external.id, category: "radio", offset: String(catalog.offset) });
+  assert.equal(second.items[0].name, "Evening Radio");
+  assert.equal(second.more, false);
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0], true), type: "Music", music_station_id: second.items[0].id });
+  let saved = f.alarms.find(({ id }) => id === f.kiosk.snapshot().alarms[0].id);
+  assert.equal(saved.music.speaker, "ma:bedroom");
+  assert.equal(saved.music.item.id, "library://radio/2");
+  assert.equal(saved.music.item.raw.uri, "library://radio/2");
+  assert.equal(f.kiosk.snapshot().alarms[0].music_station_id, second.items[0].id);
+  const own = await f.kiosk.musicOptions({ source: "ma", speaker: local.id, category: "radio" });
+  assert.notEqual(own.items[0].id, catalog.items[0].id, "Music choices are bound to their source and speaker");
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), music_station_id: own.items[0].id });
+  saved = f.alarms.find(({ id }) => id === saved.id);
+  assert.equal(saved.music.speaker, "");
+  const payload = JSON.stringify({ catalog, second, own, state: f.dashboard.payload() });
+  for (const secret of [DEMO_KIOSK_TOKEN, "library://radio/", "ma:bedroom", f.url]) assert.ok(!payload.includes(secret), secret);
+  assert.equal(f.haCalls.length, 0);
+  assert.ok(f.calls.every(({ name }) => !/Play|Start|Preview/.test(name)), "Browsing and saving never play audio");
+});
+
+test("native music can browse HA folders, Sonos favorites and MA playlists without exposing source records", async (t) => {
+  const f = await setup(t);
+  await f.dashboard.createAlarm({});
+  const ha = await f.kiosk.musicOptions({ source: "ha" });
+  assert.equal(ha.category, "browse");
+  assert.equal(ha.items[0].playable, false);
+  assert.equal(ha.items[0].expandable, true);
+  const child = await f.kiosk.musicOptions({ source: "ha", speaker: ha.speaker, parent: ha.items[0].id, category: "browse" });
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), type: "Music", music_station_id: child.items[0].id });
+  assert.equal(f.alarms.at(-1).music.source, "ha");
+  assert.equal(f.alarms.at(-1).music.speaker, "ha:media_player.kitchen");
+  assert.equal(f.alarms.at(-1).music.item.raw.media_content_id, "media-source://radio/1");
+  const sonos = await f.kiosk.musicOptions({ source: "sonos" });
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), music_station_id: sonos.items[0].id });
+  assert.equal(f.alarms.at(-1).music.source, "sonos");
+  const ma = await f.kiosk.musicOptions({ source: "ma", category: "playlists" });
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), music_station_id: ma.items[0].id });
+  assert.equal(f.alarms.at(-1).music.item.kind, "playlist");
+  const opened = await f.kiosk.musicOptions({ source: "ma", speaker: ma.speaker, category: "playlists", parent: ma.items[0].id });
+  assert.equal(opened.items[0].kind, "track");
+});
+
+test("native tones save independently, preserve omitted choices and verify exact device results", async (t) => {
+  const f = await setup(t);
+  await f.dashboard.createAlarm({});
+  const options = await f.kiosk.soundOptions();
+  const chosen = options.sounds.find(({ name }) => name === "Gentle Bells.ogg");
+  let alarm = f.kiosk.snapshot().alarms[0];
+  await f.dashboard.saveAlarm({ ...alarmSettings(alarm), buzzer_sound_id: chosen.id });
+  alarm = f.kiosk.snapshot().alarms[0];
+  assert.equal(alarm.buzzer_sound_id, chosen.id);
+  assert.equal(alarm.buzzer_sound_name, "Gentle Bells.ogg");
+  assert.equal(f.alarms.at(-1).tone, "Gentle Bells.ogg");
+  await f.dashboard.saveAlarm({ ...alarmSettings(alarm), minute: 17 });
+  assert.equal(f.alarms.at(-1).tone, "Gentle Bells.ogg");
+  f.mode.ignoreTone = true;
+  await assert.rejects(f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), buzzer_sound_id: "builtin" }), /not confirmed/);
+  f.mode.ignoreTone = false;
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), buzzer_sound_id: null });
+  assert.equal(f.alarms.at(-1).tone, "");
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), buzzer_sound_id: "builtin" });
+  assert.equal(f.alarms.at(-1).tone, "builtin");
+});
+
+test("expired, unavailable and malformed native choices fail before writing; saved schedules remain editable", async (t) => {
+  const f = await setup(t);
+  await f.dashboard.createAlarm({});
+  const music = await f.kiosk.musicOptions();
+  const tones = await f.kiosk.soundOptions();
+  const body = { ...alarmSettings(f.kiosk.snapshot().alarms[0]), type: "Music" };
+  const count = () => f.calls.filter(({ name }) => name === "alarmSave").length;
+  const before = count();
+  for (const extra of [{ music_station_id: "invented" }, { music_station_id: {} }, { buzzer_sound_id: "../alarm.ogg" }, { buzzer_sound_id: undefined }]) {
+    await assert.rejects(f.dashboard.saveAlarm({ ...body, ...extra }), /Select an available native/);
+  }
+  f.mode.speakerUnavailable = true;
+  await assert.rejects(f.dashboard.saveAlarm({ ...body, music_station_id: music.items[0].id }), /speaker is unavailable/);
+  f.mode.speakerUnavailable = false;
+  f.sounds.splice(0, 1);
+  await assert.rejects(f.dashboard.saveAlarm({ ...body, buzzer_sound_id: tones.sounds[2].id }), /no longer available/);
+  assert.equal(count(), before);
+  f.mode.musicUnavailable = true;
+  f.mode.soundUnavailable = true;
+  await assert.rejects(f.kiosk.musicOptions(), /Configure a Music Assistant/);
+  await assert.rejects(f.kiosk.soundOptions(), /rejected listNotificationSounds/);
+  await f.dashboard.saveAlarm({ ...body, minute: 19 });
+  assert.equal(f.kiosk.connected, true);
+  assert.equal(f.kiosk.snapshot().alarms[0].minute, 19);
+  for (const params of [{ source: "plugin" }, { source: "ma", speaker: "invented" }, { source: "ma", parent: "invented" }, { offset: "-1" }, { offset: "1.5" }, { command: "playSound" }]) {
+    await assert.rejects(f.kiosk.musicOptions(params), { name: "Error" });
+  }
+});
+
+test("native choices survive server restart by retaining the saved source and speaker identity", async (t) => {
+  const f = await setup(t);
+  await f.dashboard.createAlarm({});
+  const catalog = await f.kiosk.musicOptions();
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), type: "Music", music_station_id: catalog.items[0].id });
+  const restarted = new KioskAlarms({ url: f.url, token: DEMO_KIOSK_TOKEN, logger: { warn() {} } });
+  await restarted.refresh();
+  const saved = restarted.snapshot().alarms[0];
+  const refreshed = await restarted.musicOptions({ source: saved.music_source, speaker: saved.music_speaker_id });
+  assert.equal(refreshed.speaker, saved.music_speaker_id);
+  assert.equal(refreshed.items[0].id, saved.music_station_id);
+  f.mode.ignoreMusic = true;
+  await assert.rejects(restarted.save({ ...alarmSettings(saved), music_station_id: null }), /not confirmed/);
 });
 
 test("one-shot native schedules are allowed, and external native fields survive time-only edits", async (t) => {
@@ -151,7 +272,7 @@ test("unrelated IDs, unsupported settings, active edits, read-only writes and gl
   await assert.rejects(f.dashboard.deleteAlarm({ id: "personal-native-alarm" }), { status: 403 });
   await assert.rejects(f.dashboard.saveAlarm({ ...alarmSettings(alarm), id: "personal-native-alarm" }), { status: 403 });
   await assert.rejects(f.dashboard.saveAlarm({ ...alarmSettings(alarm), volume: 90 }), /Unknown/);
-  await assert.rejects(f.dashboard.saveAlarm({ ...alarmSettings(alarm), buzzer_sound_id: "classic" }), /Unknown/);
+  await assert.rejects(f.dashboard.saveAlarm({ ...alarmSettings(alarm), buzzer_sound_id: "classic" }), /Select an available native buzzer/);
   f.mode.phase = "ringing"; f.mode.ids = [alarm.id, "personal-native-alarm"];
   await assert.rejects(f.dashboard.saveAlarm(alarmSettings(alarm)), /Stop this alarm/);
   await assert.rejects(f.dashboard.deleteAlarm({ id: alarm.id }), /Stop this alarm/);
@@ -168,6 +289,8 @@ test("unrelated IDs, unsupported settings, active edits, read-only writes and gl
 test("confirmed native definitions persist read-only without HA and retain backend/device identity", async (t) => {
   const f = await setup(t);
   await f.dashboard.createAlarm({});
+  const choices = await f.kiosk.soundOptions();
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), buzzer_sound_id: choices.sounds[2].id });
   f.offline(); await f.dashboard.refresh();
   let saved = null;
   const storage = () => ({ getItem: () => saved, setItem(key, value) { saved = value; } });
@@ -180,6 +303,9 @@ test("confirmed native definitions persist read-only without HA and retain backe
   assert.equal(restored.alarms.connected, false);
   assert.equal(restored.read_only, true);
   assert.equal(restored.alarms.alarms[0].backend, "kiosk_satellite");
+  assert.equal(restored.alarms.alarms[0].buzzer_sound_id, choices.sounds[2].id);
+  assert.equal(restored.alarms.alarms[0].buzzer_sound_name, "Gentle Bells.ogg");
+  assert.equal(restored.alarms.alarms[0].can_select_sound, false);
   assert.equal(canEditAlarm(restored.alarms.alarms[0]), true);
   f.mode.unavailable = true;
   await f.dashboard.refresh();
@@ -204,6 +330,68 @@ test("HTTP alarm routes confirm saves on the device even during HA outages", asy
   assert.equal(f.alarms.some(({ id, on }) => id === result.alarm_id && on === false), true);
   f.mode.ignoreSaves = true;
   await assert.rejects(f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), hour: 12 }), /not confirmed/);
+});
+
+test("native catalog HTTP routes validate reads and expose no raw records or playback commands", async (t) => {
+  const f = await setup(t);
+  const server = createServer({ dashboard: f.dashboard, webRoot: "", logger: { warn() {} } });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => { server.close(); server.closeAllConnections(); });
+  const get = (path) => fetch(`http://127.0.0.1:${server.address().port}/api/alarm/${path}`);
+  f.offline();
+  f.dashboard.readOnly = true;
+  for (const path of ["music", "sounds"]) {
+    const response = await get(path);
+    assert.equal(response.status, 200);
+    const text = JSON.stringify(await response.json());
+    for (const secret of [DEMO_KIOSK_TOKEN, "library://", "ma:bedroom", f.url]) assert.ok(!text.includes(secret), secret);
+  }
+  for (const path of ["music?source=ma&source=ha", "music?source=invalid", "music?offset=-1", "sounds?command=playSound"]) {
+    assert.equal((await get(path)).status, 400, path);
+  }
+  const original = f.dashboard.kiosk;
+  f.dashboard.kiosk = null;
+  assert.equal((await get("music")).status, 409);
+  f.dashboard.kiosk = original;
+  assert.ok(f.calls.every(({ name }) => !/Play|Start|Preview/.test(name)));
+});
+
+test("malformed catalogs, vanished sources and a ring during validation cannot mutate an alarm", async (t) => {
+  const f = await setup(t);
+  await f.dashboard.createAlarm({});
+  const catalog = await f.kiosk.musicOptions();
+  const original = f.kiosk.command.bind(f.kiosk);
+  const body = { ...alarmSettings(f.kiosk.snapshot().alarms[0]), type: "Music", music_station_id: catalog.items[0].id };
+  const before = f.calls.filter(({ name }) => name === "alarmSave").length;
+  f.kiosk.command = async (name, ...args) => name === "libraryPickerSource"
+    ? { source: "ha", sources: ["ha"], speakers: [], categories: [] } : original(name, ...args);
+  await assert.rejects(f.kiosk.musicOptions({ source: "ma" }), /invalid or unsupported/);
+  await assert.rejects(f.dashboard.saveAlarm(body), /source or speaker is unavailable/);
+  f.kiosk.command = async (name, ...args) => name === "listNotificationSounds" ? { sounds: ["../alarm.wav"] } : original(name, ...args);
+  await assert.rejects(f.kiosk.soundOptions(), /invalid sound catalog/);
+  f.kiosk.command = async (name, ...args) => {
+    const result = await original(name, ...args);
+    if (name === "libraryPickerSource") { f.mode.phase = "ringing"; f.mode.ids = [body.id]; }
+    return result;
+  };
+  await assert.rejects(f.dashboard.saveAlarm(body), /Stop this alarm/);
+  assert.equal(f.calls.filter(({ name }) => name === "alarmSave").length, before);
+});
+
+test("losing native status after catalog validation cannot write using stale alarm definitions", async (t) => {
+  const f = await setup(t);
+  await f.dashboard.createAlarm({});
+  const catalog = await f.kiosk.musicOptions();
+  const original = f.kiosk.command.bind(f.kiosk);
+  f.kiosk.command = async (name, ...args) => {
+    const result = await original(name, ...args);
+    if (name === "libraryPickerSource") f.mode.unavailable = true;
+    return result;
+  };
+  await assert.rejects(f.dashboard.saveAlarm({
+    ...alarmSettings(f.kiosk.snapshot().alarms[0]), type: "Music", music_station_id: catalog.items[0].id,
+  }), { status: 503 });
+  assert.equal(f.calls.filter(({ name }) => name === "alarmSave").length, 1, "Only the initial disabled draft may have been written");
 });
 
 test("bad authentication, malformed status and lost write acknowledgements fail explicitly without retries", async (t) => {

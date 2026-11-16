@@ -135,6 +135,15 @@ export function createServer({ dashboard, webRoot, logger = console }) {
       }
       if (pathname === "/health") return json(200, { ok: true, connected: dashboard.connected });
       if (pathname === "/api/state") return json(200, dashboard.payload());
+      if (pathname === "/api/alarm/sounds" || pathname === "/api/alarm/music") {
+        if (!dashboard.kiosk) throw new RequestError("Native alarm choices require the Kiosk Satellite backend.", 409);
+        if (pathname.endsWith("/sounds")) {
+          if (url.search) throw new RequestError("Native sound choices take no parameters.");
+          return json(200, await dashboard.kiosk.soundOptions());
+        }
+        if (new Set(url.searchParams.keys()).size !== [...url.searchParams].length) throw new RequestError("Duplicate native music browser parameter.");
+        return json(200, await dashboard.kiosk.musicOptions(Object.fromEntries(url.searchParams)));
+      }
       const imageResponse = (image) => {
         if (!image) throw new RequestError("Image not found.", 404);
         res.writeHead(200, { "Content-Type": image.type });
