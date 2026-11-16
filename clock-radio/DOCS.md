@@ -573,8 +573,8 @@ until real-device tests have passed on your installed Kiosk/Android version.
 ### Configure and connect
 
 1. Enable Kiosk **Remote Administration**, set its password, and confirm the
-   installed version offers native alarms and the `alarmsStatus`, `alarmSave`,
-   `alarmDelete`, `libraryPickerSource` and `libraryPickerList` commands.
+   installed version offers native alarms and the `alarmsStatus`, `alarmSave`
+   and `alarmDelete` commands.
 2. Obtain a Remote API token with Kiosk's `POST /api/login` endpoint. Its JSON
    body takes `password` and optionally `ttl_days`; tokens expire after seven
    days by default and must be renewed. See the [official Remote API authentication guide](https://github.com/jxlarrea/kiosk-satellite/blob/main/docs/remote-api.md#authentication).
@@ -609,17 +609,22 @@ include it. All tablets connected to this app manage the **same configured kiosk
 - **Buzzer** uses the saved native tone; new drafts use Kiosk's built-in tone.
   Set other native sounds on Kiosk. The app's twelve HA-hosted WAV choices
   are not copied to the device.
-- **Music** selects radios from **Kiosk's own Music Assistant connection**.
-  Enable/configure Music Assistant and the local Sendspin player in Kiosk,
-  and add radio stations to that MA library. Playback targets this kiosk,
-  not the HA `media_player` option or another discovered room. The prototype
-  supports up to 500 radio entries and reports larger/invalid libraries.
-  No arbitrary music URI is accepted from the browser.
-- Kiosk's alarm engine tries the selected radio and uses the saved native
-  tone when music cannot play. Music still needs its source/network;
-  the tone does not. Existing music picks survive unrelated edits or toggles,
-  including a temporarily unavailable radio library. Switching to Buzzer
-  removes the native music pick; choose a radio again when switching back.
+- **Music** follows **Kiosk Settings > Alarms > Alarm music**. Open Kiosk's
+  native music picker, choose **Music > Radios**, select its source, speaker
+  and station, and use **Preview** there to verify playback. Clock Radio only
+  chooses Music or Buzzer; it does not browse a second catalog, force Music
+  Assistant/Sendspin or override Kiosk's chosen speaker. The HA `media_player`
+  option and Clock Radio's separate HA Music page do not control native alarms.
+- A Music alarm inherits the **live Kiosk default**, rather than copying the
+  chosen station into each alarm. Later changes to Kiosk's Alarm music therefore
+  apply to every inheriting Music alarm. Buzzer explicitly opts out.
+  Kiosk uses the saved native tone when no default is configured or music
+  cannot play. Music still needs its source/network; the tone does not.
+- **Upgrading from 0.19.0:** existing per-alarm music overrides are not changed
+  on startup or refresh. Saving or toggling a Music alarm replaces its override
+  with default inheritance and verifies the result. Configure Kiosk's default,
+  then save each existing Music alarm once. Switching Buzzer back to Music
+  also follows this default; no station choice is needed in Clock Radio.
 - **Volume, Snooze length and Silence after are device-wide Kiosk settings**,
   not per-alarm fields. Their HA-specific controls are hidden, not silently
   ignored or mapped to fabricated values.
@@ -643,7 +648,10 @@ identity, are read-only and cannot recreate live ringing/Snooze state.
 
 1. Choose a test time that does not duplicate an enabled HA or personal native
    alarm. This option intentionally leaves existing HA schedules running.
-2. Create and enable a short-term Buzzer test; repeat with a Music radio.
+2. In Kiosk **Settings > Alarms > Alarm music**, choose a radio and speaker and
+   verify **Preview** works. Create and enable a short-term Buzzer test in
+   Clock Radio; repeat with Music. Reload the dashboard after an app update
+   so it uses the current editor.
 3. Verify on the Echo with the dashboard closed, HA stopped and Wi-Fi off,
    including native tone fallback and native Stop/Snooze. Separately test
    screen-off behavior and a device restart. Mock tests do not prove that the

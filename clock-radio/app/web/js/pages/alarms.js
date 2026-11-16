@@ -206,7 +206,9 @@ export function createAlarmPage(ctx) {
     row("Wake timer", h("label", { class: "alarm-editor__duration" }, duration, h("span", null, "min"))),
     h("p", { class: "alarm-editor__hint" }, "The wake timer stops playback; it is not a snooze timer."));
   const nativeSettings = h("p", { class: "alarm-editor__hint", hidden: true },
-    "Kiosk device local time. No repeat days means once. Volume, Snooze length and Silence after are device-wide Kiosk settings. Music uses this kiosk's Music Assistant/Sendspin player with its saved native tone as fallback; Buzzer uses the native tone. Use Kiosk to change tones and ringing defaults.");
+    "Kiosk device local time. No repeat days means once. Volume, Snooze length and Silence after are device-wide Kiosk settings. Buzzer uses the native tone. Use Kiosk to change tones and ringing defaults.");
+  const nativeMusicSettings = h("p", { class: "alarm-editor__hint", hidden: true },
+    "Music follows Kiosk Settings > Alarms > Alarm music. Choose and preview Music > Radios there, including its source and speaker. Saving or toggling a Music alarm replaces any per-alarm music override with that default. If no music is configured or playback fails, Kiosk uses the saved native tone.");
   const fieldset = h("fieldset", { class: "settings-fieldset" },
     timeSlot, timeZone, createdInfo,
     h("section", { class: "alarm-editor__group" },
@@ -216,7 +218,7 @@ export function createAlarmPage(ctx) {
     h("section", { class: "alarm-editor__group" },
       row("Enabled", enabled.el),
       row("Alarm type", type),
-      stationPicker, soundPicker, volumeSettings, nativeSettings),
+      stationPicker, soundPicker, volumeSettings, nativeSettings, nativeMusicSettings),
     hint, reload);
   const form = h("form", { "aria-label": "Alarm editor" },
     h("header", { class: "alarm-editor__header" }, cancel, title, save),
@@ -278,6 +280,7 @@ export function createAlarmPage(ctx) {
     remove.disabled = !deletionAllowed(model, activeId, busy);
     picker.setDisabled(disabled);
     if (!dirty && available) loadEditor(alarm);
+    nativeMusicSettings.hidden = !native || type.value !== "Music";
     updateStations(model, alarm, disabled);
     updateSounds(alarm, disabled);
     hint.textContent = model.alarms.delete_error || (native && alarm.native_busy ? "Stop this alarm on Kiosk before editing or deleting it."
@@ -335,19 +338,17 @@ export function createAlarmPage(ctx) {
       : `${ALARM_SOUNDS.find(({ id }) => id === sound.value)?.description ?? "Keep the shared HA Buzzer sound."} Preview plays on this device only; Save applies the sound to this alarm.`);
   }
   function updateStations(model, alarm, disabled) {
-    stationPicker.hidden = type.value !== "Music";
+    stationPicker.hidden = model.alarms.backend === "kiosk_satellite" || type.value !== "Music";
     if (stationPicker.hidden) return;
     const stations = model.alarms.radio_stations ?? [];
     const radioError = model.alarms.radio_error;
     const unavailable = !alarm.can_select_radio;
-    const native = model.alarms.backend === "kiosk_satellite";
-    stationHint.textContent = native ? model.alarms.radio_error || "Choose a radio from Kiosk's own Music Assistant library. Plays on the kiosk; its native tone rings if music cannot play."
-      : !model.connected ? "Offline. Reconnect to view or change radio stations." : alarm.music_source_error
+    stationHint.textContent = !model.connected ? "Offline. Reconnect to view or change radio stations." : alarm.music_source_error
       || (unavailable ? "Update the HA alarm package to version 5, including its per-alarm Music Source helpers, to choose a station."
         : radioError || (!stations.length ? "No radio stations in Music Assistant. Add radios to its library; the list refreshes automatically."
           : "Choose a radio for this alarm only. Save applies your selection; no music plays now."));
     const options = [
-      { id: null, name: native ? "Choose a Kiosk radio station" : "Use shared HA default", image: null },
+      { id: null, name: "Use shared HA default", image: null },
       ...stations,
     ];
     if (selectedStation && !stations.some((station) => station.id === selectedStation)) {
@@ -377,7 +378,7 @@ export function createAlarmPage(ctx) {
     for (const option of options) {
       const input = stationInputs.get(option.id);
       input.checked = option.id === selectedStation;
-      input.disabled = disabled || unavailable || Boolean(option.saved) || native && option.id === null || (option.id !== null && Boolean(radioError));
+      input.disabled = disabled || unavailable || Boolean(option.saved) || (option.id !== null && Boolean(radioError));
     }
   }
   function openEditor(id, created = false) {
@@ -416,7 +417,7 @@ export function createAlarmPage(ctx) {
         id, enabled: enabled.control.checked, type: type.value, ...picker.getTime(),
         ...(!native ? { volume: Number(volume.value), duration: Number(duration.value) } : {}), days: { ...selectedDays },
       };
-      if (stationDirty && (!native || type.value === "Music")) values.music_station_id = selectedStation;
+      if (stationDirty && !native) values.music_station_id = selectedStation;
       if (soundDirty && !native) values.buzzer_sound_id = sound.value || null;
       saving = true;
       status.textContent = "Saving...";
@@ -544,7 +545,7 @@ export function createAlarmPage(ctx) {
     }
     const incomplete = alarms.some((alarm) => alarm.id > 2 && (!alarm.available || !alarm.setup_complete));
     add.disabled = busy || !ctx.canControl() || !model.alarms.can_create || incomplete;
-    addInfo.textContent = native ? model.alarms.error || "Native ringing screen and alarm defaults are provided by Kiosk Satellite. Only this backend's connection is required to edit these alarms."
+    addInfo.textContent = native ? model.alarms.error || "Music follows Kiosk Settings > Alarms > Alarm music. Saving or toggling a Music alarm replaces its previous music override with that default. Native ringing and alarm defaults stay on Kiosk. Only this backend's connection is required to edit these alarms."
       : !model.connected ? "Offline. Saved schedules are read-only; reconnect to change alarms."
       : model.alarms.deleting ? "Finish the pending deletion before adding or deleting another alarm."
       : incomplete ? "Finish setting up the incomplete alarm before adding another."

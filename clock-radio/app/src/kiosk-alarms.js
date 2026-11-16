@@ -1,5 +1,4 @@
 import crypto from "node:crypto";
-import { isDeepStrictEqual } from "node:util";
 import { RequestError } from "./errors.js";
 import { WEEKDAYS, validateAlarmSchedule } from "./alarms.js";
 
@@ -36,10 +35,6 @@ export class KioskAlarms {
     this.updatedAt = null;
     this.error = "Connecting to Kiosk Satellite.";
     this.status = { alarms: [], ids: [], phase: "idle" };
-    this.stations = [];
-    this.musicError = "Loading Kiosk's Music Assistant radio library.";
-    this.libraryAt = -Infinity;
-    this.speaker = null;
     this.busy = false;
   }
 
@@ -64,7 +59,6 @@ export class KioskAlarms {
     } catch { throw new RequestError(`Kiosk Satellite returned an invalid response (HTTP ${response.status}).${uncertain}`, 502); }
     if (object(result) && result.ok === false) {
       const detail = result?.error === "duplicate" ? "Another Kiosk alarm already has that time and repeat days."
-        : result?.error === "no_source" ? "Configure Music Assistant and its local player on Kiosk before choosing music."
         : "Check the Kiosk version, configuration and Remote Administration logs.";
       throw new RequestError(`Kiosk Satellite rejected ${name}. ${detail}`, 502);
     }
@@ -99,58 +93,10 @@ export class KioskAlarms {
       this.connected = true;
       this.error = null;
       this.updatedAt = new Date(this.now()).toISOString();
-      void this.refreshMusic();
     } catch (error) {
       if (this.error !== error.message) this.logger.warn(error.message);
       this.connected = false;
       this.error = error.message;
-    }
-  }
-
-  refreshMusic() {
-    if (this.libraryLoading) return this.libraryLoading;
-    if (this.now() - this.libraryAt < (this.musicError ? 60_000 : 300_000)) return Promise.resolve();
-    this.libraryLoading = this.fetchMusic().finally(() => { this.libraryLoading = null; });
-    return this.libraryLoading;
-  }
-
-  async fetchMusic() {
-    this.libraryAt = this.now();
-    try {
-      const source = await this.command("libraryPickerSource", { source: "ma" });
-      if (!object(source) || source.source !== "ma" || !Array.isArray(source.speakers) || !Array.isArray(source.categories)) {
-        throw new RequestError("Configure Music Assistant on Kiosk Satellite to choose alarm radio stations.", 409);
-      }
-      const speaker = source.speakers.find((item) => item.self === true && item.available === true && text(item.pick) && text(item.name));
-      if (!speaker) throw new RequestError("Enable Kiosk's own Music Assistant/Sendspin player for music alarms on this device.", 409);
-      const category = source.categories.find((item) => item.kind === "radio" && text(item.key));
-      if (!category) throw new RequestError("Kiosk's Music Assistant source has no radio category.", 409);
-      const stations = [];
-      let more = true;
-      while (more) {
-        const page = await this.command("libraryPickerList", { source: "ma", speaker: speaker.pick, category: category.key, offset: stations.length });
-        if (!object(page) || !Array.isArray(page.items) || typeof page.more !== "boolean" || page.more && !page.items.length) {
-          throw new RequestError("Kiosk Satellite returned an invalid radio library page.", 502);
-        }
-        for (const item of page.items) {
-          if (!object(item) || !text(item.id) || !item.id || item.kind !== "radio" || !text(item.title) || item.playable === false || !object(item.raw)) {
-            throw new RequestError("Kiosk Satellite returned an invalid radio item.", 502);
-          }
-          const raw = Object.fromEntries(["item_id", "uri", "media_type", "provider", "path", "year"]
-            .filter((key) => ["string", "number", "boolean"].includes(typeof item.raw[key])).map((key) => [key, item.raw[key]]));
-          const id = `ks-radio-${crypto.createHash("sha256").update(item.id).digest("hex").slice(0, 16)}`;
-          if (stations.some((station) => station.id === id)) throw new RequestError("Kiosk's radio library contains duplicate IDs.", 502);
-          stations.push({ id, name: item.title, item: { id: item.id, kind: "radio", title: item.title, playable: true, expandable: false, raw } });
-        }
-        if (stations.length > 500) throw new RequestError("The experimental Kiosk backend supports at most 500 radio stations.", 409);
-        more = page.more;
-      }
-      this.stations = stations;
-      this.speaker = { pick: speaker.pick, name: speaker.name };
-      this.musicError = null;
-    } catch (error) {
-      if (this.musicError !== error.message) this.logger.warn(error.message);
-      this.musicError = error.message;
     }
   }
 
@@ -167,8 +113,7 @@ export class KioskAlarms {
       active: null, active_id: null, snoozed: null, active_error: null, deleting: null, delete_error: null,
       can_create: this.connected, can_delete: this.connected, can_stop: false,
       can_snooze: false, can_play: false, playback_missing: [],
-      radio_stations: this.stations.map(({ id, name }) => ({ id, name, image: null })),
-      radio_error: this.musicError, buzzer_sounds: [],
+      radio_stations: [], radio_error: null, buzzer_sounds: [],
       alarms: owned.map((alarm) => ({
         backend: "kiosk_satellite", id: alarm.id, enabled: alarm.on,
         native_busy: this.status.phase !== "idle" && this.status.ids.includes(alarm.id),
@@ -176,9 +121,9 @@ export class KioskAlarms {
         hour: Number(alarm.time.slice(0, 2)), minute: Number(alarm.time.slice(3)), volume: null, duration: null,
         days: Object.fromEntries(WEEKDAYS.map((day, i) => [day, alarm.days.includes((i + 1) % 7)])),
         missing: [], available: true, setup_complete: true, deletion_pending: false, timer: null, finishes_at: null,
-        can_select_radio: true, can_select_sound: false, music_source_error: null, buzzer_source_error: null,
-        music_station_id: this.stations.find((station) => station.item.id === alarm.music?.item?.id)?.id ?? null,
-        music_station_name: alarm.music?.item?.title ?? (alarm.music === "none" ? null : "Kiosk default music"),
+        can_select_radio: false, can_select_sound: false, music_source_error: null, buzzer_source_error: null,
+        music_station_id: null,
+        music_station_name: alarm.music?.item?.title ?? (alarm.music === "none" ? null : "Kiosk Alarm music default"),
         music_source_set: alarm.music !== "none", buzzer_source_set: true,
         buzzer_sound_id: null, buzzer_sound_name: alarm.tone === "builtin" ? "Kiosk built-in tone" : "Kiosk configured tone",
       })),
@@ -231,24 +176,17 @@ export class KioskAlarms {
   }
 
   save(body) {
-    if (!object(body) || Object.keys(body).some((key) => !["id", "enabled", "type", "hour", "minute", "days", "music_station_id"].includes(key))) throw new RequestError("Unknown Kiosk alarm setting.");
+    if (!object(body) || Object.keys(body).some((key) => !["id", "enabled", "type", "hour", "minute", "days"].includes(key))) throw new RequestError("Unknown Kiosk alarm setting. Configure music in Kiosk Settings > Alarms > Alarm music, then reload Clock Radio.");
     validateAlarmSchedule(body, { allowOnce: true });
-    if (Object.hasOwn(body, "music_station_id") && (body.type !== "Music" || typeof body.music_station_id !== "string"
-        || !/^ks-radio-[a-f0-9]{16}$/.test(body.music_station_id))) throw new RequestError("Choose a Kiosk radio station for a Music alarm; Buzzer alarms do not accept station changes.");
     return this.mutate(async () => {
       const current = this.requireAlarm(body.id);
       const alarm = { ...current, time: `${String(body.hour).padStart(2, "0")}:${String(body.minute).padStart(2, "0")}`, days: nativeDays(body.days), on: body.enabled };
       delete alarm.next;
       if (body.type === "Buzzer") alarm.music = "none";
-      else if (Object.hasOwn(body, "music_station_id")) {
-        if (this.musicError) throw new RequestError(this.musicError, 409);
-        const station = this.stations.find((item) => item.id === body.music_station_id);
-        if (!station || !this.speaker) throw new RequestError("Choose a radio from Kiosk's current Music Assistant library.", 409);
-        alarm.music = { source: "ma", item: station.item, speaker: this.speaker.pick, speakerName: this.speaker.name, shuffle: false };
-      } else if (!object(current.music)) throw new RequestError("Choose a Music Assistant radio station before saving a Music alarm.", 409);
+      else delete alarm.music;
       await this.command("alarmSave", { alarm }, true);
       await this.verify(body.id, (saved) => Boolean(saved) && saved.on === alarm.on && saved.time === alarm.time
-        && JSON.stringify([...saved.days].sort()) === JSON.stringify(alarm.days) && isDeepStrictEqual(saved.music, alarm.music));
+        && JSON.stringify([...saved.days].sort()) === JSON.stringify(alarm.days) && saved.music === alarm.music);
     });
   }
 

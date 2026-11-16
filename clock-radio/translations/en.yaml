@@ -1,7 +1,7 @@
 configuration:
   media_player:
     name: Music and alarm speaker
-    description: One HA media_player entity ID, for example media_player.sovevaerelse. Used for music and HA-backed alarms. Experimental Kiosk alarms use the configured kiosk instead. Restart after changing; enabled HA schedules are paused while the HA speaker helper is updated, then restored, only with the HA alarm backend.
+    description: One HA media_player entity ID, for example media_player.sovevaerelse. Used for music and HA-backed alarms. Experimental Kiosk alarms use Kiosk's native alarm settings instead. Restart after changing; enabled HA schedules are paused while the HA speaker helper is updated, then restored, only with the HA alarm backend.
   weather_entity:
     name: Weather entity
     description: Optional HA weather entity ID, for example weather.forecast_home. Used by the weather widget and full-screen clock. Empty disables weather; configure this only here, not in dashboard settings. Restart after changing.
@@ -19,7 +19,7 @@ configuration:
     description: Show clock, music and alarm states but reject playback, grouping and all settings changes. Restart after changing.
   alarm_backend:
     name: Alarm backend (Kiosk is experimental)
-    description: Default home_assistant preserves existing behavior. kiosk_satellite manages only marked Clock Radio test alarms on the configured kiosk, including Music Assistant radio with local tone fallback. Existing HA schedules and unrelated native alarms are untouched. Switching back does NOT cancel native alarms; explicitly delete test alarms in Clock Radio before switching, or in Kiosk. Restart after changing.
+    description: Default home_assistant preserves existing behavior. kiosk_satellite manages only marked Clock Radio test alarms on the configured kiosk. Music follows Kiosk Settings > Alarms > Alarm music, including its source, radio and speaker, with native tone fallback. Existing HA schedules and unrelated native alarms are untouched. Switching back does NOT cancel native alarms; explicitly delete test alarms in Clock Radio before switching, or in Kiosk. Restart after changing.
   kiosk_satellite_url:
     name: Kiosk Satellite Remote Administration URL
     description: Experimental backend only. Use the kiosk's LAN HTTP(S) origin, for example http://192.168.1.50:2324, not the secure-context proxy's localhost address. Remote Administration and its alarm commands must be available. All tablets using this app manage this one kiosk. Restart after changing.

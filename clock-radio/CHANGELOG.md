@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.19.1
+
+- Make experimental Kiosk-backed Music alarms follow Kiosk's own
+  **Settings > Alarms > Alarm music** choice, including source, radio and
+  speaker. Configure and preview Music > Radios in Kiosk's native picker.
+  Clock Radio no longer forces a Music Assistant source or local Sendspin player.
+- Remove the Kiosk radio picker and catalog polling from Clock Radio.
+  Buzzer still explicitly uses the saved native tone; Music inherits the
+  live Kiosk default, with the native tone when no music is configured or
+  playback cannot start.
+- Leave saved alarms untouched on update. Saving or toggling a Music alarm
+  removes its previous per-alarm music override and verifies inheritance.
+  Existing users should save their Music alarms once after updating.
+  Default HA-backed alarms and the HA Music page are unchanged.
+
 ## 0.19.0
 
 - Add an opt-in experimental `kiosk_satellite` alarm backend in the HA app

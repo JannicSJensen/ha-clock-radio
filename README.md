@@ -59,8 +59,9 @@ See [offline behavior and limits](clock-radio/DOCS.md#offline-snapshots-and-requ
 
 An opt-in [experimental Kiosk Satellite backend](clock-radio/DOCS.md#experimental-kiosk-satellite-alarm-backend)
 keeps our alarm editor but executes marked native test alarms on the kiosk,
-including Music Assistant radio with local tone fallback. Configure it in the
-HA app options; existing HA schedules are never migrated or disabled.
+with Music following **Kiosk Settings > Alarms > Alarm music** and its selected
+source, radio and speaker, with local tone fallback. Configure it in the HA
+app options; existing HA schedules are never migrated or disabled.
 Switching back does not cancel native alarms.
 
 Set `media_player` in the HA app configuration: Music and every alarm use that

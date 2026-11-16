@@ -24,8 +24,9 @@ guarantee that a cold browser reload works without the dashboard server.
 
 For testing, select **kiosk_satellite** under **Alarm backend** in the HA app
 configuration and provide the kiosk's Remote Administration URL/API token.
-The existing editor then manages marked native test alarms, including Kiosk's
-Music Assistant radio with local tone fallback. HA remains the default, and
+The existing editor then manages marked native test alarms. Music follows
+**Kiosk Settings > Alarms > Alarm music**, including its source, radio and
+speaker, with local tone fallback. HA remains the default, and
 existing HA schedules are untouched. Native ringing/defaults stay on Kiosk.
 **Switching back does not cancel native alarms.**
 See [setup, limitations and cleanup](DOCS.md#experimental-kiosk-satellite-alarm-backend).

@@ -5,7 +5,7 @@ export const DEMO_KIOSK_TOKEN = "clock-radio-fictional-kiosk";
 export function createKioskDemo() {
   const alarms = [{ id: "personal-native-alarm", time: "07:00", days: [0, 6], on: false, label: "Personal alarm", tone: "builtin", music: "none", sunrise: false, speak: false, phrase: "" }];
   const calls = [];
-  const mode = { unavailable: false, failMusic: false, ignoreSaves: false, phase: "idle", ids: [] };
+  const mode = { unavailable: false, ignoreSaves: false, phase: "idle", ids: [] };
   const server = http.createServer(async (req, res) => {
     const reply = (status, data) => {
       res.writeHead(status, { "Content-Type": "application/json" });
@@ -27,17 +27,6 @@ export function createKioskDemo() {
     if (name === "alarmsStatus") return ok({
       phase: mode.phase, ids: mode.ids, labels: [], at: null, snoozedUntil: null, next: null, visible: false,
       alarms: alarms.map((alarm) => ({ ...alarm, next: alarm.on ? new Date(Date.now() + 3600000).toISOString() : null })),
-    });
-    if (name === "libraryPickerSource") {
-      if (mode.failMusic) return reply(400, { ok: false, error: "no_source" });
-      return ok({ source: "ma", sources: ["ma"], categories: [{ key: "radios", kind: "radio" }],
-        speakers: [{ pick: "", name: "Fictional Echo Show", available: true, self: true }] });
-    }
-    if (name === "libraryPickerList") return ok({
-      more: false, items: ["Morning Jazz", "Slow Sundays"].map((title, i) => ({
-        id: `library://radio/${i + 1}`, kind: "radio", title, playable: true, expandable: false,
-        raw: { item_id: String(i + 1), uri: `library://radio/${i + 1}`, media_type: "radio", provider: "library", private_data: "fictional-secret" },
-      })),
     });
     if (name === "alarmSave") {
       const alarm = data.alarm;

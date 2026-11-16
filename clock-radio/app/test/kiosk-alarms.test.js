@@ -18,7 +18,6 @@ async function setup(t) {
   const url = `http://127.0.0.1:${fixture.server.address().port}`;
   const kiosk = new KioskAlarms({ url, token: DEMO_KIOSK_TOKEN, logger });
   t.after(async () => {
-    if (kiosk.libraryLoading) await kiosk.libraryLoading;
     const closed = once(fixture.server, "close");
     fixture.server.close(); fixture.server.closeAllConnections();
     await closed;
@@ -26,7 +25,7 @@ async function setup(t) {
   let haOffline = false;
   const haCalls = [];
   const dashboard = new Dashboard({
-    kiosk, version: "0.19.0", demo: true, mediaPlayer: "media_player.different",
+    kiosk, version: "0.19.1", demo: true, mediaPlayer: "media_player.different",
     configStore: { current: parseConfig({ time_zone: "Europe/Copenhagen" }), load() {} }, logger,
     ha: {
       async states() { if (haOffline) throw new Error("Fictional HA offline"); return demoStates(); },
@@ -34,7 +33,6 @@ async function setup(t) {
     },
   });
   await dashboard.refresh();
-  await kiosk.refreshMusic();
   return { ...fixture, kiosk, dashboard, haCalls, warnings, url, offline: () => { haOffline = true; } };
 }
 
@@ -80,31 +78,54 @@ test("native status and mutations are independent of HA; existing HA and unrelat
   assert.equal(f.haCalls.length, 0);
 });
 
-test("Music choices come from Kiosk's own library/player, preserve picks on toggles, and keep a local tone fallback", async (t) => {
+test("Music follows Kiosk's Alarm music setting without copying a source, radio or speaker; Buzzer forces the native tone", async (t) => {
   const f = await setup(t);
+  f.offline();
   await f.dashboard.createAlarm({});
   const alarm = f.kiosk.snapshot().alarms[0];
-  const station = f.kiosk.snapshot().radio_stations[0];
-  await assert.rejects(f.dashboard.saveAlarm({ ...alarmSettings(alarm, true), type: "Music" }), /Choose/);
-  await f.dashboard.saveAlarm({ ...alarmSettings(alarm, true), type: "Music", music_station_id: station.id });
+  await f.dashboard.saveAlarm({ ...alarmSettings(alarm, true), type: "Music" });
   let native = f.alarms.find(({ id }) => id === alarm.id);
-  assert.equal(native.music.source, "ma");
-  assert.equal(native.music.speaker, "", "Own Sendspin player, not an arbitrary HA speaker");
-  assert.equal(native.music.item.raw.uri, "library://radio/1");
-  assert.equal(native.music.item.raw.private_data, undefined);
+  assert.equal(Object.hasOwn(native, "music"), false, "Missing music follows Kiosk's live default, not none or a copied pick");
+  assert.equal(Object.hasOwn(f.calls.findLast(({ name }) => name === "alarmSave").data.alarm, "music"), false);
   assert.equal(native.tone, "builtin");
   assert.equal(native.speak, false);
-  const pick = structuredClone(native.music);
-  f.mode.failMusic = true;
-  f.kiosk.libraryAt = -Infinity;
-  await f.kiosk.refreshMusic();
-  assert.match(f.kiosk.musicError, /Kiosk/);
+  assert.equal(f.kiosk.snapshot().alarms[0].music_station_name, "Kiosk Alarm music default");
+  assert.equal(f.kiosk.snapshot().alarms[0].can_select_radio, false);
+  assert.deepEqual(f.kiosk.snapshot().radio_stations, []);
+  assert.equal(f.kiosk.snapshot().radio_error, null);
   await f.dashboard.saveAlarm(alarmSettings(f.kiosk.snapshot().alarms[0], false));
   native = f.alarms.find(({ id }) => id === alarm.id);
-  assert.deepEqual(native.music, pick);
+  assert.equal(Object.hasOwn(native, "music"), false, "Toggling keeps inheritance");
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), type: "Buzzer" });
+  assert.equal(f.alarms.find(({ id }) => id === alarm.id).music, "none");
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), type: "Music" });
+  assert.equal(Object.hasOwn(f.alarms.find(({ id }) => id === alarm.id), "music"), false);
+  assert.ok(f.calls.every(({ name }) => ["alarmsStatus", "alarmSave"].includes(name)), "Do not read a radio catalog or modify Kiosk's global music settings");
+  assert.equal(f.haCalls.length, 0);
   const payload = JSON.stringify(f.dashboard.payload());
   for (const secret of [DEMO_KIOSK_TOKEN, "fictional-secret", "library://radio/1", f.url]) assert.ok(!payload.includes(secret), secret);
-  await assert.rejects(f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), music_station_id: station.id }), /Kiosk/);
+  await assert.rejects(f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), music_station_id: "ks-radio-0123456789abcdef" }), /Configure music in Kiosk/);
+});
+
+test("legacy per-alarm music stays untouched until saved, then is removed and verified as native inheritance", async (t) => {
+  const f = await setup(t);
+  await f.dashboard.createAlarm({});
+  const native = f.alarms.find(({ id }) => id === f.kiosk.snapshot().alarms[0].id);
+  native.music = { source: "ma", item: { id: "library://radio/1", title: "Previous station" }, speaker: "previous-speaker" };
+  const before = structuredClone(native);
+  await f.dashboard.refresh();
+  assert.deepEqual(native, before, "Polling must not migrate existing schedules");
+  assert.equal(f.kiosk.snapshot().alarms[0].music_station_name, "Previous station");
+  f.mode.ignoreSaves = true;
+  await assert.rejects(f.dashboard.saveAlarm(alarmSettings(f.kiosk.snapshot().alarms[0])), /not confirmed/);
+  assert.deepEqual(f.alarms.find(({ id }) => id === native.id), before);
+  f.mode.ignoreSaves = false;
+  await f.dashboard.saveAlarm(alarmSettings(f.kiosk.snapshot().alarms[0], true));
+  const saved = f.alarms.find(({ id }) => id === native.id);
+  const { music, ...expected } = before;
+  assert.deepEqual(saved, { ...expected, on: true }, "Toggling removes the legacy music override without changing other native settings");
+  assert.equal(f.kiosk.snapshot().alarms[0].type, "Music");
+  assert.equal(f.kiosk.snapshot().alarms[0].music_station_name, "Kiosk Alarm music default");
 });
 
 test("one-shot native schedules are allowed, and external native fields survive time-only edits", async (t) => {
