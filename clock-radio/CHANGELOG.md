@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.23.1
+
+- Remove the introductory KS alarm-selection paragraph from the Alarm page,
+  while preserving native connection errors and other status notices.
+
 ## 0.23.0
 
 - Add opt-in Clock Radio ringing and snooze UI for native KS alarms using

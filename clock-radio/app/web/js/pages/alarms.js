@@ -552,7 +552,7 @@ export function createAlarmPage(ctx) {
     }
     const incomplete = alarms.some((alarm) => alarm.id > 2 && (!alarm.available || !alarm.setup_complete));
     add.disabled = busy || !ctx.canControl() || !model.alarms.can_create || incomplete;
-    addInfo.textContent = native ? model.alarms.error || "Choose each alarm's music, speaker and native buzzer tone in Clock Radio. Saved choices are preserved when changing schedules or toggles. Native ringing and device-wide defaults stay on Kiosk. Only this backend's connection is required to edit these alarms."
+    addInfo.textContent = native ? model.alarms.error || ""
       : !model.connected ? "Offline. Saved schedules are read-only; reconnect to change alarms."
       : model.alarms.deleting ? "Finish the pending deletion before adding or deleting another alarm."
       : incomplete ? "Finish setting up the incomplete alarm before adding another."

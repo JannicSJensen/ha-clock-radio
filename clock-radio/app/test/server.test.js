@@ -145,7 +145,8 @@ test("HTTP foundation works end to end with HA, hot reload, error paths and ingr
   assert.match(js, /getJson\("api\/state"/);
   assert.match(js, /const PAGES = \{ clock: "The Clock", alarms: "Alarm configuration", music: "Music overview", settings: "Settings" \}/);
   const alarms = await (await fetch(`${url}/js/pages/alarms.js`)).text();
-  assert.doesNotMatch(alarms, /Tap an alarm to edit|Swipe down for|Alarms run in Home Assistant\. New alarms start disabled/);
+  assert.doesNotMatch(alarms, /Tap an alarm to edit|Swipe down for|Alarms run in Home Assistant\. New alarms start disabled|Choose each alarm's music/);
+  assert.match(alarms, /native \? model\.alarms\.error \|\| ""/);
   assert.match(alarms, /addInfo\.hidden = !addInfo\.textContent/);
   assert.doesNotMatch(alarms, /[Aa]larm \$\{/);
   const alarmScreen = await (await fetch(`${url}/js/components/alarm-screen.js`)).text();
