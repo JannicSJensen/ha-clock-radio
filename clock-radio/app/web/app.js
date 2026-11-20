@@ -109,7 +109,7 @@ function navigate() {
   $(`page-${current}`).focus({ preventScroll: true });
   const position = `Page ${pageIds.indexOf(current) + 1} of ${pageIds.length}: ${PAGES[current]}`;
   $("page-indicator").setAttribute("aria-label", position);
-  $("page-position").textContent = `${position}. Swipe up/down or use Page Up/Down to change pages.`;
+  $("page-position").textContent = `${position}. Swipe left/right or use Page Up/Down to change pages.`;
   document.body.classList.toggle("on-clock", current === "clock");
   if (current !== "clock") document.body.classList.remove("is-night");
   frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" }, location.origin);
@@ -262,9 +262,9 @@ function render() {
   alarmScreen.update(model, pending > 0);
   checkIdleReturn();
   policy();
-  if (!getPref("touch-navigation-hint")) {
-    toast("Swipe up/down between pages (scroll to the edge first). Swipe left/right within clock panels. Keyboard: Page Up/Down.");
-    setPref("touch-navigation-hint", true);
+  if (!getPref("touch-navigation-horizontal-hint")) {
+    toast("Swipe left/right between pages. Swipe up/down within clock panels. Tap Music tabs to switch categories. Keyboard: Page Up/Down.");
+    setPref("touch-navigation-horizontal-hint", true);
   }
 }
 
@@ -354,7 +354,7 @@ addEventListener("message", (event) => {
   if (event.data.type === "clock-radio-view") changeClockView(event.data.panel, event.data.step);
 });
 for (const page of pageIds.filter((page) => page !== "clock")) {
-  onSwipe($(`page-${page}`), { vertical: changePage });
+  onSwipe($(`page-${page}`), { horizontal: changePage });
 }
 addEventListener("hashchange", navigate);
 for (const type of ["pointermove", "keydown", "input", "wheel", "scroll", "touchstart", "touchmove", "touchend"]) {

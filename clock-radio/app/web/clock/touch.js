@@ -3,8 +3,8 @@ import { onSwipe } from "../js/core/swipe.js";
 const root = document.getElementById("root");
 const page = (step) => parent.postMessage({ type: "clock-radio-page", step }, location.origin);
 onSwipe(root, {
-  vertical: page,
-  horizontal(step, target) {
+  horizontal: page,
+  vertical(step, target) {
     if (root.classList.contains("full") || root.querySelector(".snooze-panel")) return;
     const panel = target.closest("#widget") ? "widget" : "face";
     parent.postMessage({ type: "clock-radio-view", panel, step }, location.origin);

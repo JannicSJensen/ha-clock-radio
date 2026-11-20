@@ -2,8 +2,7 @@ import { h } from "../core/h.js";
 import { icon } from "../core/icons.js";
 import { getPref, setPref } from "../core/prefs.js";
 import { createPlayerPanel } from "../components/player.js";
-import { neighbourTab, playRequest, TAB_ICONS } from "../lib/music.js";
-import { onSwipe } from "../core/swipe.js";
+import { playRequest, TAB_ICONS } from "../lib/music.js";
 import { createDetailView } from "../views/detail.js";
 import { createDiscoverView } from "../views/discover.js";
 import { createLibraryView } from "../views/library.js";
@@ -15,7 +14,7 @@ const PREF_TAB = "music.tab";
 const LIBRARY_TABS = new Set(["albums", "artists", "podcasts", "playlists"]);
 
 /**
- * The music page: swipeable library tabs, the content of the chosen tab,
+ * The music page: selectable library tabs, the content of the chosen tab,
  * and the configured speaker's "now playing" bar at the bottom.
  */
 export function createMusicPage(model, ctx) {
@@ -84,7 +83,7 @@ export function createMusicPage(model, ctx) {
   });
   const tabbar = h("nav", { class: "mtabs", role: "tablist", hidden: tabs.length < 2 }, tabButtons.map((b) => b.el));
 
-  function showTab(tab, direction = 0) {
+  function showTab(tab) {
     for (const { view } of stack.splice(0)) view.destroy?.();
     content.replaceChildren();
     current = tab;
@@ -96,21 +95,7 @@ export function createMusicPage(model, ctx) {
     }
     push(buildRoot(tab));
     content.scrollTop = 0;
-    content.classList.remove("slide-next", "slide-prev");
-    if (direction) {
-      void content.offsetWidth; // restart the animation
-      content.classList.add(direction > 0 ? "slide-next" : "slide-prev");
-    }
   }
-
-  // ---- swiping between tabs ---------------------------------------------------------------
-  const stopSwiping = onSwipe(content, {
-    ignore: ".hrow,input,select,textarea,.slider,[contenteditable]",
-    horizontal(step) {
-      const next = stack.length === 1 ? neighbourTab(tabs, current, step) : null;
-      if (next) showTab(next, step);
-    },
-  });
 
   const el = h("div", { class: "music" }, panel.head, tabbar, content, panel.bar);
   showTab(current);
@@ -125,7 +110,6 @@ export function createMusicPage(model, ctx) {
     entities: model.players,
     update,
     destroy() {
-      stopSwiping();
       for (const { view } of stack) view.destroy?.();
       panel.destroy();
     },

@@ -10,11 +10,13 @@ All four main-page canvases and the app/loading background are pure black
 (`#000000`). Cards, controls and dialogs keep contrasting surfaces; clock
 colors can still be customized in Settings.
 
-There is no menu. Swipe **up/down** between **The Clock**, **Alarm configuration**,
+There is no menu. Swipe **left/right** between **The Clock**, **Alarm configuration**,
 **Music overview** and **Settings**, or use keyboard **Page Up/Down** outside
-form inputs. Scroll to the top/bottom first in Alarm configuration, Music and
-Settings: ordinary scrolling never changes pages mid-scroll. Open player dialogs
-and sliders do not trigger page swipes.
+form inputs. Vertical swipes scroll Alarm configuration, Music and Settings
+without changing pages. Horizontal music carousels and tab strips scroll first;
+start a new swipe at their edge, or swipe outside them, to change pages.
+Music categories are selected by tapping their tabs, not by swiping.
+Open player dialogs and sliders do not trigger page swipes.
 After two minutes without touch, mouse, scrolling or keyboard activity, Alarm
 configuration, Music and Settings automatically return to The Clock. Set
 `return_to_clock_minutes` in **Settings > Apps > Clock Radio > Configuration**
@@ -29,7 +31,7 @@ Four dots at the bottom of every main page show your position, left to right:
 Clock, Alarm configuration, Music, Settings. The active page has a grey dot;
 the other dots are darker. They are position indicators, not buttons. Screen
 readers announce the page name and position, such as "Page 4 of 4: Settings".
-Swipe left/right within the split clock's left panel to cycle square analog,
+Swipe up/down within the split clock's left panel to cycle square analog,
 round analog and digital faces; the right panel cycles calendar, weather, date
 and date/calendar. These selections save to YAML. Full-screen faces and hiding
 the widget remain Settings options. Swipes cannot save views in read-only mode.
@@ -276,7 +278,7 @@ On **The Clock**, the right-hand panel becomes a live `MM:SS` snooze countdown
 with the captured alarm type and the ringing screen's **slide to stop** control.
 In portrait it appears below the clock. Full-screen and widget-free layouts
 temporarily use two panels; your saved layout, face and widget are restored
-when HA clears snooze. Horizontal panel swipes are paused during snooze.
+when HA clears snooze. Vertical panel swipes are paused during snooze.
 
 ![Clock with a live snooze countdown and slide-to-stop control](../docs/screenshots/snooze.png)
 
@@ -511,7 +513,7 @@ Supervisor when no `music_assistant_url` is set; otherwise supply its HTTP(S)
 address (normally port 8095). Restart after changing connection options.
 Unconfigured browsing and unavailable services are shown explicitly.
 
-The music page retains Dasher's layout and swipeable tabs,
+The music page retains Dasher's layout and tap-selectable tabs,
 recommendations, sorting/favorites/filtering, item detail/track lists, queue
 actions, search and the full-screen artwork player. Speaker selection, grouping
 and Party are removed.

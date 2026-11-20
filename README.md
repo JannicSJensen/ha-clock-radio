@@ -30,7 +30,7 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
    New alarms start disabled; existing profiles are not duplicated. **Delete**
    confirms removal and stops/cancels that alarm. Bundled YAML profiles are
    disabled/hidden; app-created native helpers are removed.
-3. **Music overview** - Dasher's layout with swipeable Discover,
+3. **Music overview** - Dasher's layout with tap-selectable Discover,
    Radio, Albums, Artists, Podcasts, Playlists and Search tabs, sticky
    now-playing bar and artwork player with seeking, shuffle, repeat and volume.
    Full library browsing needs a Music Assistant read-only token in app options.
@@ -40,11 +40,13 @@ page with no build step, HACS cards, or tablet-side Home Assistant token.
 All four main-page canvases default to pure black; cards and controls retain
 their contrast. Clock colors remain configurable in Settings.
 
-There is no menu. Swipe **up/down** between pages; scroll to the edge first in
-Alarm configuration/Music/Settings. Keyboard users can use **Page Up/Down**.
+There is no menu. Swipe **left/right** between pages. Vertical swipes scroll
+Alarm configuration/Music/Settings; Music categories use tap-selectable tabs.
+Horizontal music carousels scroll first; start a new swipe at their edge to
+change pages. Keyboard users can use **Page Up/Down**.
 Four dots at the bottom show which page you are on; the active dot is grey.
 On the split clock,
-swipe **left/right** within each panel to save its clock face or widget.
+swipe **up/down** within each panel to save its clock face or widget.
 Full-screen faces and hiding the widget remain Settings options.
 
 After two minutes of inactivity on Alarm configuration, Music or Settings, the

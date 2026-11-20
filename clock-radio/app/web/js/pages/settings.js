@@ -136,7 +136,7 @@ export function createSettingsPages(ctx) {
       h("h1", null, "Settings"), h("p", null, "Your clock, colors and night-time routine.")),
     clock,
     group("Music Assistant", "music", [source("Library browsing", musicState)], musicInfo),
-    h("p", { class: "settings-hint settings-navigation-hint" }, "Swipe up/down between pages, or use Page Up/Down. Alarm configuration has its own page."),
+    h("p", { class: "settings-hint settings-navigation-hint" }, "Swipe left/right between pages, or use Page Up/Down. Alarm configuration has its own page."),
   );
 
   function optionsFor(control, list, first, keep = "") {

@@ -170,13 +170,8 @@
 .mtab.is-pressed { transform: scale(0.96); }
 .mtab.is-active { background: color-mix(in srgb, var(--accent) 20%, #1c1c1e); color: var(--accent); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--accent) 70%, transparent); }
 
-.music__content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; scrollbar-width: none; }
+.music__content { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; touch-action: pan-x pan-y; scrollbar-width: none; }
 .music__content::-webkit-scrollbar { display: none; }
-.music__content.slide-next { animation: slide-next 0.28s ease-out; }
-.music__content.slide-prev { animation: slide-prev 0.28s ease-out; }
-@keyframes slide-next { from { opacity: 0; transform: translateX(7%); } to { opacity: 1; transform: none; } }
-@keyframes slide-prev { from { opacity: 0; transform: translateX(-7%); } to { opacity: 1; transform: none; } }
-@media (prefers-reduced-motion: reduce) { .music__content.slide-next, .music__content.slide-prev { animation: none; } }
 
 .view { padding: 6px 18px 18px; }
 .view[hidden] { display: none; }

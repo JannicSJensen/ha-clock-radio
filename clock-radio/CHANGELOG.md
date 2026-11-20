@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.21.0
+
+- Swap touch navigation axes: swipe left/right between the four main pages,
+  and up/down within the split Clock's face or widget panel.
+- Keep vertical list scrolling and horizontal music carousels/tab strips
+  scrollable without changing pages mid-scroll. Music categories are now
+  selected by tapping tabs, avoiding conflicting horizontal navigation.
+- Update navigation hints, including a fresh hint for existing browsers.
+  Keyboard Page Up/Down, dialog/control guards and saved Clock choices remain
+  unchanged.
+
 ## 0.20.0
 
 - Keep alarm sound configuration in Clock Radio for both backends. Kiosk
