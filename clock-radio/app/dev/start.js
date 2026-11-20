@@ -51,8 +51,12 @@ await new Promise((resolve, reject) => {
 let runtimeOptions = optionsFile;
 let kioskDemo = null;
 let kioskTemp = null;
-if (JSON.parse(fs.readFileSync(optionsFile, "utf8")).alarm_backend === "kiosk_satellite") {
+const configuredOptions = JSON.parse(fs.readFileSync(optionsFile, "utf8"));
+if (configuredOptions.alarm_backend === "kiosk_satellite") {
   kioskDemo = createKioskDemo();
+  if (configuredOptions.kiosk_satellite_alarm_ui === "clock") {
+    kioskDemo.mode.presentation = { version: 1, enabled: true, device: "a".repeat(32) };
+  }
   await new Promise((resolve, reject) => {
     kioskDemo.server.once("error", reject);
     kioskDemo.server.listen(0, "127.0.0.1", resolve);
@@ -60,7 +64,7 @@ if (JSON.parse(fs.readFileSync(optionsFile, "utf8")).alarm_backend === "kiosk_sa
   kioskTemp = fs.mkdtempSync(path.join(os.tmpdir(), "clock-radio-kiosk-demo-"));
   runtimeOptions = path.join(kioskTemp, "options.json");
   fs.writeFileSync(runtimeOptions, JSON.stringify({
-    ...JSON.parse(fs.readFileSync(optionsFile, "utf8")),
+    ...configuredOptions,
     kiosk_satellite_url: `http://127.0.0.1:${kioskDemo.server.address().port}`, kiosk_satellite_token: DEMO_KIOSK_TOKEN,
   }));
 }

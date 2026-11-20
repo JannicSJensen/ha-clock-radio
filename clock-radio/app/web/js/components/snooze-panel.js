@@ -1,7 +1,7 @@
 import { h } from "../core/h.js";
 import { createSlideToStop } from "./slide-to-stop.js";
 
-export const snoozeKey = (alarm) => alarm ? `${alarm.id}:${alarm.type}:${alarm.until}` : null;
+export const snoozeKey = (alarm) => alarm ? `${alarm.id}:${alarm.type}:${alarm.until}${alarm.native_context ? ":" + JSON.stringify(alarm.native_context) : ""}` : null;
 
 export function snoozeSeconds(until, now = Date.now()) {
   const deadline = Date.parse(until);
@@ -31,8 +31,9 @@ export function createSnoozePanel(onStop) {
       disabled = nextDisabled;
       slide.setDisabled(disabled);
     }
-    const message = data?.error || data?.status || (data?.stopping ? "Waiting for Home Assistant to cancel snooze..."
-      : seconds === 0 ? "Waiting for Home Assistant to ring again..." : "Slide to cancel this snooze.");
+    const backend = data?.alarm?.backend === "kiosk_satellite" ? "Kiosk Satellite" : "Home Assistant";
+    const message = data?.error || data?.status || (data?.stopping ? `Waiting for ${backend} to cancel snooze...`
+      : seconds === 0 ? `Waiting for ${backend} to ring again...` : "Slide to cancel this snooze.");
     if (status.textContent !== message) status.textContent = message;
   }
   return {

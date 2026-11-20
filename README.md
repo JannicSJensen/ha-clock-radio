@@ -68,6 +68,11 @@ with music/radio, speaker and native buzzer-tone selection in **Clock Radio's
 alarm editor**, with local tone fallback. Configure the backend in the HA
 app options; existing HA schedules are never migrated or disabled.
 Switching back does not cancel native alarms.
+With compatible KS dashboard-alarm support, opt-in
+[Clock Radio ringing UI](clock-radio/DOCS.md#clock-radio-ringing-ui-for-ks)
+also keeps Snooze and Slide to Stop here, while KS retains native execution
+and restores its emergency screen if the dashboard fails. Existing KS
+versions continue to use their native ringing screen.
 
 Set `media_player` in the HA app configuration: the HA Music page and HA-backed
 alarms use that one speaker, without player selection, grouping or Party.

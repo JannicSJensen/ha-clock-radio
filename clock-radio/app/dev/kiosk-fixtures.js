@@ -5,7 +5,7 @@ export const DEMO_KIOSK_TOKEN = "clock-radio-fictional-kiosk";
 export function createKioskDemo() {
   const alarms = [{ id: "personal-native-alarm", time: "07:00", days: [0, 6], on: false, label: "Personal alarm", tone: "builtin", music: "none", sunrise: false, speak: false, phrase: "" }];
   const calls = [];
-  const mode = { unavailable: false, ignoreSaves: false, ignoreMusic: false, ignoreTone: false, musicUnavailable: false, soundUnavailable: false, speakerUnavailable: false, phase: "idle", ids: [] };
+  const mode = { unavailable: false, ignoreSaves: false, ignoreMusic: false, ignoreTone: false, musicUnavailable: false, soundUnavailable: false, speakerUnavailable: false, phase: "idle", ids: [], presentation: null };
   const sounds = ["Gentle Bells.ogg", "Soft Chime.wav"];
   const speakers = {
     ma: [{ pick: "", name: "This device (Sendspin)", self: true, available: true }, { pick: "ma:bedroom", name: "Bedroom speaker", available: true }],
@@ -39,6 +39,7 @@ export function createKioskDemo() {
     if (name === "alarmsStatus") return ok({
       phase: mode.phase, ids: mode.ids, labels: [], at: null, snoozedUntil: null, next: null, visible: false,
       alarms: alarms.map((alarm) => ({ ...alarm, next: alarm.on ? new Date(Date.now() + 3600000).toISOString() : null })),
+      ...(mode.presentation ? { presentation: mode.presentation } : {}),
     });
     if (name === "listNotificationSounds") {
       if (mode.soundUnavailable) return reply(400, { ok: false, error: "sounds unavailable" });

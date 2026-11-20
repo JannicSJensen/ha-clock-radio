@@ -10,6 +10,7 @@ import { createAlarmScreen } from "./js/components/alarm-screen.js";
 import { snoozeKey } from "./js/components/snooze-panel.js";
 import { IdleReturn } from "./js/core/idle-return.js";
 import { SnapshotStore, offlineStatus } from "./js/core/snapshot.js";
+import { KioskAlarmUI } from "./js/core/kiosk-alarm-ui.js";
 
 const $ = (id) => document.getElementById(id);
 const frame = $("clock-frame");
@@ -45,6 +46,20 @@ let snoozeConfirmation = null;
 const idleReturn = new IdleReturn();
 const activePointers = new Set();
 const snapshots = new SnapshotStore();
+const kioskAlarmUi = new KioskAlarmUI({
+  getModel: () => model,
+  render: () => { if (model) render(); },
+  afterPaint: async () => {
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    return alarmScreen?.controlsReady === true;
+  },
+});
+setInterval(() => kioskAlarmUi.refresh(), 1000);
+document.addEventListener("visibilitychange", () => {
+  if (document.visibilityState !== "visible") kioskAlarmUi.release().then(() => { if (model) render(); });
+  else kioskAlarmUi.refresh();
+});
+window.addEventListener("pagehide", () => kioskAlarmUi.release());
 
 function checkIdleReturn() {
   if (idleReturn.expired({
@@ -81,6 +96,7 @@ const ctx = {
     return write("api/command", { action, entity_id, ...data });
   },
   writeError: () => $("command-error").textContent,
+  nativeAlarmControl: (action, context) => kioskAlarmUi.control(action, context),
   write,
 };
 
@@ -152,8 +168,9 @@ function clockOptions() {
   }
   options.snooze = {
     alarm, stopping: snoozeStopping, error: snoozeError, busy: pending > 0,
-    canStop: canControl() && model.alarms.can_stop && !model.alarms.active_error,
-    status: !model.connected ? "Disconnected. Reconnect to cancel snooze."
+    canStop: canControlAlarms() && model.alarms.can_stop && !model.alarms.active_error,
+    status: model.alarms.backend === "kiosk_satellite" ? kioskAlarmUi.error
+      : !model.connected ? "Disconnected. Reconnect to cancel snooze."
       : model.read_only ? "Read-only. Use Home Assistant to cancel snooze."
       : model.alarms.active_error || (!model.alarms.can_stop ? "The HA alarm stop script is unavailable." : ""),
   };
@@ -182,7 +199,7 @@ async function stopSnooze(target) {
     await poll();
     return;
   }
-  if (snoozeStopping || pending || !canControl() || !model.alarms.can_stop || model.alarms.active_error) {
+  if (snoozeStopping || pending || !canControlAlarms() || !model.alarms.can_stop || model.alarms.active_error) {
     toast("Snooze cannot be stopped right now. Check the connection, permissions and HA alarm helpers.");
     return;
   }
@@ -190,6 +207,12 @@ async function stopSnooze(target) {
   snoozeStopping = true;
   snoozeError = "";
   renderClock();
+  if (alarm.backend === "kiosk_satellite") {
+    try { await kioskAlarmUi.control("stop", alarm.native_context); }
+    catch (error) { snoozeError = error.message; }
+    finally { snoozeStopping = false; render(); }
+    return;
+  }
   const ok = await write("api/alarm/stop", { snoozed: { id: alarm.id, type: alarm.type, until: alarm.until } });
   if (snoozeKey(model.alarms.snoozed) !== key || model.alarms.active) return;
   if (!ok) {
@@ -220,6 +243,7 @@ function renderMusic() {
 
 function render() {
   if (!model) return;
+  model = kioskAlarmUi.apply(model);
   document.title = model.config.title;
   document.documentElement.lang = model.config.locale;
   $("version").textContent = `v${model.version}`;
@@ -231,7 +255,7 @@ function render() {
   notice("offline-status", offlineStatus(model));
   notice("snapshot-error", snapshots.error);
   const native = model.alarms.backend === "kiosk_satellite";
-  notice("alarm-backend", native ? `Experimental Kiosk alarms: ${model.alarms.connected ? `connected (${model.alarms.native_phase})` : model.alarms.error || "offline"}. Kiosk supplies the native ringing screen.` : "");
+  notice("alarm-backend", native ? `Experimental Kiosk alarms: ${model.alarms.connected ? `connected (${model.alarms.native_phase})` : model.alarms.error || "offline"}. ${kioskAlarmUi.message || "Kiosk supplies the native ringing screen."}` : "");
   notice("config-error", model.config_error);
   notice("clock-error", [model.clock.error, model.clock.night_error, model.alarms.active_error].filter(Boolean).join(" "));
   notice("missing-players", model.missing_players.length ? `Missing configured speakers: ${model.missing_players.join(", ")}` : "");

@@ -4,7 +4,7 @@ import { pictureUrl } from "../core/api.js";
 import { clock, describeMedia, trackPosition } from "../lib/nowplaying.js";
 import { createSlideToStop } from "./slide-to-stop.js";
 
-export const alarmKey = (alarm) => alarm ? `${alarm.id}:${alarm.type}:${alarm.player}:${alarm.started_at ?? alarm.finishes_at ?? ""}` : null;
+export const alarmKey = (alarm) => alarm ? `${alarm.id}:${alarm.type}:${alarm.player}:${alarm.native_context ? JSON.stringify(alarm.native_context) : alarm.started_at ?? alarm.finishes_at ?? ""}` : null;
 export function ringingTime(options, now = new Date()) {
   const parts = new Intl.DateTimeFormat(options.locale || undefined, {
     hour: "2-digit", minute: "2-digit", timeZone: options.timeZone,
@@ -60,11 +60,17 @@ export function createAlarmScreen(ctx, { onOpen, onClose }) {
     slide.reset();
   }
   async function mutate(kind, data = {}) {
-    if (!active || action || busy || !ctx.canControl()) return;
+    if (!active || action || busy || !(active.backend === "kiosk_satellite" ? ctx.canControlAlarms() : ctx.canControl())) return;
     const key = alarmKey(active);
     action = kind;
     error = "";
     paint();
+    if (active.backend === "kiosk_satellite") {
+      try { await ctx.nativeAlarmControl(kind, active.native_context); }
+      catch (failure) { error = failure.message; }
+      finally { clearAction(); paint(); }
+      return;
+    }
     const ok = await (["stop", "snooze"].includes(kind)
       ? ctx.write(`api/alarm/${kind}`, {})
       : ctx.call("media_player", kind, active.player, data));
@@ -104,13 +110,15 @@ export function createAlarmScreen(ctx, { onOpen, onClose }) {
   function paint() {
     if (!active) return;
     const model = ctx.getModel();
-    const locked = busy || Boolean(action) || !ctx.canControl();
+    const native = active.backend === "kiosk_satellite";
+    const locked = busy || Boolean(action) || !(native ? ctx.canControlAlarms() : ctx.canControl());
     const player = ctx.getState(active.player);
     const attrs = player?.attributes ?? {};
     const supports = (flag) => Boolean((player?.supported_features ?? 0) & flag);
     const unavailable = !player || ["unavailable", "unknown"].includes(player.state);
-    miniPlayer.hidden = active.type !== "Music";
-    context.textContent = `${active.type} alarm`;
+    miniPlayer.hidden = native || active.type !== "Music";
+    heading.lastChild.textContent = active.label || "Alarm";
+    context.textContent = [active.type + " alarm", ...(native ? [active.station, active.speaker] : [])].filter(Boolean).join(" · ");
     const media = describeMedia(attrs, ctx.stations());
     title.textContent = media.title || "Alarm music";
     subtitle.textContent = unavailable ? "Speaker unavailable" : [media.subtitle, player.name, player.state === "paused" ? "Paused" : ""].filter(Boolean).join(" · ");
@@ -127,22 +135,24 @@ export function createAlarmScreen(ctx, { onOpen, onClose }) {
     volume.disabled = locked || unavailable || !supports(4) || !Number.isFinite(player?.volume_level);
     if (document.activeElement !== volume && Number.isFinite(player?.volume_level)) volume.value = String(Math.round(player.volume_level * 100));
     snooze.disabled = locked || !model.alarms.can_snooze;
-    snoozeHint.textContent = model.alarms.can_snooze ? "Ring again in 10 minutes"
+    snoozeHint.textContent = model.alarms.can_snooze ? `Ring again in ${native ? active.snooze_minutes : 10} minutes`
       : Number(model.alarms.scheduler_version) >= 6 ? "Snooze is unavailable. Check the HA alarm scripts and helpers."
       : "Update the HA alarm package to scheduler version 6 for reliable Snooze.";
     slide.setDisabled(locked || !model.alarms.can_stop);
-    const policyMessage = !model.connected ? "Disconnected. Reconnect to stop or snooze the alarm."
+    const policyMessage = native ? ""
+      : !model.connected ? "Disconnected. Reconnect to stop or snooze the alarm."
       : model.read_only ? "Read-only. Use Home Assistant to stop or snooze the alarm."
       : "";
-    status.textContent = [error, policyMessage].filter(Boolean).join(" ") || (action === "stop" ? "Waiting for Home Assistant to stop the alarm..."
-      : action === "snooze" ? "Waiting for Home Assistant to snooze the alarm..."
+    const backend = native ? "Kiosk Satellite" : "Home Assistant";
+    status.textContent = [error, policyMessage].filter(Boolean).join(" ") || (action === "stop" ? `Waiting for ${backend} to stop the alarm...`
+      : action === "snooze" ? `Waiting for ${backend} to snooze the alarm...`
       : action ? "Updating music..."
       : !model.alarms.can_stop ? "The HA alarm stop script is unavailable." : "");
     paintClock();
   }
   function update(model, pending) {
     busy = pending;
-    const nextActive = model.alarms.backend === "kiosk_satellite" ? null : model.connected ? model.alarms.active : active;
+    const nextActive = model.alarms.backend === "kiosk_satellite" ? model.alarms.active : model.connected ? model.alarms.active : active;
     if (!nextActive) {
       if (el.open) {
         clearAction();
@@ -169,5 +179,9 @@ export function createAlarmScreen(ctx, { onOpen, onClose }) {
       (snooze.disabled ? heading : snooze).focus();
     } else paint();
   }
-  return { el, update, get isOpen() { return el.open; } };
+  return {
+    el, update,
+    get isOpen() { return el.open; },
+    get controlsReady() { return el.open && !snooze.disabled && slide.el.getAttribute("aria-disabled") === "false"; },
+  };
 }

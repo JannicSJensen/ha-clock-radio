@@ -558,6 +558,9 @@ Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
   without a path, credentials, query or fragment. Used only in experimental mode.
 - `kiosk_satellite_token`: Kiosk Remote API bearer token, masked in app options
   and retained only on the server. Not an HA/MA token. Required in Kiosk mode.
+- `kiosk_satellite_alarm_ui`: `native` (default) or `clock`. Clock presentation
+  requires compatible KS dashboard-alarm support and its trusted dashboard URL;
+  unsupported devices keep native controls. Native scheduling remains unchanged.
 - `weather_entity`: optional HA weather entity ID, for example
   `weather.forecast_home`. The sole weather source for widgets and full-screen
   clocks. Empty disables weather; missing/unavailable entities show an error
@@ -648,15 +651,54 @@ include it. All tablets connected to this app manage the **same configured kiosk
 - **Volume, Snooze length and Silence after are device-wide Kiosk settings**,
   not per-alarm fields. Their HA-specific controls are hidden, not silently
   ignored or mapped to fabricated values.
-- **Ringing, Stop and Snooze use Kiosk's native screen**, which may cover our
-  dashboard. The prototype does not open a second browser ringing screen.
-  Its native Remote API stops/snoozes all simultaneous alarms, so Clock Radio
-  deliberately does not expose those global operations.
+- **Ringing, Stop and Snooze use Kiosk's native screen by default**, which may
+  cover our dashboard. Compatible devices can opt into the Clock Radio UI
+  described below. Its native Remote API stops/snoozes all simultaneous alarms,
+  so Clock Radio never exposes those unscoped operations.
 - Stop a native alarm before editing it. **Disable it before deleting it.**
   These checks protect active alarms and unrelated native playback.
 - Saving/deleting requires Kiosk, not HA, to be reachable. Clock settings
   and HA music controls retain their existing HA connection policy.
   Read-only app mode still blocks all native writes.
+
+### Clock Radio ringing UI for KS
+
+This is capability-gated support for the coordinated upstream KS
+dashboard-alarm enhancement, **not a workaround for existing KS versions**.
+The installed KS build must advertise presentation protocol 1 in
+`alarmsStatus` and expose `kioskSatellite.alarmUi` to its main WebView.
+
+1. On a compatible KS build, set **Settings > Alarms > Dashboard alarm UI URL**
+   to the exact Clock Radio URL loaded on that device, without query or
+   fragment. With the secure-context proxy this can be
+   `http://127.0.0.1:2325/`; it is not the server's original LAN URL.
+2. In the HA app configuration, set `kiosk_satellite_alarm_ui: clock`, save
+   and restart Clock Radio. Keep the usual KS Remote Administration URL/token
+   on the server for schedule editing.
+3. Fully reload the KS dashboard. The banner explains missing native
+   capabilities, the trusted-URL setting or a mismatched device.
+
+On the configured KS device, Clock Radio shows its existing ringing screen
+with native station/speaker names, native Snooze length and Slide to Stop.
+Snooze returns to the Clock's countdown widget, with Slide to Stop cancellation.
+Native music's playback/volume controls remain on KS; the HA media-player
+controls are not misapplied to its renderer.
+
+After rendering usable controls, the **device-local** bridge acknowledges the
+exact current native occurrence and alarm group. A once-per-second heartbeat
+renews presentation; KS restores its native ringing screen after a four-second
+lapse. Navigation, a failed/unrenderable page, hidden tab, lost app/KS
+connection or read-only mode gives control back. A remote browser or server
+cannot impersonate the device's UI. The opaque runtime device identity also
+prevents a dashboard on another KS device from claiming this backend.
+
+KS still owns alarm triggering, audio, volume ramp, music failure tone,
+auto-silence and snooze re-ringing. Sunrise stays native. The dashboard neither
+starts audio nor schedules browser timers. Stop/Snooze carry the exact native
+context and cannot act on a stale occurrence or partial simultaneous group.
+Only wholly Clock Radio-managed groups are shown; unrelated or mixed groups
+retain the KS screen. Actions that time out are never automatically retried.
+Existing KS builds and the default `native` option behave as before.
 
 The app server makes bounded, authenticated native calls without retries and
 reads schedules back before reporting success. A timed-out save may have

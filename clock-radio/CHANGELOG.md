@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.23.0
+
+- Add opt-in Clock Radio ringing and snooze UI for native KS alarms using
+  a device-local, acknowledged presentation lease. KS retains scheduling,
+  playback, volume ramp, snooze timing and native emergency controls.
+- Require matching native capabilities, device identity and KS's trusted
+  Dashboard alarm UI URL. Existing KS versions keep their native screen;
+  this feature requires the coordinated upstream KS enhancement.
+- Reuse Snooze and Slide to Stop with exact native occurrence/group context.
+  Leave unrelated or mixed groups to KS. Never invoke unscoped remote controls.
+- Renew presentation only after controls render. Hidden, offline, read-only,
+  mismatched or failed pages release the lease; KS restores native controls
+  within four seconds if heartbeats stop. Native music controls remain native.
+
 ## 0.22.0
 
 - Add Left/Right arrow-key page navigation alongside Page Up/Down.

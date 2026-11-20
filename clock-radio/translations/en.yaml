@@ -26,6 +26,9 @@ configuration:
   kiosk_satellite_token:
     name: Kiosk Satellite Remote API token
     description: Experimental backend only. Obtain a Remote Administration bearer token using Kiosk's POST /api/login endpoint. Kept only on the server; renew when expired. This is a powerful admin credential, not an HA or Music Assistant token. Use a trusted LAN or HTTPS. Restart after changing.
+  kiosk_satellite_alarm_ui:
+    name: Kiosk alarm ringing UI
+    description: native keeps KS controls. clock requests Clock Radio's ringing and snooze UI only on the configured KS device, with native timing/playback and automatic native-screen fallback. Requires KS dashboard-alarm support and its Dashboard alarm UI URL setting. Older KS versions retain native controls. Unrelated or mixed native alarm groups are never taken over. Restart after changing.
   music_assistant_url:
     name: Music Assistant address
     description: Optional HTTP(S) address, usually http://homeassistant:8095. A running HA app is discovered automatically when a token is provided. Restart after changing.

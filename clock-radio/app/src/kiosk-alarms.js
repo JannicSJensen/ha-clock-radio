@@ -14,6 +14,7 @@ const musicId = (pick) => choiceId("music", [pick.source, pick.speaker ?? "", pi
 export function kioskOptions(options) {
   const backend = options.alarm_backend ?? "home_assistant";
   if (!["home_assistant", "kiosk_satellite"].includes(backend)) throw new Error("alarm_backend must be home_assistant or kiosk_satellite.");
+  if (options.kiosk_satellite_alarm_ui !== undefined && !["native", "clock"].includes(options.kiosk_satellite_alarm_ui)) throw new Error("kiosk_satellite_alarm_ui must be native or clock.");
   for (const key of ["kiosk_satellite_url", "kiosk_satellite_token"]) {
     if (options[key] !== undefined && typeof options[key] !== "string") throw new Error(`${key} must be a string.`);
   }
@@ -28,12 +29,12 @@ export function kioskOptions(options) {
   }
   const token = options.kiosk_satellite_token;
   if (typeof token !== "string" || !token.trim() || /[\s]/.test(token)) throw new Error("kiosk_satellite_token is required and must not contain whitespace.");
-  return { url: url.origin, token };
+  return { url: url.origin, token, ...(options.kiosk_satellite_alarm_ui === "clock" ? { alarmUi: "clock" } : {}) };
 }
 
 export class KioskAlarms {
-  constructor({ url, token, fetchImpl = globalThis.fetch, logger = console, timeoutMs = 5000, now = Date.now }) {
-    Object.assign(this, { url, token, fetch: fetchImpl, logger, timeoutMs, now });
+  constructor({ url, token, alarmUi = "native", fetchImpl = globalThis.fetch, logger = console, timeoutMs = 5000, now = Date.now }) {
+    Object.assign(this, { url, token, alarmUi, fetch: fetchImpl, logger, timeoutMs, now });
     this.backendId = crypto.createHash("sha256").update(url).digest("hex").slice(0, 16);
     this.connected = false;
     this.updatedAt = null;
@@ -207,6 +208,12 @@ export class KioskAlarms {
     const next = owned.map((alarm) => alarm.next).filter((at) => typeof at === "string" && Number.isFinite(Date.parse(at))).sort();
     return {
       backend: "kiosk_satellite", backend_id: this.backendId, connected: this.connected,
+      presentation: {
+        requested: this.alarmUi === "clock",
+        supported: this.status.presentation?.version === 1 && /^[a-f0-9]{32}$/.test(this.status.presentation?.device ?? ""),
+        enabled: this.status.presentation?.enabled === true,
+        device: this.status.presentation?.version === 1 && /^[a-f0-9]{32}$/.test(this.status.presentation?.device ?? "") ? this.status.presentation.device : null,
+      },
       updated_at: this.updatedAt, error: this.error, native_phase: this.status.phase,
       native_active: activeOwned && this.status.phase !== "idle",
       next_at: activeOwned && this.status.phase === "snoozed" ? this.status.snoozedUntil ?? null : next[0] ?? null,

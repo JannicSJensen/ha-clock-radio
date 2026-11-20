@@ -41,12 +41,32 @@ test("configuration is opt-in, validates before connecting, and does not embed c
   assert.equal(kioskOptions({ alarm_backend: "home_assistant" }), null);
   const valid = { alarm_backend: "kiosk_satellite", kiosk_satellite_url: "http://192.0.2.1:2324", kiosk_satellite_token: "fictional" };
   assert.deepEqual(kioskOptions(valid), { url: valid.kiosk_satellite_url, token: "fictional" });
+  assert.deepEqual(kioskOptions({ ...valid, kiosk_satellite_alarm_ui: "clock" }), { url: valid.kiosk_satellite_url, token: "fictional", alarmUi: "clock" });
+  assert.throws(() => kioskOptions({ ...valid, kiosk_satellite_alarm_ui: "automatic" }), /must be native or clock/);
   for (const change of [
     { alarm_backend: "" }, { alarm_backend: "automatic" }, { kiosk_satellite_url: "" },
     { kiosk_satellite_url: "file:///tmp/kiosk" }, { kiosk_satellite_url: "http://user:pass@192.0.2.1/" },
     { kiosk_satellite_url: "http://192.0.2.1/api" }, { kiosk_satellite_url: "http://192.0.2.1/?token=x" },
     { kiosk_satellite_token: "" }, { kiosk_satellite_token: "token\nsecret" }, { kiosk_satellite_token: null },
   ]) assert.throws(() => kioskOptions({ ...valid, ...change }));
+});
+
+test("ringing capabilities are opt-in and old KS versions retain native controls", async (t) => {
+  const f = await setup(t);
+  f.kiosk.alarmUi = "clock";
+  let snapshot = f.kiosk.snapshot();
+  assert.deepEqual(snapshot.presentation, { requested: true, supported: false, enabled: false, device: null });
+  f.mode.presentation = { version: 1, device: "a".repeat(32), enabled: true };
+  await f.kiosk.refresh();
+  snapshot = f.kiosk.snapshot();
+  assert.equal(snapshot.presentation.supported, true);
+  assert.equal(snapshot.presentation.enabled, true);
+  assert.equal(snapshot.presentation.device, "a".repeat(32));
+  assert.equal(snapshot.active, null, "Server status is never evidence of local UI readiness");
+  assert.equal(snapshot.can_stop, false, "Unscoped remote controls remain blocked");
+  f.mode.presentation.version = 2;
+  await f.kiosk.refresh();
+  assert.equal(f.kiosk.snapshot().presentation.supported, false);
 });
 
 test("native status and mutations are independent of HA; existing HA and unrelated native alarms are untouched", async (t) => {
