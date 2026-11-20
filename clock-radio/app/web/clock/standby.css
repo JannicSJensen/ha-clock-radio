@@ -58,6 +58,7 @@ html, body {
   width: min(50vw - 6vmin, 100vh - 8vmin);
   height: min(50vw - 6vmin, 100vh - 8vmin);
 }
+.panel:focus-visible { outline: 2px solid var(--accent); outline-offset: 6px; border-radius: 8px; }
 @media (orientation: portrait) {
   #root { flex-direction: column; }
   .panel {

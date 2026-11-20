@@ -1,5 +1,6 @@
 import { getJson, postJson } from "./js/core/api.js";
 import { onSwipe } from "./js/core/swipe.js";
+import { navigationKey } from "./js/core/navigation.js";
 import { getPref, setPref } from "./js/core/prefs.js";
 import { makeTranslator } from "./js/lib/i18n.js";
 import { createMusicPage } from "./js/pages/music.js";
@@ -34,6 +35,7 @@ let alarmScreen = null;
 let clockSignature = "";
 let clockRevision = 0;
 let clockDataSignature = "";
+let focusedClockPanel = "face";
 let pending = 0;
 let polling = null;
 let currentSnoozeKey = null;
@@ -109,7 +111,7 @@ function navigate() {
   $(`page-${current}`).focus({ preventScroll: true });
   const position = `Page ${pageIds.indexOf(current) + 1} of ${pageIds.length}: ${PAGES[current]}`;
   $("page-indicator").setAttribute("aria-label", position);
-  $("page-position").textContent = `${position}. Swipe left/right or use Page Up/Down to change pages.`;
+  $("page-position").textContent = `${position}. Swipe left/right or use Left/Right arrows or Page Up/Down to change pages.`;
   document.body.classList.toggle("on-clock", current === "clock");
   if (current !== "clock") document.body.classList.remove("is-night");
   frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" }, location.origin);
@@ -119,7 +121,8 @@ function navigate() {
 
 function changePage(step) {
   if (document.querySelector('[role="dialog"][aria-modal="true"]')) return;
-  location.hash = pageIds[(pageIds.indexOf(current) + step + pageIds.length) % pageIds.length];
+  const active = Object.hasOwn(PAGES, location.hash.slice(1)) ? location.hash.slice(1) : current;
+  location.hash = pageIds[(pageIds.indexOf(active) + step + pageIds.length) % pageIds.length];
 }
 
 function changeClockView(panel, step) {
@@ -262,9 +265,9 @@ function render() {
   alarmScreen.update(model, pending > 0);
   checkIdleReturn();
   policy();
-  if (!getPref("touch-navigation-horizontal-hint")) {
-    toast("Swipe left/right between pages. Swipe up/down within clock panels. Tap Music tabs to switch categories. Keyboard: Page Up/Down.");
-    setPref("touch-navigation-horizontal-hint", true);
+  if (!getPref("keyboard-navigation-hint")) {
+    toast("Pages: swipe left/right, Left/Right arrows or Page Up/Down. Clock panels: swipe up/down, or Tab/click a panel and use Up/Down arrows. Tap Music tabs to switch categories.");
+    setPref("keyboard-navigation-hint", true);
   }
 }
 
@@ -341,9 +344,13 @@ async function write(url, data) {
 frame.addEventListener("load", () => {
   frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" && !alarmScreen?.isOpen }, location.origin);
   if (model) frame.contentWindow?.postMessage({ type: "clock-radio-data", options: clockOptions() }, location.origin);
+  if (current === "clock" && document.activeElement === frame) {
+    frame.contentWindow?.postMessage({ type: "clock-radio-focus", panel: focusedClockPanel }, location.origin);
+  }
 });
 addEventListener("message", (event) => {
   if (event.origin !== location.origin || event.source !== frame.contentWindow) return;
+  if (event.data?.type === "clock-radio-panel-focus" && ["face", "widget"].includes(event.data.panel)) focusedClockPanel = event.data.panel;
   if (event.data?.type === "clock-radio-night") document.body.classList.toggle("is-night", current === "clock" && !alarmScreen?.isOpen && event.data.active === true);
   if (event.data?.type === "clock-radio-stop-snooze") {
     stopSnooze(event.data.snoozed);
@@ -376,9 +383,14 @@ addEventListener("blur", () => { activePointers.clear(); checkIdleReturn(); });
 document.addEventListener("visibilitychange", () => { activePointers.clear(); checkIdleReturn(); });
 addEventListener("keydown", (event) => {
   if (event.key === "Escape") nowPlaying?.close({ dismiss: true });
-  if (["PageUp", "PageDown"].includes(event.key) && !event.target.closest("input,textarea,select,[role=dialog]")) {
+  const action = navigationKey(event);
+  if (!action || document.querySelector('[role="dialog"][aria-modal="true"]')) return;
+  if (action.axis === "horizontal") {
     event.preventDefault();
-    changePage(event.key === "PageDown" ? 1 : -1);
+    changePage(action.step);
+  } else if (current === "clock" && model) {
+    event.preventDefault();
+    frame.contentWindow?.postMessage({ type: "clock-radio-focus", panel: focusedClockPanel, step: action.step }, location.origin);
   }
 });
 $("fullscreen").hidden = !document.fullscreenEnabled;

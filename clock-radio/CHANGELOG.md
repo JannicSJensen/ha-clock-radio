@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.22.0
+
+- Add Left/Right arrow-key page navigation alongside Page Up/Down.
+  Up/Down changes the previous/next view of the focused split Clock panel.
+- Make Clock face/widget panels focusable with Tab or a click/tap, show
+  keyboard focus, and restore the selected panel after saving its view.
+- Preserve input, slider, editable-content and dialog keyboard controls.
+  Modifier shortcuts and held-key repeats do not trigger navigation.
+  Update keyboard guidance for new and existing browsers.
+
 ## 0.21.0
 
 - Swap touch navigation axes: swipe left/right between the four main pages,

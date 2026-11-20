@@ -11,7 +11,8 @@ All four main-page canvases and the app/loading background are pure black
 colors can still be customized in Settings.
 
 There is no menu. Swipe **left/right** between **The Clock**, **Alarm configuration**,
-**Music overview** and **Settings**, or use keyboard **Page Up/Down** outside
+**Music overview** and **Settings**, or use keyboard **Left/Right arrows** or
+**Page Up/Down** outside
 form inputs. Vertical swipes scroll Alarm configuration, Music and Settings
 without changing pages. Horizontal music carousels and tab strips scroll first;
 start a new swipe at their edge, or swipe outside them, to change pages.
@@ -35,6 +36,14 @@ Swipe up/down within the split clock's left panel to cycle square analog,
 round analog and digital faces; the right panel cycles calendar, weather, date
 and date/calendar. These selections save to YAML. Full-screen faces and hiding
 the widget remain Settings options. Swipes cannot save views in read-only mode.
+Keyboard navigation mirrors these axes: **Left/Right** go to the previous/next
+main page; **Up/Down** choose the previous/next view of the focused Clock panel.
+Use **Tab** or click/tap the face/widget to select a panel; a keyboard focus
+outline identifies it and focus is restored after saving a view. With focus on
+the Clock page itself, Up/Down selects the last-focused panel (initially the face).
+Up/Down elsewhere scrolls normally. Inputs, sliders, editable content and dialogs
+keep their own keys; modifier shortcuts and held-key repeats do not navigate.
+Full-screen and snoozed Clock panels cannot change views.
 
 See the [four-page screenshot gallery](../README.md#screenshots) for the Clock,
 Alarm configuration, Music overview and Settings. All screendumps below use

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { canScroll, onSwipe, swipeStep } from "../web/js/core/swipe.js";
+import { NAVIGATION_CONTROLS, navigationKey } from "../web/js/core/navigation.js";
 
 test("touch gestures distinguish page and panel axes and enforce actual thresholds", () => {
   assert.equal(swipeStep(-64, 0, 1200, "horizontal"), 1);
@@ -9,6 +10,27 @@ test("touch gestures distinguish page and panel axes and enforce actual threshol
   assert.equal(swipeStep(0, 64, 1200, "vertical"), -1);
   for (const [dx, dy, elapsed, axis] of [[-63, 0, 100, "horizontal"], [0, -63, 100, "vertical"], [-64, 0, 1201, "horizontal"], [-80, 60, 500, "horizontal"], [-100, 0, 500, "vertical"]]) {
     assert.equal(swipeStep(dx, dy, elapsed, axis), 0);
+  }
+});
+
+test("keyboard arrows mirror the page and panel axes, while Page Up/Down keep working", () => {
+  for (const [key, axis, step] of [
+    ["ArrowLeft", "horizontal", -1], ["ArrowRight", "horizontal", 1],
+    ["PageUp", "horizontal", -1], ["PageDown", "horizontal", 1],
+    ["ArrowUp", "vertical", -1], ["ArrowDown", "vertical", 1],
+  ]) {
+    assert.deepEqual(navigationKey({ key }), { axis, step });
+  }
+  for (const key of ["Tab", "Enter", "Escape", "Home", "End", " "]) assert.equal(navigationKey({ key }), null);
+});
+
+test("keyboard navigation preserves shortcuts, repeated/handled keys and editable controls", () => {
+  for (const field of ["defaultPrevented", "repeat", "altKey", "ctrlKey", "metaKey", "shiftKey"]) {
+    for (const key of ["ArrowRight", "ArrowDown", "PageDown"]) assert.equal(navigationKey({ key, [field]: true }), null);
+  }
+  for (const key of ["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown", "PageUp", "PageDown"]) {
+    const target = { closest(selector) { assert.equal(selector, NAVIGATION_CONTROLS); return {}; } };
+    assert.equal(navigationKey({ key, target }), null);
   }
 });
 
@@ -130,12 +152,15 @@ test("cancelled, multi-touch and detached gestures never navigate", (t) => {
 
 test("Clock iframe sends horizontal page navigation and vertical panel changes", async (t) => {
   const { root, swipe } = surface(t);
-  let full = false, snoozed = false;
-  root.classList = { contains: () => full };
+  let full = false, snoozed = false, alone = false;
+  root.classList = { contains: (name) => name === "full" ? full : name === "alone" && alone };
   root.querySelector = () => snoozed;
   const messages = [];
   const keys = new Map();
-  globalForTest(t, "document", { getElementById: () => root });
+  const focused = [];
+  const face = { parentElement: root, style: {}, closest: (selector) => selector === ".panel" ? face : null, focus: () => focused.push("face") };
+  const widget = { parentElement: root, style: {}, closest: (selector) => ["#widget", ".panel"].includes(selector) ? widget : null, focus: () => focused.push("widget") };
+  globalForTest(t, "document", { getElementById: (id) => ({ root, clock: face, widget })[id] });
   globalForTest(t, "location", { origin: "http://clock-radio.example" });
   globalForTest(t, "parent", { postMessage: (data, origin) => {
     assert.equal(origin, "http://clock-radio.example");
@@ -143,8 +168,6 @@ test("Clock iframe sends horizontal page navigation and vertical panel changes",
   } });
   globalForTest(t, "addEventListener", (type, callback) => keys.set(type, callback));
   await import("../web/clock/touch.js");
-  const face = { parentElement: root, style: {}, closest: () => null };
-  const widget = { parentElement: root, style: {}, closest: (selector) => selector === "#widget" ? widget : null };
   swipe(-100, 0, face);
   swipe(100, 0, widget);
   swipe(0, -100, face);
@@ -164,4 +187,39 @@ test("Clock iframe sends horizontal page navigation and vertical panel changes",
   keys.get("keydown")({ key: "PageDown", target: face, preventDefault() { prevented = true; } });
   assert.equal(prevented, true);
   assert.deepEqual(messages.at(-1), { type: "clock-radio-page", step: 1 });
+  function key(key, target = face) {
+    const event = { key, target, prevented: false, preventDefault() { this.prevented = true; } };
+    keys.get("keydown")(event);
+    return event;
+  }
+  assert.equal(key("ArrowDown").prevented, false, "Snoozed panels cannot change with the keyboard");
+  snoozed = false;
+  key("ArrowDown", widget);
+  assert.deepEqual(messages.at(-1), { type: "clock-radio-view", panel: "widget", step: 1 });
+  key("ArrowUp");
+  assert.deepEqual(messages.at(-1), { type: "clock-radio-view", panel: "face", step: -1 });
+  key("ArrowLeft");
+  assert.deepEqual(messages.at(-1), { type: "clock-radio-page", step: -1 });
+  key("ArrowRight", widget);
+  assert.deepEqual(messages.at(-1), { type: "clock-radio-page", step: 1 });
+  full = true;
+  assert.equal(key("ArrowDown").prevented, false);
+  full = false;
+  const before = messages.length;
+  const focusMessage = { origin: location.origin, source: parent, data: { type: "clock-radio-focus", panel: "widget", step: 1 } };
+  keys.get("message")({ ...focusMessage, origin: "http://other.example" });
+  keys.get("message")({ ...focusMessage, source: {} });
+  keys.get("message")({ ...focusMessage, data: { ...focusMessage.data, panel: "invalid" } });
+  assert.equal(messages.length, before);
+  assert.deepEqual(focused, []);
+  keys.get("message")(focusMessage);
+  assert.deepEqual(focused, ["widget"]);
+  assert.deepEqual(messages.at(-1), { type: "clock-radio-view", panel: "widget", step: 1 });
+  keys.get("message")({ ...focusMessage, data: { type: "clock-radio-focus", panel: "face" } });
+  assert.deepEqual(focused, ["widget", "face"]);
+  assert.equal(messages.length, before + 1, "Restoring focus must not change the panel's view");
+  alone = true;
+  keys.get("message")(focusMessage);
+  assert.equal(focused.at(-1), "face", "A hidden widget must not receive focus or be changed");
+  assert.deepEqual(messages.at(-1), { type: "clock-radio-view", panel: "face", step: 1 });
 });

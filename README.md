@@ -43,10 +43,13 @@ their contrast. Clock colors remain configurable in Settings.
 There is no menu. Swipe **left/right** between pages. Vertical swipes scroll
 Alarm configuration/Music/Settings; Music categories use tap-selectable tabs.
 Horizontal music carousels scroll first; start a new swipe at their edge to
-change pages. Keyboard users can use **Page Up/Down**.
+change pages. Keyboard users can use **Left/Right arrows** or **Page Up/Down**.
 Four dots at the bottom show which page you are on; the active dot is grey.
 On the split clock,
 swipe **up/down** within each panel to save its clock face or widget.
+With a keyboard, **Tab** to the face/widget (or click it), then use
+**Up/Down arrows** for the previous/next view. Clock panel focus survives saves.
+Arrow keys inside inputs, sliders and dialogs retain their normal behavior.
 Full-screen faces and hiding the widget remain Settings options.
 
 After two minutes of inactivity on Alarm configuration, Music or Settings, the
