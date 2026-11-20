@@ -555,9 +555,11 @@ Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
   Restart after changing. Backend changes do not migrate, disable or delete
   schedules on either system; remove native test alarms explicitly.
 - `kiosk_satellite_url`: Kiosk's LAN Remote Administration HTTP(S) origin,
-  without a path, credentials, query or fragment. Used only in experimental mode.
+  without a path, credentials, query or fragment. Used for native alarms or
+  Settings > Kiosk Satellite updates, with either alarm backend.
 - `kiosk_satellite_token`: Kiosk Remote API bearer token, masked in app options
-  and retained only on the server. Not an HA/MA token. Required in Kiosk mode.
+  and retained only on the server. Not an HA/MA token. Required for native
+  alarms and KS updates; restart after changing the address/token.
 - `kiosk_satellite_alarm_ui`: `native` (default) or `clock`. Clock presentation
   requires compatible KS dashboard-alarm support and its trusted dashboard URL;
   unsupported devices keep native controls. Native scheduling remains unchanged.
@@ -576,6 +578,40 @@ Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
   query or fragment; empty enables Supervisor discovery.
 - `music_assistant_token`: optional MA read-only access token. Stored only in
   Supervisor app options/environment, never dashboard YAML or browser state.
+
+## Updating Kiosk Satellite
+
+**Settings > Kiosk Satellite updates** can check for a newer release and
+start installation on the KS device configured by `kiosk_satellite_url` and
+`kiosk_satellite_token`. This works with **either alarm backend**, including
+HA scheduling, and does not require HA to be online. Missing or invalid KS
+configuration is explained in Settings; it does not change HA alarm behavior.
+
+The version/status display polls KS's native update state, not GitHub.
+**Check for updates** asks KS to check its configured source immediately.
+**Install KS update** opens a confirmation naming the current offer and the
+configured device. A changed offer/device requires fresh confirmation. The
+server rechecks native alarm and update state before dispatching the install;
+active native alarms, sunrise, snooze and an existing download/install block it.
+Avoid updating shortly before a scheduled alarm: an update can restart KS
+or interrupt playback, and schedules can become due during a download.
+
+KS chooses the update package for its platform/architecture, uses its existing GitHub/custom
+repository setting, verifies and installs it through its normal installer.
+Clock Radio never accepts an APK URL/upload or updates a fleet. Some devices
+need Android confirmation on the KS screen, and devices without automatic
+relaunch may need KS reopened manually. A release published after confirmation
+can be selected by KS's own latest-release recheck.
+
+Download progress, installer handoff and failures remain visible in Settings.
+An accepted request is **not** reported as a completed installation: Clock
+Radio waits for KS to report a newer installed version. Requests are never
+automatically retried. After a failed/uncertain request, or cancelling a native
+Android prompt, inspect KS and use **Check for updates** before manually
+confirming another attempt. Lost connections and read-only/offline snapshots
+disable installation. Checking metadata remains available in read-only mode.
+The admin credential, APK paths and raw native error details never enter the
+browser or its offline snapshot.
 
 ## Experimental Kiosk Satellite alarm backend
 

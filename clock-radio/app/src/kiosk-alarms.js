@@ -46,12 +46,14 @@ export class KioskAlarms {
     this.tones = new Map();
   }
 
-  async command(name, params = {}, mutation = false) {
-    const uncertain = mutation ? " The operation may have completed. Refresh Kiosk alarms before retrying." : "";
+  async command(name, params = {}, mutation = false, timeoutMs = this.timeoutMs) {
+    const uncertain = !mutation ? "" : name === "installUpdate"
+      ? " The update may already be running. Check KS update status before retrying."
+      : " The operation may have completed. Refresh Kiosk alarms before retrying.";
     let response, body;
     try {
       response = await this.fetch(`${this.url}/api/commands/${name}`, {
-        method: "POST", redirect: "error", signal: AbortSignal.timeout(this.timeoutMs),
+        method: "POST", redirect: "error", signal: AbortSignal.timeout(timeoutMs),
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.token}` },
         body: JSON.stringify(params),
       });

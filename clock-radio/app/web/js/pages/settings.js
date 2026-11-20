@@ -2,6 +2,7 @@ import { h } from "../core/h.js";
 import { icon } from "../core/icons.js";
 import { CLOCK_CHOICES, parseClockOptions } from "../lib/clock-options.js";
 import { createAlarmPage } from "./alarms.js";
+import { postJson } from "../core/api.js";
 
 const names = {
   widget: "Clock and widget", full: "Full-screen clock", analog: "Square analog",
@@ -21,7 +22,7 @@ const field = (label, control) => {
     : kind === "select" ? h("span", { class: "setting-control" }, control, icon("chevron-down")) : control;
   return h("label", { class: `setting-field setting-field--${kind}` }, h("span", { class: "setting-field__label" }, label), value);
 };
-const groupIcons = { view: "view-dashboard-outline", time: "calendar-clock", colors: "palette", weather: "weather-partly-cloudy", night: "weather-night", music: "music-note" };
+const groupIcons = { view: "view-dashboard-outline", time: "calendar-clock", colors: "palette", weather: "weather-partly-cloudy", night: "weather-night", music: "music-note", updates: "download" };
 const group = (title, name, fields, hint) => h("section", { class: `setting-group setting-group--${name}` },
   h("h3", null, h("span", { class: "setting-group__icon" }, icon(groupIcons[name])), title),
   h("div", { class: "setting-grid" }, fields), hint);
@@ -35,6 +36,25 @@ function setValues(form, values) {
     if (control.type === "checkbox") control.checked = value === true;
     else control.value = value ?? "";
   }
+}
+
+export function kioskUpdateMessage(update, offline = false) {
+  if (offline) return "Offline. Reconnect to check KS updates or install.";
+  if (!update?.configured) return update?.error || "Set the Kiosk Satellite address and Remote API token in the HA app configuration to enable updates with either alarm backend.";
+  if (!update.connected) return update.error || "Connecting to the configured KS device.";
+  if (update.progress !== null) return `Downloading on KS: ${Math.round(update.progress * 100)}%.`;
+  if (update.installing) return "KS is installing the update and may restart.";
+  if (update.error) return update.error;
+  if (update.request_state === "completed") return `KS now runs ${update.current_version}.`;
+  if (update.last_outcome === "failed") return "The native KS update failed. Check its Remote Administration logs before manually retrying.";
+  if (update.last_outcome === "cancelled") return "The native KS download was cancelled.";
+  if (update.request_state === "unknown") return "The update request is unconfirmed. Check KS before manually retrying; requests are never retried automatically.";
+  if (update.request_state === "requested") return update.last_outcome === "confirm"
+    ? "Confirm installation on the KS device screen. If you cancel there, check for updates again before manually retrying."
+    : "Update requested. Waiting for KS to report the installed version; it may restart.";
+  if (update.alarm_phase !== "idle") return "A native KS alarm, sunrise or snooze is active. Installation is blocked until it ends.";
+  if (update.available_version) return `KS reports a newer release: ${update.available_version}.`;
+  return update.checked_at ? "KS reports it is up to date." : "No update is currently reported by KS. Check for updates to verify.";
 }
 
 export function createSettingsPages(ctx) {
@@ -126,6 +146,95 @@ export function createSettingsPages(ctx) {
   clock.querySelector('[name="next_alarm_entity"] option').textContent = "Use the Clock Radio alarms";
   const musicInfo = h("p", { class: "settings-hint" });
   const musicState = sourceValue();
+  const installedVersion = sourceValue(), availableVersion = sourceValue();
+  const updateStatus = h("p", { class: "settings-hint", role: "status", "aria-live": "polite" });
+  const updateHint = h("p", { class: "settings-hint" },
+    "Updates target the KS device configured in the HA app, not another browser's device. KS uses its own update source and installer. It may restart, need reopening manually or require confirmation on its screen; avoid updating near an alarm.");
+  const downloadProgress = h("progress", { class: "kiosk-update-progress", max: "1", value: "0", "aria-label": "KS update download progress", hidden: true });
+  const checkUpdate = h("button", { type: "button", class: "btn" }, "Check for updates");
+  const installUpdate = h("button", { type: "button", class: "btn btn--primary", disabled: true }, "Install KS update");
+  const updateTitle = h("h2", { id: "kiosk-update-title" }, "Update Kiosk Satellite?");
+  const updateConfirmation = h("p", { id: "kiosk-update-message" });
+  const updateDialogStatus = h("p", { class: "form-status", role: "status" });
+  const cancelUpdate = h("button", { type: "button", class: "btn" }, "Cancel");
+  const confirmUpdate = h("button", { type: "button", class: "btn btn--primary" }, "Install on KS");
+  const updateDialog = h("dialog", { class: "alarm-editor alarm-delete", role: "dialog", "aria-labelledby": "kiosk-update-title", "aria-describedby": "kiosk-update-message" },
+    updateTitle, updateConfirmation, updateDialogStatus, h("div", { class: "alarm-delete__actions" }, cancelUpdate, confirmUpdate));
+  let checkingUpdate = false, requestingUpdate = false, updateError = "", updateErrorVersion = null, updateBusy = false, chosenUpdate = null;
+
+  function updateKiosk(model, busy) {
+    updateBusy = busy;
+    const update = model.kiosk_update;
+    const offline = model.offline_snapshot === true;
+    if (update?.connected && (update.progress !== null || update.installing
+        || update.request_state === "completed" && update.current_version !== updateErrorVersion)) updateError = "";
+    const canInstall = Boolean(update?.can_install && !offline && !model.read_only && !busy && !checkingUpdate && !requestingUpdate);
+    installedVersion.textContent = offline ? "Unavailable offline" : update?.current_version || "Not available";
+    availableVersion.textContent = offline ? "Unavailable offline" : update?.available_version || "Not reported";
+    checkUpdate.disabled = offline || busy || checkingUpdate || requestingUpdate || !update?.can_check;
+    checkUpdate.textContent = checkingUpdate ? "Checking..." : "Check for updates";
+    installUpdate.disabled = !canInstall;
+    downloadProgress.hidden = offline || update?.progress == null;
+    downloadProgress.value = update?.progress ?? 0;
+    updateStatus.textContent = checkingUpdate ? "Checking KS's configured update source..." : updateError || kioskUpdateMessage(update, offline);
+    if (updateDialog.open) {
+      confirmUpdate.disabled = !canInstall;
+      cancelUpdate.disabled = requestingUpdate;
+      if (!requestingUpdate && (offline || model.read_only || !update?.connected
+          || update.device_id !== chosenUpdate?.device_id || update.available_version !== chosenUpdate?.version)) {
+        updateError = "The KS update offer or connection changed. Check again before installing.";
+        updateErrorVersion = update?.current_version ?? null;
+        updateDialog.close();
+        updateStatus.textContent = updateError;
+      } else updateDialogStatus.textContent = canInstall ? "" : requestingUpdate ? "Sending the update request to KS..." : kioskUpdateMessage(update, offline);
+    }
+  }
+  updateDialog.addEventListener("close", () => { chosenUpdate = null; updateDialog.removeAttribute("aria-modal"); });
+  updateDialog.addEventListener("cancel", (event) => { if (requestingUpdate) event.preventDefault(); });
+  cancelUpdate.addEventListener("click", () => updateDialog.close());
+  checkUpdate.addEventListener("click", async () => {
+    if (checkUpdate.disabled) return;
+    checkingUpdate = true;
+    updateError = "";
+    updateKiosk(ctx.getModel(), updateBusy);
+    try { await postJson("api/kiosk/update/check", {}); }
+    catch (error) {
+      updateError = error.message;
+      updateErrorVersion = ctx.getModel().kiosk_update?.current_version ?? null;
+      console.warn(error.message);
+    }
+    finally {
+      await ctx.refresh();
+      checkingUpdate = false;
+      updateKiosk(ctx.getModel(), updateBusy);
+    }
+  });
+  installUpdate.addEventListener("click", () => {
+    if (installUpdate.disabled) return;
+    const update = ctx.getModel().kiosk_update;
+    chosenUpdate = { version: update.available_version, device_id: update.device_id, confirmed: true };
+    updateError = "";
+    updateConfirmation.textContent = `Install the latest release on the configured KS device (currently ${chosenUpdate.version}, running ${update.current_version})? KS chooses and downloads the update package using its configured update source. It may restart, interrupt playback, need reopening manually or require Android confirmation on its screen. A newer release published during download may be selected by KS.`;
+    updateDialog.setAttribute("aria-modal", "true");
+    updateDialog.showModal();
+    updateKiosk(ctx.getModel(), updateBusy);
+    cancelUpdate.focus();
+  });
+  confirmUpdate.addEventListener("click", async () => {
+    if (confirmUpdate.disabled || !chosenUpdate || requestingUpdate) return;
+    const request = chosenUpdate;
+    updateErrorVersion = ctx.getModel().kiosk_update.current_version;
+    requestingUpdate = true;
+    updateKiosk(ctx.getModel(), updateBusy);
+    try {
+      if (!await ctx.write("api/kiosk/update/install", request)) updateError = ctx.writeError() || "The KS update request was not confirmed. Check KS before manually retrying.";
+    } catch (error) { updateError = error.message; console.warn(error.message); }
+    finally {
+      requestingUpdate = false;
+      updateDialog.close();
+      updateKiosk(ctx.getModel(), updateBusy);
+    }
+  });
   const alarms = createAlarmPage({ ...ctx, canControl: ctx.canControlAlarms ?? ctx.canControl });
   const el = h("div", { class: "settings settings--ios" },
     h("nav", { class: "settings-navigation", "aria-label": "Settings navigation" },
@@ -136,6 +245,10 @@ export function createSettingsPages(ctx) {
       h("h1", null, "Settings"), h("p", null, "Your clock, colors and night-time routine.")),
     clock,
     group("Music Assistant", "music", [source("Library browsing", musicState)], musicInfo),
+    group("Kiosk Satellite updates", "updates", [
+      source("Installed KS version", installedVersion), source("Available KS version", availableVersion),
+    ], h("div", null, downloadProgress, h("div", { class: "kiosk-update-actions" }, checkUpdate, installUpdate), updateStatus, updateHint)),
+    updateDialog,
     h("p", { class: "settings-hint settings-navigation-hint" }, "Swipe left/right between pages, or use Left/Right arrows or Page Up/Down. On the Clock, Tab/click a panel and use Up/Down arrows. Alarm configuration has its own page."),
   );
 
@@ -151,6 +264,7 @@ export function createSettingsPages(ctx) {
   }
   return { el, alarmsEl: alarms.el, closeAlarmEditor: alarms.closeEditor, update(model, busy) {
     alarms.update(model, busy);
+    updateKiosk(model, busy);
     const entities = model.clock_entities;
     weatherEntity.textContent = model.config.clock.weather_entity || "Not configured";
     sunEntity.textContent = model.config.sun_entity;

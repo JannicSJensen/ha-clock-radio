@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.24.0
+
+- Add Settings controls to check and install Kiosk Satellite updates using
+  the configured KS address/token with either HA or KS alarm scheduling.
+- Show installed/available versions and native download/install status.
+  Require confirmation, a matching offer/device and idle native alarms;
+  preserve KS's update source, APK selection and Android installer.
+- Keep credentials on the server. Block read-only/offline installation and
+  duplicate requests; never retry installation automatically or report it
+  complete before KS reports a newer installed version.
+- Keep native update controls independent of HA connectivity. Fictional
+  development fixtures simulate updates without installing an APK.
+
 ## 0.23.1
 
 - Remove the introductory KS alarm-selection paragraph from the Alarm page,

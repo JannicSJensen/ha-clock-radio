@@ -120,6 +120,8 @@ export function createServer({ dashboard, webRoot, logger = console }) {
         "/api/alarm/create": "createAlarm", "/api/alarm/delete": "deleteAlarm",
         "/api/alarm/stop": "stopAlarm", "/api/alarm/snooze": "snoozeAlarm", "/api/radio/play": "playRadio",
         "/api/music/play": "playMusic",
+        "/api/kiosk/update/install": "installKioskUpdate",
+        "/api/kiosk/update/check": "checkKioskUpdate",
       };
       if (Object.hasOwn(mutations, pathname)) {
         if (req.method !== "POST") {
@@ -135,6 +137,12 @@ export function createServer({ dashboard, webRoot, logger = console }) {
       }
       if (pathname === "/health") return json(200, { ok: true, connected: dashboard.connected });
       if (pathname === "/api/state") return json(200, dashboard.payload());
+      if (pathname === "/api/kiosk/update") {
+        if (url.search) throw new RequestError("KS update status takes no query parameters.");
+        if (!dashboard.kioskUpdates) throw new RequestError("KS updates are not configured.", 409);
+        await dashboard.kioskUpdates.refresh();
+        return json(200, { ok: true, ...dashboard.kioskUpdateSnapshot() });
+      }
       if (pathname === "/api/alarm/sounds" || pathname === "/api/alarm/music") {
         if (!dashboard.kiosk) throw new RequestError("Native alarm choices require the Kiosk Satellite backend.", 409);
         if (pathname.endsWith("/sounds")) {

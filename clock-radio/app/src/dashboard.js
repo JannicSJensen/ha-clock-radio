@@ -53,8 +53,8 @@ export function validateCommand(body, { config, players, readOnly }) {
 }
 
 export class Dashboard {
-  constructor({ ha, configStore, music = null, radio = null, kiosk = null, mediaPlayer = "", weatherEntity = "", sunEntity = "sun.sun", returnToClockMinutes = 2, readOnly = false, demo = false, version, logger = console }) {
-    Object.assign(this, { ha, configStore, music, radio, kiosk, mediaPlayer, weatherEntity, sunEntity, returnToClockMinutes, readOnly, demo, version, logger });
+  constructor({ ha, configStore, music = null, radio = null, kiosk = null, kioskUpdates = null, mediaPlayer = "", weatherEntity = "", sunEntity = "sun.sun", returnToClockMinutes = 2, readOnly = false, demo = false, version, logger = console }) {
+    Object.assign(this, { ha, configStore, music, radio, kiosk, kioskUpdates, mediaPlayer, weatherEntity, sunEntity, returnToClockMinutes, readOnly, demo, version, logger });
     this.states = [];
     this.connected = false;
     this.connectionError = "Connecting to Home Assistant.";
@@ -71,8 +71,9 @@ export class Dashboard {
   }
 
   refresh() {
+    const updates = this.kioskUpdates?.refresh();
     this.loading ??= Promise.all([this.fetchStates(), this.kiosk?.refresh()]).finally(() => { this.loading = null; });
-    return this.loading;
+    return updates ? Promise.all([this.loading, updates]) : this.loading;
   }
 
   async fetchStates() {
@@ -174,6 +175,7 @@ export class Dashboard {
     const stations = this.radio ? this.radio.payload(config) : config.stations.map(({ id, name }) => ({ id, name }));
     return {
       version: this.version, demo: this.demo, read_only: this.readOnly,
+      kiosk_update: this.kioskUpdateSnapshot(),
       connected: this.connected, updated_at: this.updatedAt,
       connection_error: this.connectionError,
       config_error: [this.configStore.error, !this.mediaPlayer ? "Select media_player in the Home Assistant app configuration." : null, this.alarmPlayerError].filter(Boolean).join(" ") || null,
@@ -371,6 +373,25 @@ export class Dashboard {
   async kioskMutation(action) {
     if (this.readOnly) throw new RequestError("The dashboard is read-only.", 403);
     return action();
+  }
+
+  async installKioskUpdate(body) {
+    if (this.readOnly) throw new RequestError("The dashboard is read-only.", 403);
+    if (!this.kioskUpdates) throw new RequestError("KS updates are not configured.", 409);
+    await this.kioskUpdates.install(body);
+    return this.kioskUpdateSnapshot();
+  }
+
+  async checkKioskUpdate(body) {
+    if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length) throw new RequestError("KS update checks take an empty JSON object.");
+    if (!this.kioskUpdates) throw new RequestError("KS updates are not configured.", 409);
+    await this.kioskUpdates.check();
+    return this.kioskUpdateSnapshot();
+  }
+
+  kioskUpdateSnapshot() {
+    const update = this.kioskUpdates?.snapshot();
+    return update ? { ...update, can_install: update.can_install && !this.readOnly } : null;
   }
 
   async playRadio(body) {

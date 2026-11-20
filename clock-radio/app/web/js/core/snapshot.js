@@ -177,5 +177,8 @@ export function offlineStatus(model) {
       ? `Kiosk alarms are connected${model.read_only ? " (read-only)" : " and editable"}.`
       : `Kiosk is offline. Saved native schedules are read-only.${last} Native execution cannot be confirmed from this dashboard.`);
   }
+  if (model.kiosk_update?.connected && !model.offline_snapshot) {
+    return `Home Assistant is offline. HA controls are read-only.${last} HA alarm execution cannot be confirmed. KS update controls are connected${model.read_only ? " (read-only)" : ""}.`;
+  }
   return `Offline - ${model.offline_snapshot ? "showing saved schedules" : "showing last received data"}. Read-only.${last} HA alarm execution cannot be confirmed.`;
 }

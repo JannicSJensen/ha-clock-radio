@@ -120,6 +120,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .settings--ios .btn--primary { padding-inline: 20px; background: #0071e3; color: #fff; }
 .settings--ios .settings-reload { width: 44px; padding: 0; background: #48484a; font-size: 22px; }
 .settings--ios > .setting-group { margin-top: 6px; }
+.kiosk-update-actions { display: flex; flex-wrap: wrap; gap: 10px; margin: 14px 18px 0; }
+.kiosk-update-progress { width: calc(100% - 36px); margin: 14px 18px 0; }
 .settings--ios .settings-navigation-hint { margin-top: 28px; text-align: center; }
 @media (max-width: 700px) {
   .settings.settings--ios { padding: 16px 16px 140px; }

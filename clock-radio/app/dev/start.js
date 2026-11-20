@@ -52,8 +52,9 @@ let runtimeOptions = optionsFile;
 let kioskDemo = null;
 let kioskTemp = null;
 const configuredOptions = JSON.parse(fs.readFileSync(optionsFile, "utf8"));
-if (configuredOptions.alarm_backend === "kiosk_satellite") {
+if (configuredOptions.alarm_backend === "kiosk_satellite" || configuredOptions.kiosk_satellite_url || configuredOptions.kiosk_satellite_token) {
   kioskDemo = createKioskDemo();
+  kioskDemo.mode.autoUpdate = true;
   if (configuredOptions.kiosk_satellite_alarm_ui === "clock") {
     kioskDemo.mode.presentation = { version: 1, enabled: true, device: "a".repeat(32) };
   }

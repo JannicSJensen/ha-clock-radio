@@ -82,6 +82,7 @@ function toast(message) {
 }
 const canControl = () => Boolean(model?.connected && !model.read_only);
 const canControlAlarms = () => Boolean(model && !model.read_only && !model.offline_snapshot && (model.alarms.connected ?? model.connected));
+const canControlKiosk = () => Boolean(model?.kiosk_update?.connected && !model.read_only && !model.offline_snapshot);
 const ctx = {
   t: makeTranslator("en"), toast, canControl, canControlAlarms, getModel: () => model,
   getState: (id) => model?.players.find((player) => player.entity_id === id) ?? null,
@@ -97,7 +98,7 @@ const ctx = {
   },
   writeError: () => $("command-error").textContent,
   nativeAlarmControl: (action, context) => kioskAlarmUi.control(action, context),
-  write,
+  write, refresh: poll,
 };
 
 function policy() {
@@ -309,7 +310,7 @@ async function poll() {
           }
         }
         if (!pending) snapshots.save(model);
-      } else if (next.connected) {
+      } else if (next.connected || next.kiosk_update?.connected) {
         model = next;
         if (!pending) snapshots.save(model);
       } else {
@@ -338,7 +339,7 @@ async function poll() {
 
 async function write(url, data) {
   const alarmWrite = /^api\/(?:alarm\/|settings\/alarm(?:$|-playback$))/.test(url);
-  if (!(alarmWrite ? canControlAlarms() : canControl())) { toast("The requested backend is read-only or disconnected."); return false; }
+  if (!(url === "api/kiosk/update/install" ? canControlKiosk() : alarmWrite ? canControlAlarms() : canControl())) { toast("The requested backend is read-only or disconnected."); return false; }
   pending++;
   checkIdleReturn();
   notice("command-error", "");

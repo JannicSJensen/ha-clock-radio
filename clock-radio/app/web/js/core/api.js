@@ -25,7 +25,7 @@ export async function getJson(url, options = {}) {
 }
 
 export function postJson(url, data) {
-  const timeout = /^api\/alarm\/(?:create|delete)$/.test(url) ? 120_000 : 30_000;
+  const timeout = url === "api/kiosk/update/check" ? 75_000 : /^api\/alarm\/(?:create|delete)$/.test(url) ? 120_000 : 30_000;
   return getJson(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(data), timeout });
 }
 

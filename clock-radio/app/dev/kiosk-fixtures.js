@@ -5,7 +5,13 @@ export const DEMO_KIOSK_TOKEN = "clock-radio-fictional-kiosk";
 export function createKioskDemo() {
   const alarms = [{ id: "personal-native-alarm", time: "07:00", days: [0, 6], on: false, label: "Personal alarm", tone: "builtin", music: "none", sunrise: false, speak: false, phrase: "" }];
   const calls = [];
-  const mode = { unavailable: false, ignoreSaves: false, ignoreMusic: false, ignoreTone: false, musicUnavailable: false, soundUnavailable: false, speakerUnavailable: false, phase: "idle", ids: [], presentation: null };
+  const mode = { unavailable: false, ignoreSaves: false, ignoreMusic: false, ignoreTone: false, musicUnavailable: false, soundUnavailable: false, speakerUnavailable: false, phase: "idle", ids: [], presentation: null, updateUnsupported: false, updateUnreachable: false, autoUpdate: false };
+  const updates = { currentVersion: "2030.1.1+1", availableVersion: "2030.1.2", progress: null, installing: false, lastOutcome: null, canRelaunch: true, silent: true };
+  const updateTimers = new Set();
+  const later = (delay, run) => {
+    const timer = setTimeout(() => { updateTimers.delete(timer); run(); }, delay);
+    updateTimers.add(timer);
+  };
   const sounds = ["Gentle Bells.ogg", "Soft Chime.wav"];
   const speakers = {
     ma: [{ pick: "", name: "This device (Sendspin)", self: true, available: true }, { pick: "ma:bedroom", name: "Bedroom speaker", available: true }],
@@ -41,6 +47,27 @@ export function createKioskDemo() {
       alarms: alarms.map((alarm) => ({ ...alarm, next: alarm.on ? new Date(Date.now() + 3600000).toISOString() : null })),
       ...(mode.presentation ? { presentation: mode.presentation } : {}),
     });
+    if (["getUpdateStatus", "checkUpdateNow", "installUpdate"].includes(name)) {
+      if (mode.updateUnsupported) return reply(400, { ok: false, error: "unknown command" });
+      if (!data || typeof data !== "object" || Array.isArray(data) || Object.keys(data).length) return reply(400, { ok: false, error: "invalid update parameters" });
+      if (name === "getUpdateStatus") return ok(updates);
+      if (name === "checkUpdateNow") return ok({ ...updates, reachable: !mode.updateUnreachable });
+      if (!updates.availableVersion || updates.progress !== null || updates.installing) return reply(400, { ok: false, error: "update unavailable or busy" });
+      const version = updates.availableVersion;
+      updates.progress = 0;
+      updates.lastOutcome = null;
+      if (mode.autoUpdate) {
+        later(500, () => { updates.progress = 0.5; });
+        later(8000, () => { updates.progress = null; updates.installing = true; });
+        later(13000, () => {
+          updates.currentVersion = `${version}+2`;
+          updates.availableVersion = null;
+          updates.installing = false;
+          updates.lastOutcome = "silent";
+        });
+      }
+      return ok(true);
+    }
     if (name === "listNotificationSounds") {
       if (mode.soundUnavailable) return reply(400, { ok: false, error: "sounds unavailable" });
       return ok({ sounds });
@@ -94,5 +121,6 @@ export function createKioskDemo() {
     }
     return reply(400, { ok: false, error: "Unknown fictional Kiosk command." });
   });
-  return { server, alarms, calls, mode, sounds, speakers, radios };
+  server.on("close", () => { for (const timer of updateTimers) clearTimeout(timer); });
+  return { server, alarms, calls, mode, sounds, speakers, radios, updates };
 }

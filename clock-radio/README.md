@@ -31,6 +31,12 @@ existing HA schedules are untouched. Native ringing/defaults stay on Kiosk.
 **Switching back does not cancel native alarms.**
 See [setup, limitations and cleanup](DOCS.md#experimental-kiosk-satellite-alarm-backend).
 
+**Settings > Kiosk Satellite updates** can check and install updates on the
+configured KS device with either alarm backend. Installation requires
+confirmation and an idle native alarm engine, and uses KS's own updater.
+See [KS updates](DOCS.md#updating-kiosk-satellite) for restart/confirmation
+requirements and recovery after an uncertain request.
+
 Buzzer alarms can each select one of twelve original built-in sounds.
 Update the HA alarm package to scheduler version 7 and configure a
 speaker-accessible HA internal URL; see [sound setup](DOCS.md#buzzer-alarm-sounds).

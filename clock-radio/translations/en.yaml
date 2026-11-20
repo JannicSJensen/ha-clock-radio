@@ -22,10 +22,10 @@ configuration:
     description: Default home_assistant preserves existing behavior. kiosk_satellite manages only marked Clock Radio test alarms on the configured kiosk. Choose music, its speaker and native buzzer tones in Clock Radio's alarm editor, or explicitly follow Kiosk defaults. Music uses Kiosk's configured HA/MA/Sonos sources with native tone fallback, not standalone direct URLs. Existing HA schedules and unrelated native alarms are untouched. Switching back does NOT cancel native alarms; explicitly delete test alarms in Clock Radio before switching, or in Kiosk. Restart after changing.
   kiosk_satellite_url:
     name: Kiosk Satellite Remote Administration URL
-    description: Experimental backend only. Use the kiosk's LAN HTTP(S) origin, for example http://192.168.1.50:2324, not the secure-context proxy's localhost address. Remote Administration and its alarm commands must be available. All tablets using this app manage this one kiosk. Restart after changing.
+    description: Used for native alarms or KS updates with either alarm backend. Use the kiosk's LAN HTTP(S) origin, for example http://192.168.1.50:2324, not the secure-context proxy's localhost address. Remote Administration must be available. All tablets using this app target this one kiosk. Restart after changing.
   kiosk_satellite_token:
     name: Kiosk Satellite Remote API token
-    description: Experimental backend only. Obtain a Remote Administration bearer token using Kiosk's POST /api/login endpoint. Kept only on the server; renew when expired. This is a powerful admin credential, not an HA or Music Assistant token. Use a trusted LAN or HTTPS. Restart after changing.
+    description: Used for native alarms or KS updates with either alarm backend. Obtain a Remote Administration bearer token using Kiosk's POST /api/login endpoint. Kept only on the server; renew when expired. This is a powerful admin credential, not an HA or Music Assistant token. Use a trusted LAN or HTTPS. Restart after changing.
   kiosk_satellite_alarm_ui:
     name: Kiosk alarm ringing UI
     description: native keeps KS controls. clock requests Clock Radio's ringing and snooze UI only on the configured KS device, with native timing/playback and automatic native-screen fallback. Requires KS dashboard-alarm support and its Dashboard alarm UI URL setting. Older KS versions retain native controls. Unrelated or mixed native alarm groups are never taken over. Restart after changing.
