@@ -11,6 +11,7 @@ import { discoverMusicAssistant } from "./discovery.js";
 import { publishAlarmSounds } from "./alarm-sounds.js";
 import { KioskAlarms, kioskOptions } from "./kiosk-alarms.js";
 import { KioskUpdates } from "./kiosk-updates.js";
+import { KioskDimming } from "./kiosk-dimming.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const version = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8")).version;
@@ -69,19 +70,20 @@ if (!musicUrl && token && musicToken) {
 const music = new MusicService({ ha, logger, url: musicUrl, token: musicToken });
 const radio = new RadioLibrary({ ha, music, logger });
 const kiosk = nativeOptions ? new KioskAlarms({ ...nativeOptions, logger }) : null;
-let updateClient = kiosk;
-let updateConfigurationError = null;
-if (!updateClient && (options.kiosk_satellite_url || options.kiosk_satellite_token)) {
+let deviceClient = kiosk;
+let deviceConfigurationError = null;
+if (!deviceClient && (options.kiosk_satellite_url || options.kiosk_satellite_token)) {
   try {
-    updateClient = new KioskAlarms({ ...kioskOptions({ ...options, alarm_backend: "kiosk_satellite" }), logger });
+    deviceClient = new KioskAlarms({ ...kioskOptions({ ...options, alarm_backend: "kiosk_satellite" }), logger });
   } catch (error) {
-    updateConfigurationError = error.message;
-    logger.warn(`KS updates unavailable: ${error.message}`);
+    deviceConfigurationError = error.message;
+    logger.warn(`KS device controls unavailable: ${error.message}`);
   }
 }
-const kioskUpdates = new KioskUpdates({ client: updateClient, configurationError: updateConfigurationError, logger });
+const kioskUpdates = new KioskUpdates({ client: deviceClient, configurationError: deviceConfigurationError, logger });
+const kioskDimming = new KioskDimming({ client: deviceClient, configurationError: deviceConfigurationError, logger });
 if (kiosk) logger.warn("Experimental Kiosk alarm backend enabled. Existing HA schedules are untouched. Native test alarms remain scheduled after switching back.");
-const dashboard = new Dashboard({ ha, configStore, music, radio, kiosk, kioskUpdates, mediaPlayer, weatherEntity, sunEntity, returnToClockMinutes, readOnly: options.read_only === true, demo: process.env.DEMO === "1", version, logger });
+const dashboard = new Dashboard({ ha, configStore, music, radio, kiosk, kioskUpdates, kioskDimming, mediaPlayer, weatherEntity, sunEntity, returnToClockMinutes, readOnly: options.read_only === true, demo: process.env.DEMO === "1", version, logger });
 const server = createServer({ dashboard, webRoot: path.join(root, "web"), logger });
 await dashboard.refresh();
 const timer = setInterval(() => dashboard.refresh(), 5000);

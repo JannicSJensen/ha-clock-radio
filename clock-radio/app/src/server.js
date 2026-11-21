@@ -122,6 +122,7 @@ export function createServer({ dashboard, webRoot, logger = console }) {
         "/api/music/play": "playMusic",
         "/api/kiosk/update/install": "installKioskUpdate",
         "/api/kiosk/update/check": "checkKioskUpdate",
+        "/api/kiosk/dimming/save": "saveKioskDimming",
       };
       if (Object.hasOwn(mutations, pathname)) {
         if (req.method !== "POST") {
@@ -142,6 +143,12 @@ export function createServer({ dashboard, webRoot, logger = console }) {
         if (!dashboard.kioskUpdates) throw new RequestError("KS updates are not configured.", 409);
         await dashboard.kioskUpdates.refresh();
         return json(200, { ok: true, ...dashboard.kioskUpdateSnapshot() });
+      }
+      if (pathname === "/api/kiosk/dimming") {
+        if (url.search) throw new RequestError("KS dimming status takes no query parameters.");
+        if (!dashboard.kioskDimming) throw new RequestError("KS proximity dimming is not configured.", 409);
+        await dashboard.kioskDimming.refresh(true);
+        return json(200, { ok: true, ...dashboard.kioskDimmingSnapshot() });
       }
       if (pathname === "/api/alarm/sounds" || pathname === "/api/alarm/music") {
         if (!dashboard.kiosk) throw new RequestError("Native alarm choices require the Kiosk Satellite backend.", 409);

@@ -47,15 +47,27 @@ export class KioskAlarms {
   }
 
   async command(name, params = {}, mutation = false, timeoutMs = this.timeoutMs) {
+    return this.request(`/api/commands/${name}`, { name, params, mutation, timeoutMs, unwrap: true });
+  }
+
+  async settings(values = null) {
+    return this.request("/api/settings", {
+      name: "display settings", method: values === null ? "GET" : "PATCH",
+      params: values, mutation: values !== null,
+    });
+  }
+
+  async request(path, { name, method = "POST", params, mutation = false, timeoutMs = this.timeoutMs, unwrap = false }) {
     const uncertain = !mutation ? "" : name === "installUpdate"
       ? " The update may already be running. Check KS update status before retrying."
+      : name === "display settings" ? " Some display settings may have changed. Refresh KS dimming settings before retrying."
       : " The operation may have completed. Refresh Kiosk alarms before retrying.";
     let response, body;
     try {
-      response = await this.fetch(`${this.url}/api/commands/${name}`, {
-        method: "POST", redirect: "error", signal: AbortSignal.timeout(timeoutMs),
+      response = await this.fetch(`${this.url}${path}`, {
+        method, redirect: "error", signal: AbortSignal.timeout(timeoutMs),
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.token}` },
-        body: JSON.stringify(params),
+        ...(method === "GET" ? {} : { body: JSON.stringify(params) }),
       });
       body = await response.text();
     } catch {
@@ -71,10 +83,10 @@ export class KioskAlarms {
       const detail = result?.error === "duplicate" ? "Another Kiosk alarm already has that time and repeat days."
         : result?.error === "no_source" ? "Configure a Music Assistant, Home Assistant or Sonos music source on Kiosk Satellite."
         : "Check the Kiosk version, configuration and Remote Administration logs.";
-      throw new RequestError(`Kiosk Satellite rejected ${name}. ${detail}`, 502);
+      throw new RequestError(`Kiosk Satellite rejected ${name}. ${detail}${name === "display settings" ? uncertain : ""}`, 502);
     }
-    if (!response.ok || !object(result) || result.ok !== true) throw new RequestError(`Kiosk Satellite request failed (HTTP ${response.status}).${uncertain}`, 502);
-    return result.data;
+    if (!response.ok || !object(result) || method !== "GET" && result.ok !== true) throw new RequestError(`Kiosk Satellite request failed (HTTP ${response.status}).${uncertain}`, 502);
+    return unwrap ? result.data : result;
   }
 
   remember(map, id, value) {

@@ -556,10 +556,12 @@ Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
   schedules on either system; remove native test alarms explicitly.
 - `kiosk_satellite_url`: Kiosk's LAN Remote Administration HTTP(S) origin,
   without a path, credentials, query or fragment. Used for native alarms or
-  Settings > Kiosk Satellite updates, with either alarm backend.
+  Settings > Kiosk Satellite updates or Proximity screen dimming, with
+  either alarm backend.
 - `kiosk_satellite_token`: Kiosk Remote API bearer token, masked in app options
   and retained only on the server. Not an HA/MA token. Required for native
-  alarms and KS updates; restart after changing the address/token.
+  alarms, KS updates and proximity dimming; restart after changing the
+  address/token.
 - `kiosk_satellite_alarm_ui`: `native` (default) or `clock`. Clock presentation
   requires compatible KS dashboard-alarm support and its trusted dashboard URL;
   unsupported devices keep native controls. Native scheduling remains unchanged.
@@ -578,6 +580,44 @@ Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
   query or fragment; empty enables Supervisor discovery.
 - `music_assistant_token`: optional MA read-only access token. Stored only in
   Supervisor app options/environment, never dashboard YAML or browser state.
+
+## Proximity screen dimming
+
+In **Settings > Proximity screen dimming**, enable the option and
+**Save changes**. It targets the KS device configured by
+`kiosk_satellite_url`/`kiosk_satellite_token`, with either alarm backend.
+It uses KS's built-in proximity sensor and actual hardware brightness,
+not CSS darkening or a browser timer.
+
+Saving enabled configures KS's native **Dim** screensaver: idle timeout
+**600 seconds**, dim level **10%**, proximity postponement and proximity
+wake. Clock Radio stays visible. A held proximity signal postpones dimming;
+an approach after dimming dismisses it and KS restores its saved brightness
+level. Touch and other native activity also reset the native idle timer.
+Normal brightness, adaptive-brightness settings and alarm schedules are
+not changed. Adaptive brightness still applies to the 10% ceiling, so the
+actual panel may be dimmer according to room light.
+
+This replaces KS's current screensaver mode with Dim and disables its
+automatic screensaver screen-off. It does not turn the screen off or
+change the Clock's Sun/night colors. Disabling the option turns an existing
+native Dim screensaver off, allowing KS to restore brightness; other
+screensaver modes are not disabled by an unchecked option.
+
+KS must report compatible settings and a supported proximity sensor.
+Some call-only palm sensors cannot detect someone approaching the device.
+Enabled KS screensaver schedules or lockdown block configuration because
+they can override the mode/brightness or prevent proximity wake. Adjust
+those in KS first. Configuration is also blocked during a native alarm,
+sunrise or snooze, and in read-only/offline mode.
+
+Saved behavior continues natively with HA offline or the Clock page
+reloaded. The settings display refreshes at most once per minute in the
+background; **Reload values** reads fresh native settings. Changes are
+verified before reporting saved. If a native request fails or is only
+partially accepted, inspect KS and reload before retrying; requests are
+not automatically retried. Credentials and native dimming metadata are
+never stored in the browser's offline snapshot.
 
 ## Updating Kiosk Satellite
 

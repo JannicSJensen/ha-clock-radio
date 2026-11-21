@@ -5,7 +5,19 @@ export const DEMO_KIOSK_TOKEN = "clock-radio-fictional-kiosk";
 export function createKioskDemo() {
   const alarms = [{ id: "personal-native-alarm", time: "07:00", days: [0, 6], on: false, label: "Personal alarm", tone: "builtin", music: "none", sunrise: false, speak: false, phrase: "" }];
   const calls = [];
-  const mode = { unavailable: false, ignoreSaves: false, ignoreMusic: false, ignoreTone: false, musicUnavailable: false, soundUnavailable: false, speakerUnavailable: false, phase: "idle", ids: [], presentation: null, updateUnsupported: false, updateUnreachable: false, autoUpdate: false };
+  const record = (name, data) => {
+    calls.push({ name, data });
+    if (calls.length > 2000) calls.shift();
+  };
+  const mode = { unavailable: false, ignoreSaves: false, ignoreMusic: false, ignoreTone: false, musicUnavailable: false, soundUnavailable: false, speakerUnavailable: false, phase: "idle", ids: [], presentation: null, updateUnsupported: false, updateUnreachable: false, autoUpdate: false, dimmingUnsupported: false, proximitySupported: true, ignoreDimmingSaves: false, rejectDimmingKey: null };
+  const settings = {
+    "screensaver.enabled": false, "screensaver.mode": "clock", "screensaver.timeout_seconds": 300,
+    "screensaver.dim_level": 0.2, "screensaver.screen_off_minutes": 15,
+    "screensaver.dismiss_on_proximity": false, "screensaver.postpone_on_proximity": false,
+    "screensaver.dismiss_on_proximity_screen_off_only": true, "screensaver.schedule_enabled": false,
+    "lockdown.enabled": false, "screen.default_brightness": 0.65, "screensaver.saved_brightness": -1,
+    "screen.adaptive_brightness": true, "ha.password": "fictional-secret",
+  };
   const updates = { currentVersion: "2030.1.1+1", availableVersion: "2030.1.2", progress: null, installing: false, lastOutcome: null, canRelaunch: true, silent: true };
   const updateTimers = new Set();
   const later = (delay, run) => {
@@ -31,6 +43,26 @@ export function createKioskDemo() {
     };
     if (req.headers.authorization !== `Bearer ${DEMO_KIOSK_TOKEN}`) return reply(401, { error: "Invalid fictional Kiosk token." });
     if (mode.unavailable) return reply(503, { error: "Fictional Kiosk offline." });
+    if (req.url === "/api/settings" && ["GET", "PATCH"].includes(req.method)) {
+      if (mode.dimmingUnsupported) return reply(404, { error: "unknown endpoint" });
+      if (req.method === "GET") {
+        record("getSettings", null);
+        return reply(200, { settings: Object.entries(settings).map(([key, value]) => ({ key, value })) });
+      }
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      let values;
+      try { values = JSON.parse(Buffer.concat(chunks).toString()); }
+      catch { return reply(400, { error: "Invalid JSON." }); }
+      if (!values || typeof values !== "object" || Array.isArray(values)) return reply(400, { error: "Invalid settings." });
+      record("patchSettings", values);
+      const rejected = [];
+      for (const [key, value] of Object.entries(values)) {
+        if (!Object.hasOwn(settings, key) || typeof value !== typeof settings[key] || mode.rejectDimmingKey === key) rejected.push(key);
+        else if (!mode.ignoreDimmingSaves) settings[key] = value;
+      }
+      return reply(200, { ok: !rejected.length, rejected, errors: {} });
+    }
     const match = /^\/api\/commands\/([A-Za-z]+)$/.exec(req.url);
     if (req.method !== "POST" || !match) return reply(404, { error: "Not found." });
     const chunks = [];
@@ -39,9 +71,10 @@ export function createKioskDemo() {
     try { data = JSON.parse(Buffer.concat(chunks).toString()); }
     catch { return reply(400, { error: "Invalid JSON." }); }
     const name = match[1];
-    calls.push({ name, data });
-    if (calls.length > 2000) calls.shift();
+    record(name, data);
     const ok = (data) => reply(200, { ok: true, ...(data === undefined ? {} : { data }) });
+    if (name === "getProximitySupport") return mode.dimmingUnsupported
+      ? reply(400, { ok: false, error: "unknown command" }) : ok({ supported: mode.proximitySupported, name: "Fictional proximity sensor" });
     if (name === "alarmsStatus") return ok({
       phase: mode.phase, ids: mode.ids, labels: [], at: null, snoozedUntil: null, next: null, visible: false,
       alarms: alarms.map((alarm) => ({ ...alarm, next: alarm.on ? new Date(Date.now() + 3600000).toISOString() : null })),
@@ -122,5 +155,5 @@ export function createKioskDemo() {
     return reply(400, { ok: false, error: "Unknown fictional Kiosk command." });
   });
   server.on("close", () => { for (const timer of updateTimers) clearTimeout(timer); });
-  return { server, alarms, calls, mode, sounds, speakers, radios, updates };
+  return { server, alarms, calls, mode, sounds, speakers, radios, updates, settings };
 }

@@ -37,6 +37,12 @@ confirmation and an idle native alarm engine, and uses KS's own updater.
 See [KS updates](DOCS.md#updating-kiosk-satellite) for restart/confirmation
 requirements and recovery after an uncertain request.
 
+**Settings > Proximity screen dimming** can configure the KS device to dim
+its screen to a native 10% level after 10 minutes of inactivity and restore
+the saved brightness on proximity. Clock Radio stays visible and KS owns
+the timer/restoration, with either alarm backend.
+See [proximity dimming](DOCS.md#proximity-screen-dimming).
+
 Buzzer alarms can each select one of twelve original built-in sounds.
 Update the HA alarm package to scheduler version 7 and configure a
 speaker-accessible HA internal URL; see [sound setup](DOCS.md#buzzer-alarm-sounds).

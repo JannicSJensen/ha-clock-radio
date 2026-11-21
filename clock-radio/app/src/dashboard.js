@@ -53,8 +53,8 @@ export function validateCommand(body, { config, players, readOnly }) {
 }
 
 export class Dashboard {
-  constructor({ ha, configStore, music = null, radio = null, kiosk = null, kioskUpdates = null, mediaPlayer = "", weatherEntity = "", sunEntity = "sun.sun", returnToClockMinutes = 2, readOnly = false, demo = false, version, logger = console }) {
-    Object.assign(this, { ha, configStore, music, radio, kiosk, kioskUpdates, mediaPlayer, weatherEntity, sunEntity, returnToClockMinutes, readOnly, demo, version, logger });
+  constructor({ ha, configStore, music = null, radio = null, kiosk = null, kioskUpdates = null, kioskDimming = null, mediaPlayer = "", weatherEntity = "", sunEntity = "sun.sun", returnToClockMinutes = 2, readOnly = false, demo = false, version, logger = console }) {
+    Object.assign(this, { ha, configStore, music, radio, kiosk, kioskUpdates, kioskDimming, mediaPlayer, weatherEntity, sunEntity, returnToClockMinutes, readOnly, demo, version, logger });
     this.states = [];
     this.connected = false;
     this.connectionError = "Connecting to Home Assistant.";
@@ -72,8 +72,9 @@ export class Dashboard {
 
   refresh() {
     const updates = this.kioskUpdates?.refresh();
+    const dimming = this.kioskDimming?.refresh();
     this.loading ??= Promise.all([this.fetchStates(), this.kiosk?.refresh()]).finally(() => { this.loading = null; });
-    return updates ? Promise.all([this.loading, updates]) : this.loading;
+    return updates || dimming ? Promise.all([this.loading, updates, dimming]) : this.loading;
   }
 
   async fetchStates() {
@@ -176,6 +177,7 @@ export class Dashboard {
     return {
       version: this.version, demo: this.demo, read_only: this.readOnly,
       kiosk_update: this.kioskUpdateSnapshot(),
+      kiosk_dimming: this.kioskDimmingSnapshot(),
       connected: this.connected, updated_at: this.updatedAt,
       connection_error: this.connectionError,
       config_error: [this.configStore.error, !this.mediaPlayer ? "Select media_player in the Home Assistant app configuration." : null, this.alarmPlayerError].filter(Boolean).join(" ") || null,
@@ -392,6 +394,18 @@ export class Dashboard {
   kioskUpdateSnapshot() {
     const update = this.kioskUpdates?.snapshot();
     return update ? { ...update, can_install: update.can_install && !this.readOnly } : null;
+  }
+
+  kioskDimmingSnapshot() {
+    const dimming = this.kioskDimming?.snapshot();
+    return dimming ? { ...dimming, can_configure: dimming.can_configure && !this.readOnly } : null;
+  }
+
+  async saveKioskDimming(body) {
+    if (this.readOnly) throw new RequestError("The dashboard is read-only.", 403);
+    if (!this.kioskDimming) throw new RequestError("KS proximity dimming is not configured.", 409);
+    await this.kioskDimming.save(body);
+    return this.kioskDimmingSnapshot();
   }
 
   async playRadio(body) {

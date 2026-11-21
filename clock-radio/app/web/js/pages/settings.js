@@ -2,7 +2,7 @@ import { h } from "../core/h.js";
 import { icon } from "../core/icons.js";
 import { CLOCK_CHOICES, parseClockOptions } from "../lib/clock-options.js";
 import { createAlarmPage } from "./alarms.js";
-import { postJson } from "../core/api.js";
+import { getJson, postJson } from "../core/api.js";
 
 const names = {
   widget: "Clock and widget", full: "Full-screen clock", analog: "Square analog",
@@ -22,7 +22,7 @@ const field = (label, control) => {
     : kind === "select" ? h("span", { class: "setting-control" }, control, icon("chevron-down")) : control;
   return h("label", { class: `setting-field setting-field--${kind}` }, h("span", { class: "setting-field__label" }, label), value);
 };
-const groupIcons = { view: "view-dashboard-outline", time: "calendar-clock", colors: "palette", weather: "weather-partly-cloudy", night: "weather-night", music: "music-note", updates: "download" };
+const groupIcons = { view: "view-dashboard-outline", time: "calendar-clock", colors: "palette", weather: "weather-partly-cloudy", night: "weather-night", music: "music-note", updates: "download", dimming: "weather-night" };
 const group = (title, name, fields, hint) => h("section", { class: `setting-group setting-group--${name}` },
   h("h3", null, h("span", { class: "setting-group__icon" }, icon(groupIcons[name])), title),
   h("div", { class: "setting-grid" }, fields), hint);
@@ -57,9 +57,20 @@ export function kioskUpdateMessage(update, offline = false) {
   return update.checked_at ? "KS reports it is up to date." : "No update is currently reported by KS. Check for updates to verify.";
 }
 
+export function kioskDimmingMessage(dimming, offline = false) {
+  if (offline) return "Offline. Reconnect to change native KS dimming. Its saved behavior continues on KS.";
+  if (!dimming?.configured) return dimming?.error || "Set the KS address and Remote API token in the HA app configuration to use its proximity sensor with either alarm backend.";
+  if (!dimming.connected) return dimming.error || "Connecting to the configured KS device.";
+  if (dimming.error) return dimming.error;
+  if (dimming.alarm_phase !== "idle") return "A native KS alarm, sunrise or snooze is active. Wait before changing dimming.";
+  if (dimming.ready) return "Configured on KS: dim to 10% after 10 minutes of inactivity. Proximity keeps it awake or restores the saved brightness.";
+  if (dimming.enabled) return "KS has a different native Dim configuration. Save with dimming enabled to apply 10 minutes, 10% and proximity wake.";
+  return "Proximity dimming is off. Other native screensaver modes are left unchanged when this option is off.";
+}
+
 export function createSettingsPages(ctx) {
   const forms = [];
-  function createForm(title, content, serialize, endpoint, getValues, available = () => true) {
+  function createForm(title, content, serialize, endpoint, getValues, available = () => true, canControl = ctx.canControl) {
     let dirty = false;
     const status = h("p", { class: "form-status", role: "status" }, "Changes apply when you save.");
     const save = h("button", { type: "submit", class: "btn btn--primary" }, "Save changes");
@@ -68,15 +79,24 @@ export function createSettingsPages(ctx) {
       h("div", { class: "form-actions" }, status, reload, save));
     const form = h("form", { class: "settings-card settings-clock", "aria-label": title }, h("h2", { class: "sr-only" }, title), fieldset);
     const record = { form, update(model, busy) {
-      fieldset.disabled = busy || !ctx.canControl() || !available(model);
+      fieldset.disabled = busy || !canControl() || !available(model);
       if (!dirty) setValues(form, getValues(model));
     } };
     forms.push(record);
     form.addEventListener("input", () => { dirty = true; status.textContent = "Unsaved changes"; });
-    reload.addEventListener("click", () => {
-      dirty = false;
-      record.update(ctx.getModel(), false);
-      status.textContent = "Values reloaded.";
+    reload.addEventListener("click", async () => {
+      try {
+        if (endpoint === "api/kiosk/dimming/save") {
+          await getJson("api/kiosk/dimming");
+          await ctx.refresh();
+        }
+        dirty = false;
+        record.update(ctx.getModel(), false);
+        status.textContent = "Values reloaded.";
+      } catch (error) {
+        status.textContent = error.message;
+        ctx.toast(error.message);
+      }
     });
     form.addEventListener("submit", async (event) => {
       event.preventDefault();
@@ -146,6 +166,22 @@ export function createSettingsPages(ctx) {
   clock.querySelector('[name="next_alarm_entity"] option').textContent = "Use the Clock Radio alarms";
   const musicInfo = h("p", { class: "settings-hint" });
   const musicState = sourceValue();
+  const dimmingState = h("p", { class: "settings-hint", role: "status", "aria-live": "polite" });
+  let dimmingTarget = null;
+  const dimming = createForm("Proximity screen dimming", [
+    group("Proximity screen dimming", "dimming", [
+      field("Enable proximity dimming", input("enabled", "checkbox")),
+    ], h("div", null, dimmingState, h("p", { class: "settings-hint" },
+      "Uses the configured KS device's sensor and hardware brightness, with either alarm backend. Saving enabled sets its native Dim screensaver to 10 minutes and 10%, enables proximity wake/postpone and disables automatic screensaver screen-off. Clock Radio remains visible. KS restores its saved brightness; adaptive brightness still applies. Touch and other native activity can also reset the idle timer. No browser timer or HA connection is required."))),
+  ], (form) => {
+    return { enabled: form.elements.namedItem("enabled").checked, ...dimmingTarget };
+  }, "api/kiosk/dimming/save", (model) => {
+    dimmingTarget = { device_id: model.kiosk_dimming?.device_id, revision: model.kiosk_dimming?.revision };
+    return { enabled: model.kiosk_dimming?.enabled === true };
+  },
+  (model) => model.kiosk_dimming?.can_configure === true, ctx.canControlKioskDimming);
+  dimming.classList.remove("settings-clock");
+  dimming.classList.add("settings-dimming");
   const installedVersion = sourceValue(), availableVersion = sourceValue();
   const updateStatus = h("p", { class: "settings-hint", role: "status", "aria-live": "polite" });
   const updateHint = h("p", { class: "settings-hint" },
@@ -244,6 +280,7 @@ export function createSettingsPages(ctx) {
       h("p", { class: "settings-kicker" }, "Clock Radio"),
       h("h1", null, "Settings"), h("p", null, "Your clock, colors and night-time routine.")),
     clock,
+    dimming,
     group("Music Assistant", "music", [source("Library browsing", musicState)], musicInfo),
     group("Kiosk Satellite updates", "updates", [
       source("Installed KS version", installedVersion), source("Available KS version", availableVersion),
@@ -263,6 +300,7 @@ export function createSettingsPages(ctx) {
     control.dataset.options = signature;
   }
   return { el, alarmsEl: alarms.el, closeAlarmEditor: alarms.closeEditor, update(model, busy) {
+    dimmingState.textContent = kioskDimmingMessage(model.kiosk_dimming, model.offline_snapshot === true);
     alarms.update(model, busy);
     updateKiosk(model, busy);
     const entities = model.clock_entities;

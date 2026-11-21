@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.25.0
+
+- Add Proximity screen dimming to Settings with either alarm backend.
+  Configure KS's native Dim screensaver for 10 minutes of inactivity and
+  a 10% dim level, with proximity postponing or waking it.
+- Leave Clock Radio visible and brightness restoration on KS; preserve
+  normal/adaptive brightness settings and native alarm schedules.
+- Validate sensor support and saved settings, block read-only/offline
+  changes and active alarms, and refuse conflicting native schedules or
+  lockdown instead of silently overriding them.
+- Use no browser inactivity timer and keep native dimming independent of
+  HA connectivity. Configuration defaults off until explicitly saved.
+
 ## 0.24.0
 
 - Add Settings controls to check and install Kiosk Satellite updates using
