@@ -3,8 +3,62 @@ import test from "node:test";
 import { alarmLabel, alarmSettings, canEditAlarm, repeatLabel } from "../web/js/pages/alarms.js";
 import { timeParts, to24Hour } from "../web/js/components/time-picker.js";
 import { validateAlarm } from "../src/alarms.js";
+import { kioskAlarmMusicOptions } from "../web/js/components/kiosk-alarm-picker.js";
 
 const days = (selected) => Object.fromEntries(["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"].map((day) => [day, selected.includes(day)]));
+
+test("KS music browsing pins Music Assistant and show-01 before returning any items", async (t) => {
+  const calls = [];
+  const speakers = [{ id: "other", name: "Other speaker", available: true }, { id: "show", name: "show-01", available: true }];
+  t.mock.method(globalThis, "fetch", async (url) => {
+    const query = Object.fromEntries(new URL(url, "http://localhost").searchParams);
+    calls.push(query);
+    const speaker = query.speaker ?? "other";
+    return { ok: true, json: async () => ({ source: query.source, speaker, speakers, items: [{ id: speaker }] }) };
+  });
+  const initial = await kioskAlarmMusicOptions({ source: "ha", category: "radio" });
+  assert.deepEqual(calls, [{ source: "ma", category: "radio" }, { source: "ma", category: "radio", speaker: "show" }]);
+  assert.deepEqual(initial.items, [{ id: "show" }]);
+  calls.length = 0;
+  const page = await kioskAlarmMusicOptions({ speaker: initial.speaker, category: "radio", offset: "1", parent: "folder" });
+  assert.equal(page.speaker, "show");
+  assert.deepEqual(calls, [{ source: "ma", speaker: "show", category: "radio", offset: "1", parent: "folder" }]);
+});
+
+test("KS music rejects missing, ambiguous, unavailable and unconfirmed fixed targets without fallback", async (t) => {
+  const target = { id: "show", name: "show-01", available: true };
+  let catalog;
+  let calls = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    calls++;
+    return { ok: true, json: async () => catalog };
+  });
+  for (const [data, message, count] of [
+    [{ source: "ha", speakers: [target] }, /did not confirm Music Assistant/, 1],
+    [{ source: "ma", speakers: [] }, /was not found/, 1],
+    [{ source: "ma", speakers: [target, { ...target, id: "duplicate" }] }, /More than one/, 1],
+    [{ source: "ma", speakers: [{ ...target, available: false }] }, /unavailable/, 1],
+    [{ source: "ma", speakers: [{ ...target, id: null }] }, /invalid music speaker choice/, 1],
+    [{ source: "ma", speaker: "other", speakers: [target] }, /did not confirm Music Assistant playback/, 2],
+  ]) {
+    catalog = data;
+    calls = 0;
+    await assert.rejects(kioskAlarmMusicOptions(), message);
+    assert.equal(calls, count);
+  }
+});
+
+test("KS music cancellation between discovery and target loading cannot return the other speaker's items", async (t) => {
+  const caller = new AbortController();
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    if (options.signal.aborted) throw options.signal.reason;
+    return { ok: true, json: async () => {
+      caller.abort();
+      return { source: "ma", speaker: "other", speakers: [{ id: "show", name: "show-01", available: true }], items: [{ id: "wrong-speaker" }] };
+    } };
+  });
+  await assert.rejects(kioskAlarmMusicOptions({}, { signal: caller.signal }), { name: "AbortError" });
+});
 
 test("wheel selections preserve every hour and minute in 12-hour and 24-hour modes", () => {
   for (const hour12 of [false, true]) {

@@ -64,8 +64,10 @@ See [offline behavior and limits](clock-radio/DOCS.md#offline-snapshots-and-requ
 
 An opt-in [Kiosk Satellite backend](clock-radio/DOCS.md#kiosk-satellite-alarm-backend)
 keeps our alarm editor but executes Clock Radio's native alarms on the kiosk,
-with music/radio, speaker and native buzzer-tone selection in **Clock Radio's
-alarm editor**, with local tone fallback. Configure the backend in the HA
+with music/radio and native buzzer-tone selection in **Clock Radio's
+alarm editor**, with local tone fallback. New music selections use
+**Music Assistant > show-01** without source/speaker selectors; existing
+saved choices are preserved. Configure the backend in the HA
 app options; existing HA schedules are never migrated or disabled.
 Switching back does not cancel native alarms.
 With compatible KS dashboard-alarm support, opt-in
@@ -76,7 +78,7 @@ versions continue to use their native ringing screen.
 
 Set `media_player` in the HA app configuration: the HA Music page and HA-backed
 alarms use that one speaker, without player selection, grouping or Party.
-Kiosk-backed alarms use the speaker selected in their alarm editor.
+New Kiosk-backed music selections use Music Assistant's **show-01** speaker.
 Set `weather_entity` there as well and restart the app to enable weather in
 the widget and full-screen clock. Weather selection is not in dashboard Settings.
 For automatic night colors, select **Sun (below horizon)** in Settings' Night

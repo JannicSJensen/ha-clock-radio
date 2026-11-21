@@ -26,7 +26,8 @@ export function createKioskDemo() {
   };
   const sounds = ["Gentle Bells.ogg", "Soft Chime.wav"];
   const speakers = {
-    ma: [{ pick: "", name: "This device (Sendspin)", self: true, available: true }, { pick: "ma:bedroom", name: "Bedroom speaker", available: true }],
+    ma: [{ pick: "", name: "This device (Sendspin)", self: true, available: true }, { pick: "ma:bedroom", name: "Bedroom speaker", available: true },
+      { pick: "ma:show-01", name: "show-01", available: true }],
     ha: [{ pick: "ha:media_player.kitchen", name: "Kitchen speaker", available: true }],
     sonos: [{ pick: "sonos:living", name: "Living room Sonos", available: true }],
   };

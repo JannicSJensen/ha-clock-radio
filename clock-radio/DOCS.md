@@ -705,25 +705,27 @@ include it. All tablets connected to this app manage the **same configured kiosk
   a sound already in the device's sounds folder, or **Use Kiosk tone default**.
   New drafts use the built-in tone. The twelve HA-hosted WAV choices are not
   copied to the device. Native tone selection does not play a preview.
-- For **Music**, choose **Music from**, **Plays on**, a category (including
-  radios where available), then select the item in **Clock Radio's editor**.
+- For **Music**, choose a category (including radios) and select the item
+  in **Clock Radio's editor**. New selections use **Music Assistant** and
+  its speaker named exactly **show-01**; the source/speaker selectors and
+  **Use Kiosk music default** button are no longer shown.
   **Open** browses folders/albums/playlists; **More music** fetches another
   page. Saving stores this alarm's source, speaker and music on Kiosk.
-  Catalogs load on demand, not on every state poll. The source must already
-  be configured on Kiosk: Music Assistant, Home Assistant or Sonos.
-- No local Sendspin renderer is forced. The selected speaker is shown and
-  saved with the music; selecting another source/speaker only browses its
-  catalog until you choose an item. The **Selected** summary shows what Save
-  will use. Browsing and saving do not start playback.
-- **Use Kiosk music default** explicitly removes this alarm's music override.
-  That alarm then follows the live **Kiosk Settings > Alarms > Alarm music**
-  setting. Switching Buzzer to Music initially follows that default unless
+  Catalogs load on demand, not on every state poll. Music Assistant must
+  already be configured on Kiosk and show-01 must be available. A missing,
+  duplicate or unavailable speaker shows an error, never another speaker's
+  choices. This does not change KS's global source or followed speaker.
+- The **Selected** summary shows what Save will use. New music choices save
+  Music Assistant/show-01 with the selected item. Browsing does not change
+  saved music; saving choices does not start playback.
+- Existing alarms that inherit **Kiosk Settings > Alarms > Alarm music**
+  keep that inheritance. Switching Buzzer to Music initially follows it unless
   you select an item. Buzzer explicitly opts out of music. Kiosk uses the
   selected fallback tone if music cannot play or no default is configured.
   Music still needs its source/network; the native tone does not.
 - **Upgrading:** no alarms are rewritten. Unlike 0.19.1, saving schedules or
   toggling an alarm now preserves its existing music override and native tone.
-  Re-select music or explicitly choose the default to change them. A catalog
+  Re-select music to change its source/speaker to Music Assistant/show-01. A catalog
   failure does not prevent time/day edits with the existing choices unchanged.
   The HA `media_player` option and separate HA Music page do not control
   native alarms. Standalone direct-URL native alarm music requires a Kiosk

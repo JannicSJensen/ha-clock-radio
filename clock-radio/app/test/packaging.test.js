@@ -62,6 +62,13 @@ test("current UI and configuration help no longer label Kiosk support experiment
   assert.match(translation.configuration.alarm_backend.description, /Switching back does NOT cancel native alarms/);
 });
 
+test("KS music controls omit source, speaker and default-reset controls while retaining browsing", () => {
+  const picker = read(path.join(app, "web/js/components/kiosk-alarm-picker.js"));
+  assert.doesNotMatch(picker, /Alarm music source|Alarm music speaker|Use Kiosk music default|Music from|Plays on/);
+  assert.match(picker, /Alarm music category/);
+  assert.match(picker, /Native buzzer tone/);
+});
+
 test("vendored renderer and fonts retain their full redistribution licenses", () => {
   assert.match(read(path.join(app, "web/clock/LICENSE")), /Apache License/);
   for (const file of ["web/clock/fonts/OFL.txt", "web/clock/fonts/OFL-Archivo.txt", "web/fonts/LICENSE.txt"]) {

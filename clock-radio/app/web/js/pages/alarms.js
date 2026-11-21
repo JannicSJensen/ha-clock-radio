@@ -206,7 +206,7 @@ export function createAlarmPage(ctx) {
   const nativeSettings = h("p", { class: "alarm-editor__hint", hidden: true },
     "Kiosk device local time. No repeat days means once. Volume, Snooze length and Silence after are device-wide Kiosk settings. Native scheduling and ringing stay on Kiosk.");
   const nativeMusicSettings = h("p", { class: "alarm-editor__hint", hidden: true },
-    "Choose music, its speaker and a fallback tone here. Music still needs the selected HA/MA/Sonos source and network. Direct-URL native alarms are not supported by this Kiosk version. If music cannot play, Kiosk uses the saved native tone.");
+    "New music selections use Music Assistant on show-01. Choose music and a fallback tone here. Music needs Music Assistant and the network; if it cannot play, Kiosk uses the saved native tone.");
   const nativePicker = createKioskAlarmPicker({ onChange: markDirty });
   const fieldset = h("fieldset", { class: "settings-fieldset" },
     timeSlot, timeZone, createdInfo,

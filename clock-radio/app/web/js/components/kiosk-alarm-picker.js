@@ -1,9 +1,30 @@
 import { h } from "../core/h.js";
 import { getJson } from "../core/api.js";
 
-const sourceNames = { ma: "Music Assistant", ha: "Home Assistant", sonos: "Sonos" };
+const MUSIC_SOURCE = "ma";
+const MUSIC_SPEAKER = "show-01";
 const label = (value) => value.replace(/[_-]/g, " ").replace(/^\w/, (letter) => letter.toUpperCase());
 const row = (name, control) => h("div", { class: "alarm-editor__row" }, h("span", null, name), control);
+
+function fixedMusicSpeaker(data) {
+  if (data?.source !== MUSIC_SOURCE || !Array.isArray(data.speakers)) throw new Error("Kiosk did not confirm Music Assistant. Check its configuration on Kiosk.");
+  const matches = data.speakers.filter(({ name }) => name === MUSIC_SPEAKER);
+  if (!matches.length) throw new Error(`Music Assistant speaker "${MUSIC_SPEAKER}" was not found. Check its name and refresh the choices.`);
+  if (matches.length !== 1) throw new Error(`More than one Music Assistant speaker is named "${MUSIC_SPEAKER}". Give the speakers unique names.`);
+  if (matches[0].available !== true) throw new Error(`Music Assistant speaker "${MUSIC_SPEAKER}" is unavailable. Reconnect it and refresh the choices.`);
+  if (typeof matches[0].id !== "string" || !matches[0].id) throw new Error("Kiosk returned an invalid music speaker choice.");
+  return matches[0].id;
+}
+
+export async function kioskAlarmMusicOptions(params = {}, options = {}) {
+  const read = (query) => getJson(`api/alarm/music?${new URLSearchParams(Object.entries(query).filter(([, value]) => value !== undefined))}`, options);
+  const query = { ...params, source: MUSIC_SOURCE };
+  let data = await read(query);
+  const speaker = fixedMusicSpeaker(data);
+  if (data.speaker !== speaker) data = await read({ ...query, speaker });
+  if (fixedMusicSpeaker(data) !== speaker || data.speaker !== speaker) throw new Error(`Kiosk did not confirm Music Assistant playback on "${MUSIC_SPEAKER}". Refresh the choices.`);
+  return data;
+}
 
 export function createKioskAlarmPicker({ onChange }) {
   let signature = "";
@@ -26,18 +47,15 @@ export function createKioskAlarmPicker({ onChange }) {
   let trail = [];
   let items = [];
   let nextOffset = 0;
-  const source = h("select", { "aria-label": "Alarm music source" });
-  const speaker = h("select", { "aria-label": "Alarm music speaker" });
   const category = h("select", { "aria-label": "Alarm music category" });
   const summary = h("p", { class: "alarm-editor__hint" });
   const musicStatus = h("p", { class: "alarm-editor__hint", role: "status" });
-  const defaults = h("button", { class: "btn", type: "button" }, "Use Kiosk music default");
   const back = h("button", { class: "btn", type: "button", hidden: true }, "Back to music list");
   const list = h("div", { class: "alarm-stations__list", role: "radiogroup", "aria-label": "Native alarm music" });
   const more = h("button", { class: "btn", type: "button", hidden: true }, "More music");
   const retryMusic = h("button", { class: "btn", type: "button" }, "Refresh music choices");
-  const music = h("section", { class: "alarm-stations" }, h("h3", null, "Alarm music"), summary, defaults,
-    row("Music from", source), row("Plays on", speaker), row("Browse", category), back, musicStatus, list, more, retryMusic);
+  const music = h("section", { class: "alarm-stations" }, h("h3", null, "Alarm music"), summary,
+    row("Browse", category), back, musicStatus, list, more, retryMusic);
   const tone = h("select", { "aria-label": "Native buzzer tone" });
   const toneStatus = h("p", { class: "alarm-editor__hint", role: "status" });
   const retryTone = h("button", { class: "btn", type: "button" }, "Refresh tone choices");
@@ -49,8 +67,8 @@ export function createKioskAlarmPicker({ onChange }) {
     music.hidden = type !== "Music";
     toneTitle.textContent = type === "Music" ? "Fallback buzzer tone" : "Buzzer tone";
     summary.textContent = `Selected: ${selectedName || "Kiosk Alarm music default"}`;
-    for (const control of [source, speaker, category, defaults, back, more, retryMusic, ...list.querySelectorAll("input, button")]) {
-      control.disabled = disabled || musicLoading || (control === defaults && selected === null);
+    for (const control of [category, back, more, retryMusic, ...list.querySelectorAll("input, button")]) {
+      control.disabled = disabled || musicLoading;
     }
     tone.disabled = disabled || soundLoading;
     retryTone.disabled = disabled || soundLoading;
@@ -87,7 +105,7 @@ export function createKioskAlarmPicker({ onChange }) {
       input.addEventListener("change", () => {
         if (!input.checked) return;
         selected = item.id;
-        selectedName = `${item.name} · ${speaker.selectedOptions[0]?.textContent || ""}`;
+        selectedName = `${item.name} · ${MUSIC_SPEAKER}`;
         musicDirty = true;
         onChange();
         updateControls();
@@ -117,20 +135,15 @@ export function createKioskAlarmPicker({ onChange }) {
     musicStatus.textContent = "Loading native music choices...";
     updateControls();
     try {
-      const search = new URLSearchParams(Object.entries(params).filter(([, value]) => value !== undefined));
-      const data = await getJson(`api/alarm/music?${search}`, { signal: musicRequest.signal });
+      const data = await kioskAlarmMusicOptions(params, { signal: musicRequest.signal });
       if (generation !== musicGeneration) return;
       query = { source: data.source, speaker: data.speaker ?? undefined, category: data.category || undefined, parent: params.parent };
-      source.replaceChildren(...data.sources.map((key) => h("option", { value: key }, sourceNames[key])));
-      source.value = data.source;
-      speaker.replaceChildren(...data.speakers.map((sp) => h("option", { value: sp.id, disabled: !sp.available }, `${sp.name}${sp.available ? "" : " (unavailable)"}`)));
-      speaker.value = data.speaker ?? "";
       category.replaceChildren(...data.categories.map((cat) => h("option", { value: cat.key }, label(cat.key))));
       category.value = data.category;
       items = append ? [...items, ...data.items] : data.items;
       nextOffset = data.offset;
       more.hidden = !data.more;
-      musicStatus.textContent = `${data.note}${!items.length ? " No music found in this list." : ""}`;
+      musicStatus.textContent = `New selections use Music Assistant on ${MUSIC_SPEAKER}. Save applies the choice; nothing plays now.${!items.length ? " No music found in this list." : ""}`;
       renderItems();
     } catch (error) {
       if (generation !== musicGeneration) return;
@@ -140,29 +153,17 @@ export function createKioskAlarmPicker({ onChange }) {
     }
   }
 
-  defaults.addEventListener("click", () => {
-    selected = null;
-    selectedName = "Kiosk Alarm music default";
-    musicDirty = true;
-    onChange();
-    renderItems();
-    updateControls();
-  });
   tone.addEventListener("change", () => { toneDirty = true; onChange(); });
-  for (const control of [source, speaker, category]) control.addEventListener("change", () => {
+  category.addEventListener("change", () => {
     trail = [];
-    void loadMusic({
-      source: source.value,
-      ...(control !== source ? { speaker: speaker.value } : {}),
-      ...(control === category ? { category: category.value } : {}),
-    });
+    void loadMusic({ speaker: query.speaker, category: category.value });
   });
   back.addEventListener("click", () => {
     trail.pop();
     void loadMusic({ ...query, parent: trail.at(-1)?.id });
   });
   more.addEventListener("click", () => { void loadMusic({ ...query, offset: String(nextOffset) }, true); });
-  retryMusic.addEventListener("click", () => { trail = []; void loadMusic(source.value ? { source: source.value } : {}); });
+  retryMusic.addEventListener("click", () => { trail = []; void loadMusic(); });
   retryTone.addEventListener("click", () => { void loadSounds(); });
 
   function close() {
@@ -190,10 +191,6 @@ export function createKioskAlarmPicker({ onChange }) {
       query = {};
       more.hidden = true;
       list.replaceChildren();
-      source.replaceChildren(h("option", { value: "" }, "Configured Kiosk source"),
-        Object.entries(sourceNames).map(([key, name]) => h("option", { value: key }, name)));
-      source.value = value.music_source ?? "";
-      speaker.replaceChildren();
       category.replaceChildren();
       tone.replaceChildren(h("option", { value: "" }, "Use Kiosk tone default"),
         h("option", { value: "builtin" }, "Kiosk built-in alarm"));
@@ -209,7 +206,7 @@ export function createKioskAlarmPicker({ onChange }) {
         if (!soundStarted) { soundStarted = true; void loadSounds(); }
         if (type === "Music" && !musicStarted) {
           musicStarted = true;
-          void loadMusic(alarm.music_source ? { source: alarm.music_source, ...(alarm.music_speaker_id ? { speaker: alarm.music_speaker_id } : {}) } : {});
+          void loadMusic();
         }
       }
       updateControls();

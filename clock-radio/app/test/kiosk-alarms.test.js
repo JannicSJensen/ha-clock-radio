@@ -9,6 +9,7 @@ import { demoStates } from "../dev/fixtures.js";
 import { alarmSettings, canEditAlarm, repeatLabel } from "../web/js/pages/alarms.js";
 import { SnapshotStore, offlineStatus } from "../web/js/core/snapshot.js";
 import { createServer } from "../src/server.js";
+import { kioskAlarmMusicOptions } from "../web/js/components/kiosk-alarm-picker.js";
 
 async function setup(t) {
   const fixture = createKioskDemo();
@@ -179,6 +180,36 @@ test("native catalogs expose opaque choices, page radios, and save the explicitl
   for (const secret of [DEMO_KIOSK_TOKEN, "library://radio/", "ma:bedroom", f.url]) assert.ok(!payload.includes(secret), secret);
   assert.equal(f.haCalls.length, 0);
   assert.ok(f.calls.every(({ name }) => !/Play|Start|Preview/.test(name)), "Browsing and saving never play audio");
+});
+
+test("the streamlined KS picker saves show-01 music without changing existing picks during browsing", async (t) => {
+  const f = await setup(t);
+  await f.dashboard.createAlarm({});
+  const ha = await f.kiosk.musicOptions({ source: "ha" });
+  const legacy = await f.kiosk.musicOptions({ source: "ha", speaker: ha.speaker, category: "browse", parent: ha.items[0].id });
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), type: "Music", music_station_id: legacy.items[0].id });
+  const id = f.kiosk.snapshot().alarms[0].id;
+  const native = () => f.alarms.find((alarm) => alarm.id === id);
+  const before = structuredClone(native().music);
+  const originalFetch = globalThis.fetch;
+  t.mock.method(globalThis, "fetch", async (url, options) => {
+    if (typeof url !== "string" || !url.startsWith("./api/alarm/music?")) return originalFetch(url, options);
+    const query = Object.fromEntries(new URL(url, "http://localhost").searchParams);
+    return { ok: true, json: () => f.kiosk.musicOptions(query) };
+  });
+  const catalog = await kioskAlarmMusicOptions();
+  assert.equal(catalog.source, "ma");
+  assert.equal(catalog.speakers.find(({ id }) => id === catalog.speaker).name, "show-01");
+  assert.deepEqual(native().music, before);
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), minute: 17 });
+  assert.deepEqual(native().music, before, "Time edits retain saved source/speaker/music");
+  await f.dashboard.saveAlarm({ ...alarmSettings(f.kiosk.snapshot().alarms[0]), music_station_id: catalog.items[0].id });
+  assert.equal(native().music.source, "ma");
+  assert.equal(native().music.speaker, "ma:show-01");
+  assert.equal(native().music.speakerName, "show-01");
+  assert.equal(f.kiosk.snapshot().alarms[0].music_speaker_name, "show-01");
+  assert.equal(f.haCalls.length, 0);
+  assert.ok(f.calls.every(({ name }) => !/Play|Start|Preview/.test(name)));
 });
 
 test("native music can browse HA folders, Sonos favorites and MA playlists without exposing source records", async (t) => {

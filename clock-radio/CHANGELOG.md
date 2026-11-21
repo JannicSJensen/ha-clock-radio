@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.26.0
+
+- Simplify KS alarm music selection: remove Use Kiosk music default, Music
+  from and Plays on controls while retaining radio/category browsing.
+- Pin new selections to Music Assistant and its show-01 speaker. Confirm
+  the exact available target before showing choices; never substitute a
+  different speaker if show-01 is missing, ambiguous or unavailable.
+- Preserve saved alarm music, inherited native defaults and HA-backed
+  behavior. Browsing does not change KS's global source/speaker or play audio.
+
 ## 0.25.1
 
 - Remove experimental KS support banners from the pages and experimental
