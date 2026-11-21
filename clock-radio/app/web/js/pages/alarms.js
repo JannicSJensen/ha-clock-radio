@@ -203,10 +203,6 @@ export function createAlarmPage(ctx) {
   const volumeSettings = h("div", null, row("Volume", volumeLabel), h("div", { class: "alarm-editor__volume" }, volume),
     row("Wake timer", h("label", { class: "alarm-editor__duration" }, duration, h("span", null, "min"))),
     h("p", { class: "alarm-editor__hint" }, "The wake timer stops playback; it is not a snooze timer."));
-  const nativeSettings = h("p", { class: "alarm-editor__hint", hidden: true },
-    "Kiosk device local time. No repeat days means once. Volume, Snooze length and Silence after are device-wide Kiosk settings. Native scheduling and ringing stay on Kiosk.");
-  const nativeMusicSettings = h("p", { class: "alarm-editor__hint", hidden: true },
-    "New music selections use Music Assistant on show-01. Choose music and a fallback tone here. Music needs Music Assistant and the network; if it cannot play, Kiosk uses the saved native tone.");
   const nativePicker = createKioskAlarmPicker({ onChange: markDirty });
   const fieldset = h("fieldset", { class: "settings-fieldset" },
     timeSlot, timeZone, createdInfo,
@@ -217,7 +213,7 @@ export function createAlarmPage(ctx) {
     h("section", { class: "alarm-editor__group" },
       row("Enabled", enabled.el),
       row("Alarm type", type),
-      stationPicker, soundPicker, nativePicker.el, volumeSettings, nativeSettings, nativeMusicSettings),
+      stationPicker, soundPicker, nativePicker.el, volumeSettings),
     hint, reload);
   const form = h("form", { "aria-label": "Alarm editor" },
     h("header", { class: "alarm-editor__header" }, cancel, title, save),
@@ -274,7 +270,6 @@ export function createAlarmPage(ctx) {
     const available = canEditAlarm(alarm);
     const native = model.alarms.backend === "kiosk_satellite";
     volumeSettings.hidden = native;
-    nativeSettings.hidden = !native;
     const disabled = busy || saving || !ctx.canControl() || !available || Boolean(model.alarms.delete_error);
     fieldset.disabled = disabled;
     save.disabled = disabled;
@@ -282,7 +277,6 @@ export function createAlarmPage(ctx) {
     remove.disabled = !deletionAllowed(model, activeId, busy);
     picker.setDisabled(disabled);
     if (!dirty && available) loadEditor(alarm);
-    nativeMusicSettings.hidden = !native || type.value !== "Music";
     nativePicker.update({ native, disabled, type: type.value });
     updateStations(model, alarm, disabled);
     updateSounds(alarm, disabled);

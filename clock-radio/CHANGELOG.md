@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.26.1
+
+- Remove the explanatory native-tone, device-wide alarm-settings and music
+  fallback paragraphs from the KS alarm editor.
+- Hide the empty tone status after loading succeeds; retain tone refresh,
+  loading/errors and all alarm controls and saved choices.
+
 ## 0.26.0
 
 - Simplify KS alarm music selection: remove Use Kiosk music default, Music

@@ -72,6 +72,7 @@ export function createKioskAlarmPicker({ onChange }) {
     }
     tone.disabled = disabled || soundLoading;
     retryTone.disabled = disabled || soundLoading;
+    toneStatus.hidden = !toneStatus.textContent;
   }
 
   async function loadSounds() {
@@ -89,7 +90,7 @@ export function createKioskAlarmPicker({ onChange }) {
       if (value && !options.some(({ id }) => id === value)) options.push({ id: value, name: "Saved tone (not in the current catalog)", missing: true });
       tone.replaceChildren(...options.map(({ id, name, missing }) => h("option", { value: id ?? "", disabled: Boolean(missing) }, name)));
       tone.value = value;
-      toneStatus.textContent = "Choose a native tone for this alarm. Save applies it; no sound plays now. Clock Radio's HA-hosted tones are not copied to Kiosk.";
+      toneStatus.textContent = "";
     } catch (error) {
       if (generation !== soundGeneration) return;
       toneStatus.textContent = `Tone choices unavailable: ${error.message} Saved tones are kept unless you choose another.`;

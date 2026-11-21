@@ -69,6 +69,16 @@ test("KS music controls omit source, speaker and default-reset controls while re
   assert.match(picker, /Native buzzer tone/);
 });
 
+test("KS editor omits explanatory tone and backend paragraphs but retains actionable messages", () => {
+  const picker = read(path.join(app, "web/js/components/kiosk-alarm-picker.js"));
+  const alarms = read(path.join(app, "web/js/pages/alarms.js"));
+  assert.doesNotMatch(picker, /Choose a native tone for this alarm/);
+  assert.doesNotMatch(alarms, /Kiosk device local time|nativeSettings|nativeMusicSettings/);
+  assert.match(picker, /Refresh tone choices/);
+  assert.match(picker, /Loading native tones/);
+  assert.match(picker, /Tone choices unavailable/);
+});
+
 test("vendored renderer and fonts retain their full redistribution licenses", () => {
   assert.match(read(path.join(app, "web/clock/LICENSE")), /Apache License/);
   for (const file of ["web/clock/fonts/OFL.txt", "web/clock/fonts/OFL-Archivo.txt", "web/fonts/LICENSE.txt"]) {
