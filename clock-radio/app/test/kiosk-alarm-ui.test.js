@@ -41,6 +41,25 @@ function setup(options = {}) {
   return f;
 }
 
+test("native ringing notices stay quiet when ready but retain setup and runtime errors", () => {
+  const ready = setup();
+  assert.equal(ready.ui.message, "");
+  ready.model.alarms.presentation.requested = false;
+  assert.equal(ready.ui.message, "");
+  for (const [field, message] of [
+    ["supported", /needs KS dashboard-alarm support/],
+    ["enabled", /Set Dashboard alarm UI URL/],
+  ]) {
+    const f = setup();
+    f.model.alarms.presentation[field] = false;
+    assert.match(f.ui.message, message);
+  }
+  assert.match(setup({ bridge: () => null }).ui.message, /Open Clock Radio on the configured KS device/);
+  const failed = setup();
+  failed.ui.error = "KS alarm UI timed out. Native controls will return; check KS before retrying.";
+  assert.equal(failed.ui.message, failed.ui.error);
+});
+
 test("native handoff waits for rendered controls and works without HA", async () => {
   const f = setup();
   await f.ui.refresh();

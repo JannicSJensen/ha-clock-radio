@@ -73,9 +73,6 @@ export function createAlarmPage(ctx) {
   const add = h("button", { class: "alarm-icon-button alarm-icon-button--accent", type: "button", "aria-label": "Add alarm" }, icon("plus"));
   const stop = h("button", { class: "btn", type: "button" }, "Stop active alarm");
   stop.addEventListener("click", () => ctx.write("api/alarm/stop", {}));
-  const nativeInfo = h("p", { class: "banner banner--info", hidden: true },
-    "Experimental Kiosk backend: only Clock Radio [TEST] alarms are managed. Existing HA schedules and unrelated native alarms are untouched. Avoid duplicate wake-up times. Delete test alarms before switching back; changing the backend does not cancel them.");
-
   const title = h("h2", { id: "alarm-editor-title" });
   const cancel = h("button", { class: "alarm-icon-button", type: "button", "aria-label": "Cancel alarm changes" }, icon("close"));
   const save = h("button", { class: "alarm-icon-button alarm-icon-button--accent", type: "submit", "aria-label": "Save alarm" }, icon("check"));
@@ -498,12 +495,11 @@ export function createAlarmPage(ctx) {
   const el = h("div", { class: "settings alarm-page" },
     h("header", { class: "settings-heading alarm-page__heading" },
       h("h1", null, "Alarm configuration"), add),
-    nativeInfo, addInfo, pageStatus, list, stop, dialog, deleteDialog);
+    addInfo, pageStatus, list, stop, dialog, deleteDialog);
 
   function update(model, busy) {
     pageBusy = busy;
     const native = model.alarms.backend === "kiosk_satellite";
-    nativeInfo.hidden = !native;
     const alarms = model.alarms.alarms;
     const ids = alarms.map((alarm) => alarm.id);
     for (const [id, record] of rows) {

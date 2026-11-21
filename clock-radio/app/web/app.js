@@ -257,7 +257,10 @@ function render() {
   notice("offline-status", offlineStatus(model));
   notice("snapshot-error", snapshots.error);
   const native = model.alarms.backend === "kiosk_satellite";
-  notice("alarm-backend", native ? `Experimental Kiosk alarms: ${model.alarms.connected ? `connected (${model.alarms.native_phase})` : model.alarms.error || "offline"}. ${kioskAlarmUi.message || "Kiosk supplies the native ringing screen."}` : "");
+  notice("alarm-backend", native ? [
+    model.alarms.connected ? "" : `Kiosk alarms: ${model.alarms.error || "offline"}.`,
+    kioskAlarmUi.message,
+  ].filter(Boolean).join(" ") : "");
   notice("config-error", model.config_error);
   notice("clock-error", [model.clock.error, model.clock.night_error, model.alarms.active_error].filter(Boolean).join(" "));
   notice("missing-players", model.missing_players.length ? `Missing configured speakers: ${model.missing_players.join(", ")}` : "");

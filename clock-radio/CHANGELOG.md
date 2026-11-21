@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.25.1
+
+- Remove experimental KS support banners from the pages and experimental
+  wording from current configuration help and documentation.
+- Keep native connection, setup and ringing-control errors visible without
+  routine success notices. Preserve saved alarms, native scheduling/playback
+  and backend-switching safety warnings.
+
 ## 0.25.0
 
 - Add Proximity screen dimming to Settings with either alarm backend.

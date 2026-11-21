@@ -41,7 +41,7 @@ export class KioskAlarmUI {
     if (!p.supported) return "Clock ringing UI needs KS dashboard-alarm support. Native controls remain enabled.";
     if (!p.enabled) return "Set Dashboard alarm UI URL in KS to enable the Clock ringing screen.";
     return this.error || (typeof this.bridge()?.alarmUi === "function"
-      ? "Clock ringing UI uses this device's native alarm bridge, with automatic KS fallback."
+      ? ""
       : "Open Clock Radio on the configured KS device to use its Clock ringing UI.");
   }
 

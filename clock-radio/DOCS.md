@@ -3,7 +3,7 @@
 ## Four pages and alarm helpers
 
 The HA alarm behavior below is the default. An opt-in
-[experimental Kiosk Satellite backend](#experimental-kiosk-satellite-alarm-backend)
+[Kiosk Satellite backend](#kiosk-satellite-alarm-backend)
 keeps this app's editor while using native device scheduling instead.
 
 All four main-page canvases and the app/loading background are pure black
@@ -550,10 +550,10 @@ Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
   `input_text.clock_radio_player` without changing alarm times or enable choices.
   An unavailable configured player never falls back to another speaker.
   In read-only mode the helper is not changed and a mismatch is reported.
-  Experimental Kiosk mode never updates that HA helper.
-- `alarm_backend`: `home_assistant` (default) or experimental `kiosk_satellite`.
+  Kiosk mode never updates that HA helper.
+- `alarm_backend`: `home_assistant` (default) or `kiosk_satellite`.
   Restart after changing. Backend changes do not migrate, disable or delete
-  schedules on either system; remove native test alarms explicitly.
+  schedules on either system; remove Clock Radio's native alarms explicitly.
 - `kiosk_satellite_url`: Kiosk's LAN Remote Administration HTTP(S) origin,
   without a path, credentials, query or fragment. Used for native alarms or
   Settings > Kiosk Satellite updates or Proximity screen dimming, with
@@ -653,12 +653,15 @@ disable installation. Checking metadata remains available in read-only mode.
 The admin credential, APK paths and raw native error details never enter the
 browser or its offline snapshot.
 
-## Experimental Kiosk Satellite alarm backend
+<a id="experimental-kiosk-satellite-alarm-backend"></a>
 
-This prototype keeps **The Clock** and the existing alarm list/editor but saves
+## Kiosk Satellite alarm backend
+
+This backend keeps **The Clock** and the existing alarm list/editor but saves
 native alarms on one configured Kiosk Satellite device. It is not a plugin.
-**Home Assistant remains the default backend.** Do not migrate important alarms
-until real-device tests have passed on your installed Kiosk/Android version.
+**Home Assistant remains the default backend.** Verify triggering, playback
+and native Stop/Snooze on your installed Kiosk/Android version before relying
+on important alarms.
 
 ### Configure and connect
 
@@ -676,7 +679,8 @@ until real-device tests have passed on your installed Kiosk/Android version.
    kiosk_satellite_token: "<remote-api-token>"
    ```
 
-4. Save and restart Clock Radio. Check the **Experimental Kiosk alarms** banner.
+4. Save and restart Clock Radio. Open **Alarm configuration** to verify that
+   the native alarm list loads.
    Authentication, connection and malformed-response errors are explicit;
    failed native requests never fall back to creating HA alarms.
 
@@ -689,8 +693,8 @@ include it. All tablets connected to this app manage the **same configured kiosk
 
 ### Supported behavior and differences
 
-- **Add alarm** creates a confirmed, disabled `Clock Radio [TEST]` draft. Cancel
-  leaves it disabled. Only alarms with this prototype's generated
+- **Add alarm** creates a confirmed, disabled `Clock Radio [TEST]` draft; the
+  existing native label is unchanged. Cancel leaves it disabled. Only alarms with generated
   `clock-radio-<32 hex digits>` IDs appear or can be changed. Other native
   alarms and all HA schedules are neither imported nor modified.
 - Time wheels, repeat days, Music/Buzzer and enable switches stay in our UI.
@@ -782,7 +786,7 @@ completed: refresh and inspect the native list before retrying. Native changes
 are never queued offline. Cached definitions retain their backend/device
 identity, are read-only and cannot recreate live ringing/Snooze state.
 
-### Safe testing and switching back
+### Verify your device and switch back safely
 
 1. Choose a test time that does not duplicate an enabled HA or personal native
    alarm. This option intentionally leaves existing HA schedules running.
@@ -794,9 +798,10 @@ identity, are read-only and cannot recreate live ringing/Snooze state.
    including native tone fallback and native Stop/Snooze. Separately test
    screen-off behavior and a device restart. Mock tests do not prove that the
    Echo can wake or make sound; device power and OS permissions still matter.
-4. Stop tests, disable them and delete them while the Kiosk backend is selected.
-   Only then switch `alarm_backend` to `home_assistant` and restart.
-5. If already switched back, delete the marked test alarms in Kiosk's native
+4. Before switching back, stop, disable and delete Clock Radio's native alarms
+   while the Kiosk backend is selected. Then switch `alarm_backend` to
+   `home_assistant` and restart.
+5. If already switched back, delete Clock Radio's alarms in Kiosk's native
    alarm list or Remote Administration.
 
 **Changing the option, stopping Clock Radio or losing HA does not cancel saved
@@ -832,7 +837,7 @@ ringing screen stays visible during a disconnect, with its controls disabled.
 Sensor-driven night colors retain their last confirmed state while offline;
 clock time and scheduled night colors continue using the device's clock.
 
-With the experimental backend, Kiosk alarm controls remain available during
+With the Kiosk backend, native alarm controls remain available during
 an HA outage if the app server and Kiosk are reachable. If Kiosk disconnects,
 its cached definitions become read-only; HA music/clock controls still use
 HA's connection status. Native snapshots are scoped to the configured backend
@@ -858,7 +863,7 @@ before retrying. Native Kiosk calls also have a five-second per-request deadline
 This browser is not an offline alarm engine. With the default HA backend,
 HA must be running to execute schedules;
 the browser cannot reliably wake a suspended Echo/tablet or replace HA's
-scheduler. In experimental Kiosk mode, the native device executes its confirmed
+scheduler. In Kiosk mode, the native device executes its confirmed
 alarms independently instead. There is no service worker or offline app-shell guarantee: a cold
 reload still needs the dashboard HTML/JavaScript to load from the server or
 browser HTTP cache. Keep the existing page open during a server outage.

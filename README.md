@@ -62,8 +62,8 @@ snapshots, with explicit offline/last-sync status and bounded requests.
 No changes are queued or replayed; HA is still required to execute HA-backed alarms.
 See [offline behavior and limits](clock-radio/DOCS.md#offline-snapshots-and-request-deadlines).
 
-An opt-in [experimental Kiosk Satellite backend](clock-radio/DOCS.md#experimental-kiosk-satellite-alarm-backend)
-keeps our alarm editor but executes marked native test alarms on the kiosk,
+An opt-in [Kiosk Satellite backend](clock-radio/DOCS.md#kiosk-satellite-alarm-backend)
+keeps our alarm editor but executes Clock Radio's native alarms on the kiosk,
 with music/radio, speaker and native buzzer-tone selection in **Clock Radio's
 alarm editor**, with local tone fallback. Configure the backend in the HA
 app options; existing HA schedules are never migrated or disabled.

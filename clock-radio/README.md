@@ -22,14 +22,15 @@ controls stay disabled until HA reconnects. Requests have deadlines, and
 timed-out changes are never replayed. This does not run alarms without HA or
 guarantee that a cold browser reload works without the dashboard server.
 
-For testing, select **kiosk_satellite** under **Alarm backend** in the HA app
+For native scheduling, select **kiosk_satellite** under **Alarm backend** in the HA app
 configuration and provide the kiosk's Remote Administration URL/API token.
-The existing editor then manages marked native test alarms. Music follows
-**Kiosk Settings > Alarms > Alarm music**, including its source, radio and
-speaker, with local tone fallback. HA remains the default, and
+The existing editor then manages Clock Radio's native alarms. Choose music,
+its speaker and native buzzer tones in **Clock Radio's alarm editor**, or
+explicitly follow **Kiosk Settings > Alarms** defaults, with local tone
+fallback. HA remains the default, and
 existing HA schedules are untouched. Native ringing/defaults stay on Kiosk.
 **Switching back does not cancel native alarms.**
-See [setup, limitations and cleanup](DOCS.md#experimental-kiosk-satellite-alarm-backend).
+See [setup, limitations and cleanup](DOCS.md#kiosk-satellite-alarm-backend).
 
 **Settings > Kiosk Satellite updates** can check and install updates on the
 configured KS device with either alarm backend. Installation requires

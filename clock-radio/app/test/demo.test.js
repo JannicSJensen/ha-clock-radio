@@ -80,13 +80,15 @@ test("startup publishes configured idle timeouts, including disabled and maximum
   }
 });
 
-test("experimental startup uses a fictional Kiosk, exposes no credentials and supports native writes", async (t) => {
-  const { state, port } = await startDemo(t, { alarm_backend: "kiosk_satellite",
+test("Kiosk startup uses a fictional device, exposes no credentials and supports native writes", async (t) => {
+  const { state, port, output } = await startDemo(t, { alarm_backend: "kiosk_satellite",
     kiosk_satellite_url: "http://192.0.2.1:2324", kiosk_satellite_token: "must-not-use-real-kiosk-token" });
   const initial = await state();
   assert.equal(initial.alarms.backend, "kiosk_satellite");
   assert.equal(initial.alarms.connected, true);
   assert.deepEqual(initial.alarms.alarms, []);
+  assert.doesNotMatch(output(), /experimental/i);
+  assert.match(output(), /Native Clock Radio alarms remain scheduled after switching back/);
   const response = await fetch(`http://127.0.0.1:${port}/api/alarm/create`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: "{}",
   });

@@ -82,7 +82,7 @@ if (!deviceClient && (options.kiosk_satellite_url || options.kiosk_satellite_tok
 }
 const kioskUpdates = new KioskUpdates({ client: deviceClient, configurationError: deviceConfigurationError, logger });
 const kioskDimming = new KioskDimming({ client: deviceClient, configurationError: deviceConfigurationError, logger });
-if (kiosk) logger.warn("Experimental Kiosk alarm backend enabled. Existing HA schedules are untouched. Native test alarms remain scheduled after switching back.");
+if (kiosk) logger.warn("Kiosk alarm backend enabled. Existing HA schedules are untouched. Native Clock Radio alarms remain scheduled after switching back.");
 const dashboard = new Dashboard({ ha, configStore, music, radio, kiosk, kioskUpdates, kioskDimming, mediaPlayer, weatherEntity, sunEntity, returnToClockMinutes, readOnly: options.read_only === true, demo: process.env.DEMO === "1", version, logger });
 const server = createServer({ dashboard, webRoot: path.join(root, "web"), logger });
 await dashboard.refresh();

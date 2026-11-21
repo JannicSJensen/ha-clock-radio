@@ -52,6 +52,16 @@ test("Supervisor packaging has persistent config, ingress and non-conflicting ta
   assert.ok(!("image" in config), "Supervisor should build locally");
 });
 
+test("current UI and configuration help no longer label Kiosk support experimental", () => {
+  for (const file of ["web/app.js", "web/js/pages/alarms.js", "web/js/core/kiosk-alarm-ui.js"]) {
+    assert.doesNotMatch(read(path.join(app, file)), /experimental/i);
+  }
+  const translation = YAML.parse(read(path.join(addon, "translations/en.yaml")));
+  assert.equal(translation.configuration.alarm_backend.name, "Alarm backend");
+  assert.doesNotMatch(JSON.stringify(translation), /experimental/i);
+  assert.match(translation.configuration.alarm_backend.description, /Switching back does NOT cancel native alarms/);
+});
+
 test("vendored renderer and fonts retain their full redistribution licenses", () => {
   assert.match(read(path.join(app, "web/clock/LICENSE")), /Apache License/);
   for (const file of ["web/clock/fonts/OFL.txt", "web/clock/fonts/OFL-Archivo.txt", "web/fonts/LICENSE.txt"]) {
