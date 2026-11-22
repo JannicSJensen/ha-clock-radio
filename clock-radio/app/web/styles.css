@@ -84,7 +84,7 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .settings-page { overflow-y: auto; }
 .settings { max-width: 1120px; padding: 28px 32px 120px; margin: auto; }
 .settings-heading { margin-bottom: 24px; }
-.settings-heading h1 { margin: 0 0 6px; font-size: 27px; font-weight: 500; }
+.page-title { margin: 0 0 6px; font-family: var(--font); font-size: 27px; font-weight: 500; }
 .settings-heading p { color: var(--muted); font-size: 12px; }
 .settings-card { padding: 22px; margin: 18px 0; background: #171b1d; border: 1px solid #303638; border-radius: 20px; min-width: 0; }
 .settings-card h2 { font-size: 18px; font-weight: 500; margin: 0 0 18px; }
@@ -107,7 +107,6 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .settings--ios .settings-navigation .icon { font-size: 20px; }
 .settings--ios .settings-heading { margin: 0 4px 32px; }
 .settings--ios .settings-heading .settings-kicker { margin: 0 0 8px; color: #98989f; font-size: 11px; font-weight: 600; letter-spacing: .16em; text-transform: uppercase; }
-.settings--ios .settings-heading h1 { margin: 0 0 10px; font-size: 38px; line-height: 1.1; font-weight: 700; letter-spacing: -.04em; }
 .settings--ios .settings-heading p { margin: 0; color: #98989f; font-size: 15px; line-height: 1.5; }
 .settings--ios .settings-clock { padding: 0; margin: 0; border: 0; border-radius: 0; background: none; overflow: visible; }
 .settings--ios .settings-sections { display: grid; gap: 30px; }
@@ -292,5 +291,5 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .clock-focus { top: 10px; right: 10px; }
   .alarm-editor { padding: 16px; }
   .alarm-editor__header { top: -16px; }
-  .alarm-page__heading h1 { font-size: 24px; }
+  .page-title { font-size: 24px; }
 }

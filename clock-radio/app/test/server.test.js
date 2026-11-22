@@ -146,6 +146,11 @@ test("HTTP foundation works end to end with HA, hot reload, error paths and ingr
   assert.match(js, /const PAGES = \{ clock: "The Clock", alarms: "Alarm configuration", music: "Music overview", settings: "Settings" \}/);
   const alarms = await (await fetch(`${url}/js/pages/alarms.js`)).text();
   assert.doesNotMatch(alarms, /Tap an alarm to edit|Swipe down for|Alarms run in Home Assistant\. New alarms start disabled|Choose each alarm's music/);
+  assert.match(alarms, /h\("h1", \{ class: "page-title" \}, ui\("Alarm configuration"\)\)/);
+  const settings = await (await fetch(`${url}/js/pages/settings.js`)).text();
+  assert.match(settings, /h\("h1", \{ class: "page-title" \}, ui\("Settings"\)\)/);
+  const player = await (await fetch(`${url}/js/components/player.js`)).text();
+  assert.match(player, /h\("h1", \{ class: "page-title" \}, ui\(model\.title\)\)/);
   assert.match(alarms, /native \? model\.alarms\.error \|\| ""/);
   assert.match(alarms, /addInfo\.hidden = !addInfo\.textContent/);
   assert.doesNotMatch(alarms, /[Aa]larm \$\{/);
@@ -158,6 +163,8 @@ test("HTTP foundation works end to end with HA, hot reload, error paths and ingr
   const css = await styles.text();
   assert.match(css, /html, body\s*\{[^}]*background:\s*var\(--bg\)/);
   assert.match(css, /\.page\s*\{[^}]*background:\s*var\(--bg\)/);
+  assert.match(css, /\.page-title\s*\{[^}]*font-family:\s*var\(--font\);[^}]*font-size:\s*27px;[^}]*font-weight:\s*500/);
+  assert.match(css, /\.page-title\s*\{\s*font-size:\s*24px;\s*\}/);
   const tokens = await fetch(`${url}/css/tokens.css`);
   assert.equal(tokens.status, 200);
   assert.match(await tokens.text(), /--bg:\s*#000;/);

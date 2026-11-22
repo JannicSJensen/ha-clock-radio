@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.30.1
+
+- Match the Music and Settings page titles to the Alarm configuration title
+  at both desktop and mobile sizes.
+
 ## 0.30.0
 
 - Add a shared English/Danish app-language setting, with localized clock,

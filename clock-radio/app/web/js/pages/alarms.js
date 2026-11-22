@@ -489,7 +489,7 @@ export function createAlarmPage(ctx) {
   });
   const el = h("div", { class: "settings alarm-page" },
     h("header", { class: "settings-heading alarm-page__heading" },
-      h("h1", null, ui("Alarm configuration")), add),
+      h("h1", { class: "page-title" }, ui("Alarm configuration")), add),
     addInfo, pageStatus, list, stop, dialog, deleteDialog);
 
   function update(model, busy) {

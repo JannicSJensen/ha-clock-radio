@@ -26,7 +26,7 @@ export function createPlayerPanel({ model, ctx }) {
   const nameOf = (id) => getState(id)?.attributes?.friendly_name ?? id;
   let pending = null;
   let touchedVolumeAt = 0;
-  const head = h("header", { class: "music__head" }, h("h1", { class: "radio__title" }, ui(model.title)));
+  const head = h("header", { class: "music__head" }, h("h1", { class: "page-title" }, ui(model.title)));
   if (!selected) head.append(h("p", { class: "view__hint" }, ui("Choose media_player in the Home Assistant app configuration.")));
   const art = h("div", { class: "np__art", role: "button", tabindex: "0", "aria-label": t("np_playing") }, icon("arrow-expand"));
   const title = h("div", { class: "np__title" });

@@ -290,7 +290,7 @@ export function createSettingsPages(ctx) {
       h("a", { href: "#clock" }, icon("clock-outline"), ui("The Clock"))),
     h("header", { class: "settings-heading" },
       h("p", { class: "settings-kicker" }, ui("Clock Radio")),
-      h("h1", null, ui("Settings")), h("p", null, ui("Your clock, colors and night-time routine."))),
+      h("h1", { class: "page-title" }, ui("Settings")), h("p", null, ui("Your clock, colors and night-time routine."))),
     clock,
     dimming,
     group("Music Assistant", "music", [source("Library browsing", musicState)], musicInfo),
