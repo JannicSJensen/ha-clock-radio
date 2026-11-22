@@ -31,18 +31,21 @@ export class KioskAlarmUI {
   eligible(model = this.getModel()) {
     const p = model?.alarms.presentation;
     return model?.alarms.backend === "kiosk_satellite" && model.alarms.connected
-      && !model.read_only && !model.offline_snapshot && p?.requested && p.supported && p.enabled;
+      && !model.read_only && !model.offline_snapshot && p?.supported && p.enabled;
   }
 
   get message() {
     const model = this.getModel();
     const p = model?.alarms.presentation;
-    if (!p?.requested) return "";
+    if (!p?.requested && model?.alarms.native_phase !== "snoozed") return "";
+    if (!p?.requested && !p?.supported) return "KS snooze controls need a compatible device with dashboard-alarm support. Use the native KS controls.";
+    if (!p?.requested && !p?.enabled) return "Set Dashboard alarm UI URL in KS to use Clock Radio's snooze controls. Use the native KS controls until then.";
     if (!p.supported) return "Clock ringing UI needs KS dashboard-alarm support. Native controls remain enabled.";
     if (!p.enabled) return "Set Dashboard alarm UI URL in KS to enable the Clock ringing screen.";
     return this.error || (typeof this.bridge()?.alarmUi === "function"
       ? ""
-      : "Open Clock Radio on the configured KS device to use its Clock ringing UI.");
+      : p.requested ? "Open Clock Radio on the configured KS device to use its Clock ringing UI."
+      : "Open Clock Radio on the configured KS device to stop its snooze, or use the native KS controls.");
   }
 
   async call(action, context) {
@@ -91,7 +94,7 @@ export class KioskAlarmUI {
       this.state = state;
       this.error = "";
       this.render();
-      if (state.context.phase !== "ringing") {
+      if (state.context.phase !== "ringing" || !this.getModel().alarms.presentation.requested) {
         if (this.lease) {
           await this.call("release", this.lease);
           this.lease = null;
@@ -99,7 +102,7 @@ export class KioskAlarmUI {
         return;
       }
       if (!await this.afterPaint()) throw new Error("Clock Radio could not show usable ringing controls. Use the native KS screen.");
-      if (epoch !== this.epoch || !this.eligible() || !this.visible()) return;
+      if (epoch !== this.epoch || !this.eligible() || !this.visible() || !this.getModel().alarms.presentation.requested) return;
       const result = await this.call("present", state.context);
       if (epoch !== this.epoch) {
         await this.call("release", state.context);
@@ -132,7 +135,7 @@ export class KioskAlarmUI {
         station: first.station, speaker: first.speaker, snooze_minutes: state.snoozeMinutes,
         started_at: c.at, ...(c.phase === "snoozed" ? { until: c.snoozedUntil } : {}),
       };
-      if (c.phase === "ringing") alarms.active = alarm;
+      if (c.phase === "ringing" && alarms.presentation.requested) alarms.active = alarm;
       if (c.phase === "snoozed") alarms.snoozed = alarm;
       alarms.can_stop = Boolean(alarms.active || alarms.snoozed);
       alarms.can_snooze = Boolean(alarms.active);
@@ -142,7 +145,12 @@ export class KioskAlarmUI {
 
   async control(action, context) {
     if (!["stop", "snooze"].includes(action) || !this.eligible() || !this.visible() || this.action
-        || !this.state || key(context) !== key(this.state.context)) throw new Error("This native alarm changed or its controls are unavailable.");
+        || !this.state || key(context) !== key(this.state.context)
+        || !["ringing", "snoozed"].includes(this.state.context.phase)
+        || action === "snooze" && this.state.context.phase !== "ringing"
+        || this.state.context.phase === "ringing" && !this.getModel().alarms.presentation.requested) {
+      throw new Error("This native alarm changed or its controls are unavailable.");
+    }
     this.action = true;
     this.epoch++;
     const device = this.state.device;

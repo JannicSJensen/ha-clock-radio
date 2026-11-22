@@ -86,11 +86,55 @@ test("native Snooze and Stop use exact contexts and immediately confirm native s
   assert.equal(f.calls.filter((c) => c.action === "stop").length, 1);
 });
 
-test("old KS, disabled trust, native mode, read-only, snapshots and hidden pages cannot lease", async () => {
+test("native KS ringing remains native, but a snooze started there appears and can be stopped", async () => {
+  const f = setup();
+  f.model.alarms.presentation.requested = false;
+  await f.ui.refresh();
+  assert.deepEqual(f.calls.map((c) => c.action), ["status"]);
+  assert.equal(f.view.alarms.active, null);
+  assert.equal(f.view.alarms.can_stop, false);
+  await assert.rejects(f.ui.control("stop", f.data.context), /unavailable/);
+  f.data.context = { ...f.data.context, phase: "snoozed", snoozedUntil: "2030-01-01T07:15:00Z", generation: 2 };
+  await f.ui.refresh();
+  assert.equal(f.view.alarms.snoozed.until, "2030-01-01T07:15:00Z");
+  assert.equal(f.view.alarms.can_stop, true);
+  assert.equal(f.view.alarms.can_snooze, false);
+  await assert.rejects(f.ui.control("snooze", f.view.alarms.snoozed.native_context), /unavailable/);
+  await assert.rejects(f.ui.control("stop", { ...f.view.alarms.snoozed.native_context, generation: 1 }), /changed/);
+  await f.ui.control("stop", f.view.alarms.snoozed.native_context);
+  assert.equal(f.view.alarms.snoozed, null);
+  assert.deepEqual(f.calls.map((c) => c.action), ["status", "status", "stop"]);
+});
+
+test("switching to native mode before paint cannot take over a ringing alarm", async () => {
+  const f = setup();
+  let finish;
+  f.ui.afterPaint = () => new Promise((resolve) => { finish = resolve; });
+  const pending = f.ui.refresh();
+  while (!finish) await new Promise((resolve) => setTimeout(resolve, 0));
+  f.model.alarms.presentation.requested = false;
+  finish(true);
+  await pending;
+  assert.deepEqual(f.calls.map((c) => c.action), ["status"]);
+});
+
+test("native snooze is restored after leaving and returning to the dashboard", async () => {
+  const f = setup();
+  f.model.alarms.presentation.requested = false;
+  f.visible = false;
+  await f.ui.refresh();
+  f.data.context = { ...f.data.context, phase: "snoozed", snoozedUntil: "2030-01-01T07:15:00Z", generation: 2 };
+  f.visible = true;
+  await f.ui.refresh();
+  assert.equal(f.view.alarms.snoozed.native_context.generation, 2);
+  assert.equal(f.view.alarms.can_stop, true);
+  assert.equal(f.calls.some((c) => c.action === "present"), false);
+});
+
+test("old KS, disabled trust, read-only, snapshots and hidden pages cannot lease", async () => {
   for (const change of [
     (f) => { f.model.alarms.presentation.supported = false; },
     (f) => { f.model.alarms.presentation.enabled = false; },
-    (f) => { f.model.alarms.presentation.requested = false; },
     (f) => { f.model.read_only = true; },
     (f) => { f.model.offline_snapshot = true; },
     (f) => { f.model.alarms.connected = false; },
@@ -104,6 +148,37 @@ test("old KS, disabled trust, native mode, read-only, snapshots and hidden pages
   const f = setup({ bridge: () => null });
   await f.ui.refresh();
   assert.equal(f.calls.length, 0);
+});
+
+test("native snooze explains missing bridge support and trust", () => {
+  const f = setup();
+  f.model.alarms.presentation.requested = false;
+  f.model.alarms.native_phase = "snoozed";
+  f.model.alarms.presentation.supported = false;
+  assert.match(f.ui.message, /compatible device/);
+  f.model.alarms.presentation.supported = true;
+  f.model.alarms.presentation.enabled = false;
+  assert.match(f.ui.message, /Dashboard alarm UI URL/);
+  f.model.alarms.presentation.enabled = true;
+  f.ui.bridge = () => null;
+  assert.match(f.ui.message, /configured KS device to stop its snooze/);
+});
+
+test("native snooze rejects unrelated or mixed alarm groups and mismatched devices", async () => {
+  for (const change of [
+    (f) => { f.data.context.ids.push("personal-alarm"); },
+    (f) => { f.data.device = "c".repeat(32); },
+  ]) {
+    const f = setup();
+    f.model.alarms.presentation.requested = false;
+    f.data.context = { ...f.data.context, phase: "snoozed", snoozedUntil: "2030-01-01T07:15:00Z", generation: 2 };
+    change(f);
+    await f.ui.refresh();
+    assert.equal(f.view.alarms.snoozed, null);
+    assert.equal(f.view.alarms.can_stop, false);
+    assert.ok(f.warnings.length);
+    assert.deepEqual(f.calls.map((c) => c.action), ["status"]);
+  }
 });
 
 test("unpainted UI, wrong devices, malformed state and unrelated alarm groups retain native UI", async () => {

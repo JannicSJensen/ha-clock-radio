@@ -763,15 +763,24 @@ The installed KS build must advertise presentation protocol 1 in
    to the exact Clock Radio URL loaded on that device, without query or
    fragment. With the secure-context proxy this can be
    `http://127.0.0.1:2325/`; it is not the server's original LAN URL.
-2. In the HA app configuration, set `kiosk_satellite_alarm_ui: clock`, save
-   and restart Clock Radio. Keep the usual KS Remote Administration URL/token
-   on the server for schedule editing.
+2. To show the ringing screen in Clock Radio, set
+   `kiosk_satellite_alarm_ui: clock` in the HA app configuration, save and
+   restart Clock Radio. To keep the native ringing screen, leave this option
+   at `native`; the trusted URL is still required for snooze cancellation.
+   Keep the usual KS Remote Administration URL/token on the server for
+   schedule editing.
 3. Fully reload the KS dashboard. The banner explains missing native
    capabilities, the trusted-URL setting or a mismatched device.
 
 On the configured KS device, Clock Radio shows its existing ringing screen
 with native station/speaker names, native Snooze length and Slide to Stop.
 Snooze returns to the Clock's countdown widget, with Slide to Stop cancellation.
+The same snooze countdown and cancellation also appear when Snooze is selected
+on the native KS ringing screen while `kiosk_satellite_alarm_ui` is `native`,
+provided the compatible KS bridge and trusted dashboard URL are configured as
+described in step 1. Native mode never hands over the ringing screen. Without
+that bridge or on another device, use KS's native controls to cancel snooze;
+Clock Radio cannot safely issue an unscoped remote stop.
 Native music's playback/volume controls remain on KS; the HA media-player
 controls are not misapplied to its renderer.
 
@@ -789,7 +798,7 @@ starts audio nor schedules browser timers. Stop/Snooze carry the exact native
 context and cannot act on a stale occurrence or partial simultaneous group.
 Only wholly Clock Radio-managed groups are shown; unrelated or mixed groups
 retain the KS screen. Actions that time out are never automatically retried.
-Existing KS builds and the default `native` option behave as before.
+KS builds without the compatible bridge retain their native alarm controls.
 
 The app server makes bounded, authenticated native calls without retries and
 reads schedules back before reporting success. A timed-out save may have

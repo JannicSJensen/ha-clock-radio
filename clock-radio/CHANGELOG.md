@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.29.0
+
+- Show and cancel a snooze started in the native Kiosk Satellite alarm UI on
+  the Clock, when the trusted, occurrence-scoped device bridge is available.
+  Keep the native ringing UI in native mode and reject stale alarm contexts.
+
 ## 0.28.0
 
 - Add the localized date beside the place in the Clock weather widget and size
