@@ -18,6 +18,36 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .page-indicator__dot.is-active { background: #9b9ba0; }
 .is-night .page-indicator__dot { opacity: .4; }
 #clock-frame { display: block; border: 0; width: 100%; height: 100%; }
+.clock-page.has-mini-player {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 38%);
+  background: var(--clock-background, #000);
+}
+#clock-mini-player { min-width: 0; align-self: center; padding: 0 clamp(8px, 3vw, 32px) 0 0; }
+#clock-mini-player .np {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: clamp(6px, 2vw, 14px);
+  padding: clamp(8px, 2vw, 16px);
+  border: 0;
+  border-radius: 18px;
+  background: #19191b;
+}
+#clock-mini-player .np__volume { grid-column: 1 / -1; }
+#clock-mini-player .np.no-volume .np__volume { display: none; }
+#clock-mini-player .np__art, #clock-mini-player .np__play { width: clamp(40px, 6vw, 56px); height: clamp(40px, 6vw, 56px); }
+#clock-mini-player .np__slider { min-width: 0; }
+.is-night .clock-page.has-mini-player { background: #000; }
+.is-night #clock-mini-player { opacity: var(--clock-night-opacity, .7); }
+.is-night #clock-mini-player .np { color: var(--clock-night); --muted: var(--clock-night); --accent: var(--clock-night); }
+.is-night #clock-mini-player .np__art { filter: grayscale(1) brightness(.5); }
+.is-night #clock-mini-player .np__play { background: #292929; color: var(--clock-night); }
+@media (orientation: portrait), (max-width: 480px) {
+  .clock-page.has-mini-player {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr) auto;
+  }
+  #clock-mini-player { justify-self: center; width: min(100%, 420px); padding: 0 12px 12px; }
+}
 .clock-focus { position: absolute; right: 18px; top: 16px; padding: 8px 12px; border-radius: 10px; background: #161616; color: #a6a6a6; opacity: .2; font-size: 11px; }
 .clock-focus:hover, .clock-focus:focus-visible { opacity: 1; }
 .is-night .clock-focus { color: #8b4038; background: #190908; }

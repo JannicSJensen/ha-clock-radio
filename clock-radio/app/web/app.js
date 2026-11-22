@@ -4,6 +4,7 @@ import { navigationKey } from "./js/core/navigation.js";
 import { getPref, setPref } from "./js/core/prefs.js";
 import { makeTranslator } from "./js/lib/i18n.js";
 import { createMusicPage } from "./js/pages/music.js";
+import { clockPlayerId, createPlayerPanel } from "./js/components/player.js";
 import { createNowPlayingScreen } from "./js/components/nowplaying-screen.js";
 import { createSettingsPages } from "./js/pages/settings.js";
 import { createAlarmScreen } from "./js/components/alarm-screen.js";
@@ -14,6 +15,8 @@ import { KioskAlarmUI } from "./js/core/kiosk-alarm-ui.js";
 
 const $ = (id) => document.getElementById(id);
 const frame = $("clock-frame");
+const clockPage = $("page-clock");
+const clockPlayerSlot = $("clock-mini-player");
 new ResizeObserver(([entry]) => {
   document.documentElement.style.setProperty("--banner-height", `${entry.contentRect.height}px`);
 }).observe(document.querySelector(".banners"));
@@ -36,6 +39,8 @@ let alarmScreen = null;
 let clockSignature = "";
 let clockRevision = 0;
 let clockDataSignature = "";
+let clockPlayer = null;
+let clockPlayerSignature = "";
 let focusedClockPanel = "face";
 let pending = 0;
 let polling = null;
@@ -146,6 +151,7 @@ function changePage(step) {
 function changeClockView(panel, step) {
   if (!model || alarmScreen?.isOpen || current !== "clock" || !["face", "widget"].includes(panel)) return;
   if (model.alarms.snoozed) return toast("Clock panels return to normal when snooze ends.");
+  if (panel === "widget" && clockPlayerId(model)) return;
   if (pending) return toast("Please wait for the current save to finish.");
   const views = panel === "face" ? ["analog", "analog-round", "digital"] : ["calendar", "weather", "date", "date-calendar"];
   const value = views[(Math.max(0, views.indexOf(model.config.clock[panel])) + step + views.length) % views.length];
@@ -168,6 +174,7 @@ function clockOptions() {
     options.layout = "widget";
     options.widget = "snooze";
   }
+  options.miniPlayer = Boolean(clockPlayerId(model));
   options.snooze = {
     alarm, stopping: snoozeStopping, error: snoozeError, busy: pending > 0,
     canStop: canControlAlarms() && model.alarms.can_stop && !model.alarms.active_error,
@@ -182,7 +189,8 @@ function clockOptions() {
 function renderClock() {
   const options = clockOptions();
   document.body.style.setProperty("--clock-night", options.nightColor);
-  const live = new Set(["snooze", "nightActive", "alarm", "weatherConfigured", "weatherPlace", "weatherCondition", "weatherTemperature", "weatherUnit", "weatherDate", "weatherHigh", "weatherLow"]);
+  renderClockPlayer(options);
+  const live = new Set(["snooze", "miniPlayer", "nightActive", "alarm", "weatherConfigured", "weatherPlace", "weatherCondition", "weatherTemperature", "weatherUnit", "weatherDate", "weatherHigh", "weatherLow"]);
   const signature = JSON.stringify(Object.fromEntries(Object.entries(options).filter(([key]) => !live.has(key))));
   if (signature !== clockSignature) {
     frame.src = `./clock/index.html?view=${++clockRevision}#${encodeURIComponent(JSON.stringify(options))}`;
@@ -192,6 +200,25 @@ function renderClock() {
     frame.contentWindow?.postMessage({ type: "clock-radio-data", options }, location.origin);
   }
   clockDataSignature = JSON.stringify(options);
+}
+
+function renderClockPlayer(options) {
+  const id = options.miniPlayer ? model.music.default_player : null;
+  const signature = id ? JSON.stringify([id, model.config.locale]) : "";
+  if (signature !== clockPlayerSignature) {
+    const hadFocus = clockPlayerSlot.contains(document.activeElement);
+    clockPlayer?.destroy();
+    clockPlayer = id ? createPlayerPanel({ model: model.music, ctx }) : null;
+    clockPlayerSlot.replaceChildren(...(clockPlayer ? [clockPlayer.bar] : []));
+    clockPlayerSignature = signature;
+    if (hadFocus && current === "clock") clockPage.focus({ preventScroll: true });
+  }
+  if (clockPlayer) clockPlayerSlot.setAttribute("aria-label", ctx.t("party_now"));
+  clockPlayerSlot.hidden = !clockPlayer;
+  clockPage.classList.toggle("has-mini-player", Boolean(clockPlayer));
+  clockPage.style.setProperty("--clock-background", options.background);
+  clockPage.style.setProperty("--clock-night-opacity", options.nightBrightness / 100);
+  clockPlayer?.update();
 }
 
 async function stopSnooze(target) {
@@ -265,8 +292,8 @@ function render() {
   notice("clock-error", [model.clock.error, model.clock.night_error, model.alarms.active_error].filter(Boolean).join(" "));
   notice("missing-players", model.missing_players.length ? `Missing configured speakers: ${model.missing_players.join(", ")}` : "");
   $("read-only").hidden = !model.read_only || Boolean(model.offline_snapshot);
-  renderClock();
   ctx.t = makeTranslator(model.config.locale);
+  renderClock();
   renderMusic();
   if (!settingsPages) {
     settingsPages = createSettingsPages(ctx);
@@ -392,6 +419,7 @@ addEventListener("message", (event) => {
 for (const page of pageIds.filter((page) => page !== "clock")) {
   onSwipe($(`page-${page}`), { horizontal: changePage });
 }
+onSwipe(clockPlayerSlot, { horizontal: changePage });
 addEventListener("hashchange", navigate);
 for (const type of ["pointermove", "keydown", "input", "wheel", "scroll", "touchstart", "touchmove", "touchend"]) {
   addEventListener(type, () => idleReturn.reset(), { capture: true, passive: true });

@@ -615,6 +615,7 @@ import { createSnoozePanel } from "../js/components/snooze-panel.js";
   function build() {
     var now = wallDate(Date.now());
     root.className = o.layout === 'full' ? 'full' : o.widget === 'none' ? 'alone' : o.widget === 'date-calendar' ? 'large-clock' : '';
+    root.classList.toggle('mini-player', options.miniPlayer === true);
     if (sweep) sweep.cancel();
     sweep = ticking = null;
     clockPanel.textContent = '';
@@ -666,6 +667,8 @@ import { createSnoozePanel } from "../js/components/snooze-panel.js";
     if (!event.data || event.data.type !== 'clock-radio-data' || !event.data.options) return;
     var live = event.data.options;
     options.snooze = live.snooze;
+    options.miniPlayer = live.miniPlayer;
+    root.classList.toggle('mini-player', options.miniPlayer === true);
     var weatherChanged = false;
     ['weatherConfigured', 'weatherPlace', 'weatherCondition', 'weatherTemperature', 'weatherUnit', 'weatherDate', 'weatherHigh', 'weatherLow'].forEach(function (key) {
       if (options[key] !== live[key]) weatherChanged = true;

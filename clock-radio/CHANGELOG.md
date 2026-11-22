@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.27.0
+
+- Show a mini-player beside the Clock while the configured Music speaker is
+  playing, with pause, volume and access to the full player. Ringing alarms
+  and snooze controls take priority.
+
 ## 0.26.1
 
 - Remove the explanatory native-tone, device-wide alarm-settings and music

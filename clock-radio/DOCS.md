@@ -28,6 +28,13 @@ countdown starts when they finish. Returning to the clock does not stop music,
 change HA alarms or discard unsaved inline Settings values. Background state
 polling does not count as activity; an overdue idle page returns when a
 backgrounded browser becomes active again.
+
+While the configured Music speaker is playing, a mini-player replaces the Clock's
+usual widget on the right (below the clock in portrait). Use it to pause playback,
+adjust volume when supported, or tap the artwork or track info to open the full
+player. The normal widget returns when playback pauses or stops. Ringing alarms
+and the snooze countdown take priority over the mini-player.
+
 Four dots at the bottom of every main page show your position, left to right:
 Clock, Alarm configuration, Music, Settings. The active page has a grey dot;
 the other dots are darker. They are position indicators, not buttons. Screen

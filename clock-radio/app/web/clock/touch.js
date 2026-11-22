@@ -28,7 +28,7 @@ addEventListener("keydown", (event) => {
 addEventListener("message", (event) => {
   if (event.origin !== location.origin || event.source !== parent || event.data?.type !== "clock-radio-focus"
       || !["face", "widget"].includes(event.data.panel)) return;
-  const widgetVisible = !root.classList.contains("full") && !root.classList.contains("alone");
+  const widgetVisible = !["full", "alone", "mini-player"].some((name) => root.classList.contains(name));
   const panel = document.getElementById(event.data.panel === "widget" && widgetVisible ? "widget" : "clock");
   panel.focus({ preventScroll: true });
   if ([1, -1].includes(event.data.step)) changeView(event.data.step, panel);

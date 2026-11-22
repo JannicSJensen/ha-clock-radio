@@ -11,6 +11,12 @@ const bg = (url) => `url("${String(url).replace(/"/g, "%22")}")`;
 const volumeIcon = (level) => level === 0 ? "volume-off" : level < .34 ? "volume-low" : level < .67 ? "volume-medium" : "volume-high";
 const mediaKey = (state) => `${state?.state}|${state?.attributes?.media_content_id}|${state?.attributes?.media_title}`;
 
+export function clockPlayerId(model) {
+  const id = model.music.default_player;
+  if (!id || !model.connected || model.alarms.active || model.alarms.snoozed) return null;
+  return model.players.some((player) => player.entity_id === id && player.state === "playing") ? id : null;
+}
+
 export function createPlayerPanel({ model, ctx }) {
   const { t, getState } = ctx;
   const selected = model.default_player;
@@ -26,7 +32,7 @@ export function createPlayerPanel({ model, ctx }) {
   const sub = h("div", { class: "np__sub" });
   const textBox = h("div", { class: "np__text", role: "button", tabindex: "0", "aria-label": t("np_playing") }, title, sub);
   const playIcon = icon("play");
-  const play = h("button", { class: "np__play", type: "button", "aria-label": "Play/Pause" }, playIcon);
+  const play = h("button", { class: "np__play", type: "button", "aria-label": t("np_play") }, playIcon);
   pressable(play, { onTap: () => target() && ctx.call("media_player", "media_play_pause", target()) });
   const volIcon = icon("volume-medium"), volValue = h("span", { class: "np__volvalue" });
   const sendVolume = throttle((value) => target() && ctx.call("media_player", "volume_set", target(), { volume_level: value / 100 }), 250);
@@ -63,7 +69,9 @@ export function createPlayerPanel({ model, ctx }) {
     art.classList.toggle("has-art", Boolean(picture));
     title.textContent = pending ? pending.name : idle ? t("nothing_playing") : attrs.media_title ?? "";
     sub.textContent = [!pending && !idle ? attrs.media_artist : null, selected ? format(t, "on_speaker", { name: nameOf(selected) }) : null].filter(Boolean).join(" · ");
-    setIcon(playIcon, state?.state === "playing" ? "pause" : "play");
+    const playing = state?.state === "playing";
+    setIcon(playIcon, playing ? "pause" : "play");
+    play.setAttribute("aria-label", t(playing ? "np_pause" : "np_play"));
     play.disabled = idle || !ctx.canControl();
     bar.classList.toggle("is-openable", !idle && !pending);
     for (const el of [art, textBox]) {

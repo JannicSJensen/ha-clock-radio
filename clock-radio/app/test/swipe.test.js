@@ -152,8 +152,8 @@ test("cancelled, multi-touch and detached gestures never navigate", (t) => {
 
 test("Clock iframe sends horizontal page navigation and vertical panel changes", async (t) => {
   const { root, swipe } = surface(t);
-  let full = false, snoozed = false, alone = false;
-  root.classList = { contains: (name) => name === "full" ? full : name === "alone" && alone };
+  let full = false, snoozed = false, alone = false, miniPlayer = false;
+  root.classList = { contains: (name) => ({ full, alone, "mini-player": miniPlayer })[name] };
   root.querySelector = () => snoozed;
   const messages = [];
   const keys = new Map();
@@ -221,5 +221,10 @@ test("Clock iframe sends horizontal page navigation and vertical panel changes",
   alone = true;
   keys.get("message")(focusMessage);
   assert.equal(focused.at(-1), "face", "A hidden widget must not receive focus or be changed");
+  assert.deepEqual(messages.at(-1), { type: "clock-radio-view", panel: "face", step: 1 });
+  alone = false;
+  miniPlayer = true;
+  keys.get("message")(focusMessage);
+  assert.equal(focused.at(-1), "face", "The mini-player replaces the widget as a focus target");
   assert.deepEqual(messages.at(-1), { type: "clock-radio-view", panel: "face", step: 1 });
 });
