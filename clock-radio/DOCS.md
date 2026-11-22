@@ -367,7 +367,7 @@ must be able to reach and decode the URL. The app itself does not fetch streams.
 | Setting | Default | Meaning |
 | --- | --- | --- |
 | `title` | `Clock Radio` | Dashboard heading and browser title. |
-| `locale` | `en-GB` | Music labels (English/Danish) and legacy clock locale. |
+| `locale` | `en-GB` | Dashboard language in automatic mode (Danish for `da`, otherwise English) and legacy clock locale. |
 | `time_zone` | `""` | IANA time zone, e.g. `Europe/Copenhagen`; empty follows HA. Alarm schedules always use HA's zone. |
 | `clock_24h` | `true` | Legacy time-format default when `clock.time_format` is absent. |
 | `show_seconds` | `true` | Legacy seconds default when `clock.seconds` is absent. |
@@ -395,7 +395,8 @@ uses oversized digits with date/weather and the next alarm.
 | `seconds` | Boolean; default `true` |
 | `second_hand` | `"60"`, `"30"` (default), `tick` |
 | `time_format` | `automatic`, `24-hour` (fallback default), `12-hour`; first-run example uses automatic |
-| `language` | Empty: device locale; `en`, `fr`, `de`, `es`, `it`, `pt`, `nl` or a valid locale. Existing `locale` is inherited when this key is absent. |
+| `app_language` | Empty (default): dashboard `locale`; `en`: English; `da`: Danish. Shared by all devices and configurable in the app. |
+| `language` | Clock language in automatic app-language mode. Empty: device locale; `en`, `da`, `fr`, `de`, `es`, `it`, `pt`, `nl` or a valid locale. Existing `locale` is inherited when this key is absent. Explicit `app_language` overrides it. |
 | `week_start` | `automatic` (default), `monday`, `sunday`, `saturday` |
 | `primary`, `accent`, `seconds_color`, `background` | Six-digit hex colors; defaults `#ffffff`, `#ff3b30`, `#ff9f0a`, `#000000` |
 | `weather_name` | Optional place label; empty uses the HA entity's friendly name |
@@ -414,6 +415,16 @@ The floating action bar stays above connection/error notices. Drafts and focused
 controls survive background refreshes, and read-only/disconnected mode disables
 changes. Use the **Alarms** and **The Clock** links at the top or the existing
 swipe/keyboard navigation to change pages.
+
+Choose **Settings > Time and calendar > App language** and save to select
+English or Danish for the web app. The selection is shared by the installation;
+the saving browser reloads to apply it, except during an active or snoozed
+alarm. Other open devices show a reload notice so unsaved edits can be saved
+first. Saving a language change is blocked while other settings forms have
+unsaved changes. Automatic follows the configured dashboard `locale` and
+keeps **Clock language** independent; explicit English or Danish also sets the
+clock's locale. Names and diagnostic details supplied by Home Assistant, Music
+Assistant or Kiosk Satellite remain as supplied.
 
 Choose **Settings > Night mode > Mode > Sun (below horizon)** to
 follow the Sun entity set by `sun_entity` in **Settings > Apps > Clock Radio >

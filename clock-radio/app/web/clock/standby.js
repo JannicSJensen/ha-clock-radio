@@ -1,5 +1,6 @@
 import { createSnoozePanel } from "../js/components/snooze-panel.js";
 import { weatherHeading, weatherTemperatureSize } from "./weather-layout.js";
+import { setUiLanguage, ui } from "../js/lib/ui-language.js";
 
 (function () {
   'use strict';
@@ -41,6 +42,10 @@ import { weatherHeading, weatherTemperatureSize } from "./weather-layout.js";
   // Language, time format and first day of the week.
   var locale = typeof options.locale === 'string' && options.locale ? options.locale : (navigator.language || 'en');
   try { new Intl.DateTimeFormat(locale); } catch (_) { locale = 'en'; }
+  setUiLanguage(options.uiLanguage || locale);
+  document.documentElement.lang = locale;
+  document.getElementById('clock').setAttribute('aria-label', ui('Clock face'));
+  document.getElementById('widget').setAttribute('aria-label', ui('Clock widget'));
   var language = locale.slice(0, 2).toLowerCase();
   var zoneFormat = new Intl.DateTimeFormat('en-GB', {
     timeZone: options.timeZone || Intl.DateTimeFormat().resolvedOptions().timeZone,
@@ -86,32 +91,32 @@ import { weatherHeading, weatherTemperatureSize } from "./weather-layout.js";
     }
   }
 
-  var LANGUAGES = ['en', 'fr', 'de', 'es', 'it', 'pt', 'nl'];
+  var LANGUAGES = ['en', 'fr', 'de', 'es', 'it', 'pt', 'nl', 'da'];
   var CONDITIONS = {
-    'clear-night': ['Clear', 'Dégagé', 'Klar', 'Despejado', 'Sereno', 'Limpo', 'Helder'],
-    'cloudy': ['Cloudy', 'Nuageux', 'Bewölkt', 'Nublado', 'Nuvoloso', 'Nublado', 'Bewolkt'],
-    'exceptional': ['Exceptional', 'Exceptionnel', 'Außergewöhnlich', 'Excepcional', 'Eccezionale', 'Excepcional', 'Uitzonderlijk'],
-    'fog': ['Fog', 'Brouillard', 'Nebel', 'Niebla', 'Nebbia', 'Nevoeiro', 'Mist'],
-    'hail': ['Hail', 'Grêle', 'Hagel', 'Granizo', 'Grandine', 'Granizo', 'Hagel'],
-    'lightning': ['Thunderstorms', 'Orages', 'Gewitter', 'Tormentas', 'Temporali', 'Trovoada', 'Onweer'],
-    'lightning-rainy': ['Thunderstorms', 'Orages et pluie', 'Gewitter mit Regen', 'Tormentas con lluvia', 'Temporali con pioggia', 'Trovoada com chuva', 'Onweer en regen'],
-    'partlycloudy': ['Partly Cloudy', 'Partiellement nuageux', 'Teilweise bewölkt', 'Parcialmente nublado', 'Parzialmente nuvoloso', 'Parcialmente nublado', 'Gedeeltelijk bewolkt'],
-    'pouring': ['Heavy Rain', 'Averses', 'Starkregen', 'Lluvia intensa', 'Pioggia forte', 'Chuva forte', 'Stortregen'],
-    'rainy': ['Rain', 'Pluie', 'Regen', 'Lluvia', 'Pioggia', 'Chuva', 'Regen'],
-    'snowy': ['Snow', 'Neige', 'Schnee', 'Nieve', 'Neve', 'Neve', 'Sneeuw'],
-    'snowy-rainy': ['Sleet', 'Pluie et neige', 'Schneeregen', 'Aguanieve', 'Nevischio', 'Chuva e neve', 'Natte sneeuw'],
-    'sunny': ['Sunny', 'Ensoleillé', 'Sonnig', 'Soleado', 'Soleggiato', 'Ensolarado', 'Zonnig'],
-    'windy': ['Windy', 'Venteux', 'Windig', 'Ventoso', 'Ventoso', 'Ventoso', 'Winderig'],
-    'windy-variant': ['Windy', 'Venteux', 'Windig', 'Ventoso', 'Ventoso', 'Ventoso', 'Winderig']
+    'clear-night': ['Clear', 'Dégagé', 'Klar', 'Despejado', 'Sereno', 'Limpo', 'Helder', 'Klart'],
+    'cloudy': ['Cloudy', 'Nuageux', 'Bewölkt', 'Nublado', 'Nuvoloso', 'Nublado', 'Bewolkt', 'Overskyet'],
+    'exceptional': ['Exceptional', 'Exceptionnel', 'Außergewöhnlich', 'Excepcional', 'Eccezionale', 'Excepcional', 'Uitzonderlijk', 'Usædvanligt vejr'],
+    'fog': ['Fog', 'Brouillard', 'Nebel', 'Niebla', 'Nebbia', 'Nevoeiro', 'Mist', 'Tåge'],
+    'hail': ['Hail', 'Grêle', 'Hagel', 'Granizo', 'Grandine', 'Granizo', 'Hagel', 'Hagl'],
+    'lightning': ['Thunderstorms', 'Orages', 'Gewitter', 'Tormentas', 'Temporali', 'Trovoada', 'Onweer', 'Torden'],
+    'lightning-rainy': ['Thunderstorms', 'Orages et pluie', 'Gewitter mit Regen', 'Tormentas con lluvia', 'Temporali con pioggia', 'Trovoada com chuva', 'Onweer en regen', 'Torden og regn'],
+    'partlycloudy': ['Partly Cloudy', 'Partiellement nuageux', 'Teilweise bewölkt', 'Parcialmente nublado', 'Parzialmente nuvoloso', 'Parcialmente nublado', 'Gedeeltelijk bewolkt', 'Delvist skyet'],
+    'pouring': ['Heavy Rain', 'Averses', 'Starkregen', 'Lluvia intensa', 'Pioggia forte', 'Chuva forte', 'Stortregen', 'Kraftig regn'],
+    'rainy': ['Rain', 'Pluie', 'Regen', 'Lluvia', 'Pioggia', 'Chuva', 'Regen', 'Regn'],
+    'snowy': ['Snow', 'Neige', 'Schnee', 'Nieve', 'Neve', 'Neve', 'Sneeuw', 'Sne'],
+    'snowy-rainy': ['Sleet', 'Pluie et neige', 'Schneeregen', 'Aguanieve', 'Nevischio', 'Chuva e neve', 'Natte sneeuw', 'Slud'],
+    'sunny': ['Sunny', 'Ensoleillé', 'Sonnig', 'Soleado', 'Soleggiato', 'Ensolarado', 'Zonnig', 'Solrigt'],
+    'windy': ['Windy', 'Venteux', 'Windig', 'Ventoso', 'Ventoso', 'Ventoso', 'Winderig', 'Blæsende'],
+    'windy-variant': ['Windy', 'Venteux', 'Windig', 'Ventoso', 'Ventoso', 'Ventoso', 'Winderig', 'Blæsende']
   };
   var WORDS = {
-    high: ['H:', 'H:', 'H:', 'Máx:', 'Max:', 'Máx:', 'H:'],
-    low: ['L:', 'B:', 'T:', 'Mín:', 'Min:', 'Mín:', 'L:'],
-    weather: ['Weather', 'Météo', 'Wetter', 'Tiempo', 'Meteo', 'Tempo', 'Weer'],
+    high: ['H:', 'H:', 'H:', 'Máx:', 'Max:', 'Máx:', 'H:', 'H:'],
+    low: ['L:', 'B:', 'T:', 'Mín:', 'Min:', 'Mín:', 'L:', 'L:'],
+    weather: ['Weather', 'Météo', 'Wetter', 'Tiempo', 'Meteo', 'Tempo', 'Weer', 'Vejr'],
     choose: ['Set weather_entity in the Home Assistant app configuration.', 'Définissez weather_entity dans la configuration de l\'application Home Assistant.',
       'Legen Sie weather_entity in der Home-Assistant-App-Konfiguration fest.', 'Configure weather_entity en la configuración de la aplicación Home Assistant.',
       'Imposta weather_entity nella configurazione dell\'app Home Assistant.', 'Defina weather_entity na configuração da aplicação Home Assistant.',
-      'Stel weather_entity in de Home Assistant-appconfiguratie in.']
+      'Stel weather_entity in de Home Assistant-appconfiguratie in.', 'Angiv weather_entity i Home Assistant-appens konfiguration.']
   };
   var languageIndex = Math.max(0, LANGUAGES.indexOf(language));
   function word(key) { return WORDS[key][languageIndex]; }

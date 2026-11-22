@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { getJson, postJson } from "../web/js/core/api.js";
+import { setUiLanguage } from "../web/js/lib/ui-language.js";
 
 function requests(t, { bodyStalls = false } = {}) {
   const timers = [];
@@ -71,6 +72,7 @@ test("success and HTTP failure both clean up timers/listeners and preserve reque
     calls.push({ url, options });
     return { ok, status: 503, json: async () => ok ? { connected: true } : { error: "HA unavailable" } };
   });
+
   assert.deepEqual(await getJson("api/state", { signal: caller.signal, headers: { Accept: "application/json" } }), { connected: true });
   assert.equal(calls[0].url, "./api/state");
   assert.equal(calls[0].options.cache, "no-store");
@@ -81,4 +83,19 @@ test("success and HTTP failure both clean up timers/listeners and preserve reque
   assert.equal(remove.mock.callCount(), 2);
   assert.ok(timers.every((timer) => timer.cleared));
   await assert.rejects(getJson("api/state", { timeout: 0 }), /positive number/);
+});
+
+test("known request errors are localized without hiding external diagnostic details", async (t) => {
+  let error = "Home Assistant is disconnected.";
+  t.mock.method(globalThis, "fetch", async () => ({ ok: false, status: 503, json: async () => ({ error }) }));
+  try {
+    setUiLanguage("da");
+    await assert.rejects(getJson("api/state"), /Forbindelsen til Home Assistant er afbrudt/);
+    error = "External diagnostic: device 42";
+    await assert.rejects(getJson("api/state"), /External diagnostic: device 42/);
+    error = null;
+    await assert.rejects(getJson("api/state"), /Anmodningen mislykkedes \(HTTP 503\)/);
+  } finally {
+    setUiLanguage("en");
+  }
 });

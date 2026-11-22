@@ -946,6 +946,23 @@ test("four-page HTTP integration browses Dasher music, plays only registered ite
   assert.equal((await app.get("api/state")).clock.weatherHigh, 22);
 });
 
+test("shared app language persists and legacy clock saves preserve it", async (t) => {
+  const app = await setup(t);
+  const clock = (await app.get("api/state")).config.clock;
+  assert.equal(clock.app_language, "");
+  assert.equal((await app.post("api/settings/clock", { ...clock, app_language: "da" })).status, 200);
+  assert.equal((await app.get("api/state")).config.clock.app_language, "da");
+  const reopened = new ConfigStore({ dir: path.dirname(app.store.file), example: path.join(root, "examples/dashboard.yaml"), logger: quiet });
+  assert.equal(reopened.current.clock.app_language, "da");
+  const { app_language, ...legacyClock } = clock;
+  assert.equal((await app.post("api/settings/clock", { ...legacyClock, face: "digital" })).status, 200);
+  assert.equal((await app.get("api/state")).config.clock.app_language, "da");
+  assert.equal((await app.post("api/settings/clock", { ...clock, app_language: "fr" })).status, 400);
+  assert.equal((await app.get("api/state")).config.clock.app_language, "da");
+  assert.equal((await app.post("api/settings/clock", { ...clock, app_language: "en" })).status, 200);
+  assert.equal((await app.get("api/state")).config.clock.app_language, "en");
+});
+
 test("every new mutation rejects read-only and cross-site requests before touching HA or YAML", async (t) => {
   const app = await setup(t);
   const routes = ["api/settings/clock", "api/settings/alarm", "api/settings/alarm-playback", "api/alarm/stop", "api/alarm/snooze", "api/radio/play", "api/music/play", "api/alarm/create", "api/alarm/delete"];

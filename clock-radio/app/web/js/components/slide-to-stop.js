@@ -1,3 +1,4 @@
+import { ui } from "../lib/ui-language.js";
 import { h } from "../core/h.js";
 import { icon } from "../core/icons.js";
 
@@ -6,11 +7,11 @@ export const completesStop = (progress) => Number.isFinite(progress) && progress
 
 export function createSlideToStop(onStop) {
   const knob = h("span", { class: "slide-stop__knob", "aria-hidden": "true" }, icon("stop"));
-  const label = h("span", { class: "slide-stop__label", "aria-hidden": "true" }, "slide to stop");
+  const label = h("span", { class: "slide-stop__label", "aria-hidden": "true" }, ui("slide to stop"));
   const el = h("div", {
-    class: "slide-stop", role: "slider", tabindex: "0", "aria-label": "Slide to stop alarm",
+    class: "slide-stop", role: "slider", tabindex: "0", "aria-label": ui("Slide to stop alarm"),
     "aria-valuemin": "0", "aria-valuemax": "100", "aria-valuenow": "0", "aria-orientation": "horizontal",
-    "aria-description": "Drag the stop button to the right. Keyboard: End, then Enter to stop.",
+    "aria-description": ui("Drag the stop button to the right. Keyboard: End, then Enter to stop."),
   }, label, knob);
   let progress = 0;
   let disabled = false;
@@ -23,7 +24,7 @@ export function createSlideToStop(onStop) {
     knob.style.transform = `translateX(${travel * progress / 100}px)`;
     label.style.opacity = String(1 - progress / 100);
     el.setAttribute("aria-valuenow", String(Math.round(progress)));
-    el.setAttribute("aria-valuetext", completesStop(progress) ? "Ready to stop" : "Slide right to stop");
+    el.setAttribute("aria-valuetext", completesStop(progress) ? ui("Ready to stop") : ui("Slide right to stop"));
   }
   function reset() {
     const id = pointer;

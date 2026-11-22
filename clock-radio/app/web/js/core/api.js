@@ -1,3 +1,5 @@
+import { ui, uiFormat } from "../lib/ui-language.js";
+
 export async function getJson(url, options = {}) {
   const { timeout = 30_000, signal, ...request } = options;
   if (!Number.isFinite(timeout) || timeout <= 0) throw new Error("Request timeout must be a positive number.");
@@ -10,12 +12,12 @@ export async function getJson(url, options = {}) {
   try {
     const response = await fetch(`./${url}`, { cache: "no-store", ...request, signal: controller.signal });
     const data = await response.json();
-    if (!response.ok) throw new Error(data.error ?? `Request failed (HTTP ${response.status}).`);
+    if (!response.ok) throw new Error(data.error != null ? ui(data.error) : uiFormat("Request failed (HTTP {status}).", { status: response.status }));
     return data;
   } catch (error) {
     if (timedOut) {
-      const uncertain = request.method === "POST" ? " The change may still complete. Check saved values before retrying." : "";
-      throw new Error(`Request timed out after ${timeout / 1000} seconds.${uncertain}`);
+      const uncertain = request.method === "POST" ? ui(" The change may still complete. Check saved values before retrying.") : "";
+      throw new Error(uiFormat("Request timed out after {seconds} seconds.", { seconds: timeout / 1000 }) + uncertain);
     }
     throw error;
   } finally {

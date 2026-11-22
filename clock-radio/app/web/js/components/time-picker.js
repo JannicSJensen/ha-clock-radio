@@ -1,3 +1,4 @@
+import { ui } from "../lib/ui-language.js";
 import { h } from "../core/h.js";
 
 const ROW_HEIGHT = 44;
@@ -75,12 +76,12 @@ function createWheel(label, values, format, onInput) {
 }
 
 export function createTimePicker({ hour12 = false, onInput }) {
-  const hours = createWheel("Hour", Array.from({ length: hour12 ? 12 : 24 }, (_, index) => hour12 ? index + 1 : index),
+  const hours = createWheel(ui("Hour"), Array.from({ length: hour12 ? 12 : 24 }, (_, index) => hour12 ? index + 1 : index),
     (value) => hour12 ? String(value) : String(value).padStart(2, "0"), onInput);
-  const minutes = createWheel("Minute", Array.from({ length: 60 }, (_, index) => index),
+  const minutes = createWheel(ui("Minute"), Array.from({ length: 60 }, (_, index) => index),
     (value) => String(value).padStart(2, "0"), onInput);
-  const period = createWheel("AM or PM", [0, 1], (value) => value ? "PM" : "AM", onInput);
-  const el = h("div", { class: `time-picker${hour12 ? " time-picker--12h" : ""}`, "aria-label": "Wake time" },
+  const period = createWheel(ui("AM or PM"), [0, 1], (value) => value ? "PM" : "AM", onInput);
+  const el = h("div", { class: `time-picker${hour12 ? " time-picker--12h" : ""}`, "aria-label": ui("Wake time") },
     h("div", { class: "time-picker__selection", "aria-hidden": "true" }),
     hours.el, h("span", { class: "time-picker__colon", "aria-hidden": "true" }, ":"), minutes.el,
     hour12 ? period.el : null);

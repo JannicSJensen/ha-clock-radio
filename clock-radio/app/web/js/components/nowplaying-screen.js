@@ -1,3 +1,4 @@
+import { ui } from "../lib/ui-language.js";
 import { pictureUrl } from "../core/api.js";
 import { extractPalette } from "../lib/palette.js";
 import { h } from "../core/h.js";
@@ -67,13 +68,13 @@ export function createNowPlayingScreen(ctx, { enabled = () => true } = {}) {
   const progress = h("div", { class: "npscreen__progress" }, seekBar.el, h("div", { class: "npscreen__times" }, elapsed, remaining));
 
   const shuffleIcon = icon("shuffle-variant");
-  const shuffle = h("button", { class: "npscreen__btn", type: "button", "aria-label": "Shuffle" }, shuffleIcon);
-  const prev = h("button", { class: "npscreen__btn", type: "button", "aria-label": "Previous" }, icon("skip-previous"));
+  const shuffle = h("button", { class: "npscreen__btn", type: "button", "aria-label": ui("Shuffle") }, shuffleIcon);
+  const prev = h("button", { class: "npscreen__btn", type: "button", "aria-label": ui("Previous") }, icon("skip-previous"));
   const playIcon = icon("play");
-  const play = h("button", { class: "npscreen__play", type: "button", "aria-label": "Play/Pause" }, playIcon);
-  const next = h("button", { class: "npscreen__btn", type: "button", "aria-label": "Next" }, icon("skip-next"));
+  const play = h("button", { class: "npscreen__play", type: "button", "aria-label": ui("Play/Pause") }, playIcon);
+  const next = h("button", { class: "npscreen__btn", type: "button", "aria-label": ui("Next") }, icon("skip-next"));
   const repeatIcon = icon("repeat");
-  const repeat = h("button", { class: "npscreen__btn", type: "button", "aria-label": "Repeat" }, repeatIcon);
+  const repeat = h("button", { class: "npscreen__btn", type: "button", "aria-label": ui("Repeat") }, repeatIcon);
   const controls = h("div", { class: "npscreen__controls" }, shuffle, prev, play, next, repeat);
 
   const volIcon = icon("volume-medium");

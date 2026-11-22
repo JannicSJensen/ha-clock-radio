@@ -1,3 +1,4 @@
+import { ui } from "../lib/ui-language.js";
 import { h } from "../core/h.js";
 import { icon } from "../core/icons.js";
 import { findActiveStation, initials } from "../lib/radio.js";
@@ -52,7 +53,7 @@ export function createRadioView({ model, ctx, panel }) {
   );
 
   async function playStation(station) {
-    if (!ctx.canControl()) return ctx.toast("Playback is disabled in read-only or disconnected mode.");
+    if (!ctx.canControl()) return ctx.toast(ui("Playback is disabled in read-only or disconnected mode."));
     const target = panel.target();
     if (!target) return ctx.toast(t("choose_speaker"));
     clearTimeout(pending?.timer);

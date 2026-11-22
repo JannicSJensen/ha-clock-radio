@@ -1,5 +1,6 @@
 import { clockRendererOptions, parseClockOptions } from "../lib/clock-options.js";
 import { ALARM_SOUNDS } from "../lib/alarm-sounds.js";
+import { ui, uiFormat } from "../lib/ui-language.js";
 
 const KEY = "clock-radio.snapshot";
 const DAYS = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"];
@@ -131,7 +132,7 @@ export class SnapshotStore {
       version: data.version, demo: data.demo, read_only: true, connected: false,
       updated_at: data.saved_at, offline_snapshot: true, connection_error: message,
       config_error: null, missing_players: [], players: [], config, clock_entities: [],
-      night_override: { value: night, available: false, error: "Offline: last synchronized value." },
+      night_override: { value: night, available: false, error: ui("Offline: last synchronized value.") },
       clock: {
         ...appearance,
         night: night === "Day" ? "off" : night === "Night" ? "always" : appearance.night,
@@ -158,7 +159,7 @@ export class SnapshotStore {
       music: {
         title: "Music overview", players: [], default_player: config.default_player,
         stations: [], tabs: ["radio"], library: false, library_missing: "both",
-        error: "Offline. Reconnect for music information and controls.",
+        error: ui("Offline. Reconnect for music information and controls."),
       },
     };
   }
@@ -168,18 +169,18 @@ export function offlineStatus(model) {
   const native = model.alarms.backend === "kiosk_satellite";
   if (model.connected && (!native || model.alarms.connected)) return "";
   const saved = Date.parse(native ? model.alarms.updated_at : model.updated_at);
-  const last = Number.isFinite(saved) ? ` Last synchronized: ${new Intl.DateTimeFormat(model.config.locale, {
+  const last = Number.isFinite(saved) ? uiFormat(" Last synchronized: {time}.", { time: new Intl.DateTimeFormat(model.config.clock.app_language || model.config.locale, {
     dateStyle: "short", timeStyle: "medium", timeZone: model.clock.timeZone || undefined,
-  }).format(saved)}.` : " No confirmed alarm snapshot is available.";
+  }).format(saved) }) : ui(" No confirmed alarm snapshot is available.");
   if (native) {
-    const ha = model.connected ? "" : "Home Assistant is offline. ";
+    const ha = model.connected ? "" : ui("Home Assistant is offline. ");
     return ha + (model.alarms.connected
-      ? `Kiosk alarms are connected${model.read_only ? " (read-only)" : " and editable"}.`
-      : `Kiosk is offline. Saved native schedules are read-only.${last} Native execution cannot be confirmed from this dashboard.`);
+      ? ui(model.read_only ? "Kiosk alarms are connected (read-only)." : "Kiosk alarms are connected and editable.")
+      : uiFormat("Kiosk is offline. Saved native schedules are read-only.{last} Native execution cannot be confirmed from this dashboard.", { last }));
   }
   const controls = [model.kiosk_update?.connected ? "update" : null, model.kiosk_dimming?.connected ? "proximity dimming" : null].filter(Boolean);
   if (controls.length && !model.offline_snapshot) {
-    return `Home Assistant is offline. HA controls are read-only.${last} HA alarm execution cannot be confirmed. KS ${controls.join(" and ")} controls are connected${model.read_only ? " (read-only)" : ""}.`;
+    return uiFormat("Home Assistant is offline. HA controls are read-only.{last} HA alarm execution cannot be confirmed. KS {controls} controls are connected{readonly}.", { last, controls: controls.map(ui).join(ui(" and ")), readonly: model.read_only ? ui(" (read-only)") : "" });
   }
-  return `Offline - ${model.offline_snapshot ? "showing saved schedules" : "showing last received data"}. Read-only.${last} HA alarm execution cannot be confirmed.`;
+  return uiFormat("Offline - {data}. Read-only.{last} HA alarm execution cannot be confirmed.", { data: ui(model.offline_snapshot ? "showing saved schedules" : "showing last received data"), last });
 }

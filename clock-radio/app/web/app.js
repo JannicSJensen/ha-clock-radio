@@ -3,6 +3,7 @@ import { onSwipe } from "./js/core/swipe.js";
 import { navigationKey } from "./js/core/navigation.js";
 import { getPref, setPref } from "./js/core/prefs.js";
 import { makeTranslator } from "./js/lib/i18n.js";
+import { setUiLanguage, ui, uiFormat } from "./js/lib/ui-language.js";
 import { createMusicPage } from "./js/pages/music.js";
 import { clockPlayerId, createPlayerPanel } from "./js/components/player.js";
 import { createNowPlayingScreen } from "./js/components/nowplaying-screen.js";
@@ -30,6 +31,7 @@ const pageDots = pageIds.map(() => {
 });
 $("page-indicator").append(...pageDots);
 let model = null;
+let activeLanguage = null;
 let current = "clock";
 let musicPage = null;
 let musicSignature = "";
@@ -75,13 +77,13 @@ function checkIdleReturn() {
 }
 
 function notice(id, message) {
-  $(id).textContent = message ?? "";
+  $(id).textContent = ui(message ?? "");
   $(id).hidden = !message;
 }
 function toast(message) {
   const el = document.createElement("div");
   el.className = "toast";
-  el.textContent = message;
+  el.textContent = ui(message);
   $("toasts").append(el);
   setTimeout(() => el.remove(), 4500);
 }
@@ -132,14 +134,18 @@ function navigate() {
   }
   $(`page-${current}`).tabIndex = -1;
   $(`page-${current}`).focus({ preventScroll: true });
-  const position = `Page ${pageIds.indexOf(current) + 1} of ${pageIds.length}: ${PAGES[current]}`;
-  $("page-indicator").setAttribute("aria-label", position);
-  $("page-position").textContent = `${position}. Swipe left/right or use Left/Right arrows or Page Up/Down to change pages.`;
+  updatePosition();
   document.body.classList.toggle("on-clock", current === "clock");
   if (current !== "clock") document.body.classList.remove("is-night");
   frame.contentWindow?.postMessage({ type: "clock-radio-visibility", visible: current === "clock" }, location.origin);
   if (current === "music") renderMusic();
   checkIdleReturn();
+}
+
+function updatePosition() {
+  const position = uiFormat("Page {current} of {total}: {page}", { current: pageIds.indexOf(current) + 1, total: pageIds.length, page: ui(PAGES[current]) });
+  $("page-indicator").setAttribute("aria-label", position);
+  $("page-position").textContent = `${position}. ${ui("Swipe left/right or use Left/Right arrows or Page Up/Down to change pages.")}`;
 }
 
 function changePage(step) {
@@ -150,9 +156,9 @@ function changePage(step) {
 
 function changeClockView(panel, step) {
   if (!model || alarmScreen?.isOpen || current !== "clock" || !["face", "widget"].includes(panel)) return;
-  if (model.alarms.snoozed) return toast("Clock panels return to normal when snooze ends.");
+  if (model.alarms.snoozed) return toast(ui("Clock panels return to normal when snooze ends."));
   if (panel === "widget" && clockPlayerId(model)) return;
-  if (pending) return toast("Please wait for the current save to finish.");
+  if (pending) return toast(ui("Please wait for the current save to finish."));
   const views = panel === "face" ? ["analog", "analog-round", "digital"] : ["calendar", "weather", "date", "date-calendar"];
   const value = views[(Math.max(0, views.indexOf(model.config.clock[panel])) + step + views.length) % views.length];
   write("api/settings/clock", { ...model.config.clock, [panel]: value });
@@ -160,6 +166,7 @@ function changeClockView(panel, step) {
 
 function clockOptions() {
   const options = { ...model.clock };
+  options.uiLanguage = activeLanguage || "en";
   delete options.error;
   delete options.night_error;
   const alarm = model.alarms.active ? null : model.alarms.snoozed;
@@ -178,10 +185,10 @@ function clockOptions() {
   options.snooze = {
     alarm, stopping: snoozeStopping, error: snoozeError, busy: pending > 0,
     canStop: canControlAlarms() && model.alarms.can_stop && !model.alarms.active_error,
-    status: model.alarms.backend === "kiosk_satellite" ? kioskAlarmUi.error
-      : !model.connected ? "Disconnected. Reconnect to cancel snooze."
-      : model.read_only ? "Read-only. Use Home Assistant to cancel snooze."
-      : model.alarms.active_error || (!model.alarms.can_stop ? "The HA alarm stop script is unavailable." : ""),
+    status: model.alarms.backend === "kiosk_satellite" ? ui(kioskAlarmUi.error)
+      : !model.connected ? ui("Disconnected. Reconnect to cancel snooze.")
+      : model.read_only ? ui("Read-only. Use Home Assistant to cancel snooze.")
+      : model.alarms.active_error || (!model.alarms.can_stop ? ui("The HA alarm stop script is unavailable.") : ""),
   };
   return options;
 }
@@ -224,12 +231,12 @@ function renderClockPlayer(options) {
 async function stopSnooze(target) {
   const alarm = model?.alarms.snoozed;
   if (!alarm || model.alarms.active || snoozeKey(target) !== snoozeKey(alarm) || Date.parse(alarm.until) <= Date.now()) {
-    toast("This snooze has ended or changed. Waiting for its current state.");
+    toast(ui("This snooze has ended or changed. Waiting for its current state."));
     await poll();
     return;
   }
   if (snoozeStopping || pending || !canControlAlarms() || !model.alarms.can_stop || model.alarms.active_error) {
-    toast("Snooze cannot be stopped right now. Check the connection, permissions and HA alarm helpers.");
+    toast(ui("Snooze cannot be stopped right now. Check the connection, permissions and HA alarm helpers."));
     return;
   }
   const key = snoozeKey(alarm);
@@ -246,12 +253,12 @@ async function stopSnooze(target) {
   if (snoozeKey(model.alarms.snoozed) !== key || model.alarms.active) return;
   if (!ok) {
     snoozeStopping = false;
-    snoozeError = ctx.writeError() || "Snooze was not cancelled. Please try again.";
+    snoozeError = ctx.writeError() || ui("Snooze was not cancelled. Please try again.");
   } else {
     snoozeConfirmation = setTimeout(() => {
       if (currentSnoozeKey !== key) return;
       snoozeStopping = false;
-      snoozeError = "Home Assistant has not confirmed cancellation. Check HA and try again.";
+      snoozeError = ui("Home Assistant has not confirmed cancellation. Check HA and try again.");
       renderClock();
     }, 15000);
   }
@@ -273,10 +280,26 @@ function renderMusic() {
 function render() {
   if (!model) return;
   model = kioskAlarmUi.apply(model);
+  const desiredLanguage = (model.config.clock.app_language || model.config.locale).toLowerCase().split("-")[0] === "da" ? "da" : "en";
+  if (activeLanguage === null) {
+    activeLanguage = desiredLanguage;
+    setUiLanguage(activeLanguage);
+    ctx.t = makeTranslator(activeLanguage);
+    document.documentElement.lang = activeLanguage;
+    for (const [page, label] of Object.entries(PAGES)) $(`page-${page}`).setAttribute("aria-label", ui(label));
+    frame.title = ui("Nightstand clock");
+    $("fullscreen").setAttribute("aria-label", ui("Toggle full screen"));
+    $("fullscreen").textContent = ui(document.fullscreenElement ? "Exit full screen" : "Full screen");
+    $("demo-notice").textContent = ui("DEMO · Fictional speakers, music and alarms. Sound previews play on this device only.");
+    $("read-only").textContent = ui("Read-only dashboard. Playback and settings changes are disabled.");
+    $("language-change-text").textContent = ui("App language changed. Reload to apply it after saving any unsaved changes.");
+    $("language-reload").textContent = ui("Reload app");
+    updatePosition();
+  }
+  $("language-change").hidden = desiredLanguage === activeLanguage;
   document.title = model.config.title;
-  document.documentElement.lang = model.config.locale;
   $("version").textContent = `v${model.version}`;
-  $("connection").textContent = model.connected ? model.demo ? "Demo connected" : "Connected" : "Disconnected";
+  $("connection").textContent = ui(model.connected ? model.demo ? "Demo connected" : "Connected" : "Disconnected");
   $("connection").classList.toggle("online", model.connected);
   $("initial-loading").hidden = true;
   $("demo-notice").hidden = !model.demo;
@@ -285,14 +308,13 @@ function render() {
   notice("snapshot-error", snapshots.error);
   const native = model.alarms.backend === "kiosk_satellite";
   notice("alarm-backend", native ? [
-    model.alarms.connected ? "" : `Kiosk alarms: ${model.alarms.error || "offline"}.`,
-    kioskAlarmUi.message,
+    model.alarms.connected ? "" : uiFormat("Kiosk alarms: {error}.", { error: model.alarms.error || ui("offline") }),
+    ui(kioskAlarmUi.message),
   ].filter(Boolean).join(" ") : "");
   notice("config-error", model.config_error);
   notice("clock-error", [model.clock.error, model.clock.night_error, model.alarms.active_error].filter(Boolean).join(" "));
-  notice("missing-players", model.missing_players.length ? `Missing configured speakers: ${model.missing_players.join(", ")}` : "");
+  notice("missing-players", model.missing_players.length ? uiFormat("Missing configured speakers: {players}", { players: model.missing_players.join(", ") }) : "");
   $("read-only").hidden = !model.read_only || Boolean(model.offline_snapshot);
-  ctx.t = makeTranslator(model.config.locale);
   renderClock();
   renderMusic();
   if (!settingsPages) {
@@ -322,7 +344,7 @@ function render() {
   checkIdleReturn();
   policy();
   if (!getPref("keyboard-navigation-hint")) {
-    toast("Pages: swipe left/right, Left/Right arrows or Page Up/Down. Clock panels: swipe up/down, or Tab/click a panel and use Up/Down arrows. Tap Music tabs to switch categories.");
+    toast(ui("Pages: swipe left/right, Left/Right arrows or Page Up/Down. Clock panels: swipe up/down, or Tab/click a panel and use Up/Down arrows. Tap Music tabs to switch categories."));
     setPref("keyboard-navigation-hint", true);
   }
 }
@@ -351,17 +373,17 @@ async function poll() {
       render();
     } catch (error) {
       console.warn(error.message);
-      model = snapshots.restore(`Dashboard connection lost: ${error.message}`) ?? model;
+      model = snapshots.restore(uiFormat("Dashboard connection lost: {error}", { error: error.message })) ?? model;
       if (model) {
         model.connected = false;
-        model.connection_error = `Dashboard connection lost: ${error.message}`;
+        model.connection_error = uiFormat("Dashboard connection lost: {error}", { error: error.message });
         render();
       } else {
-        notice("connection-error", `Cannot reach the dashboard: ${error.message}`);
-        notice("offline-status", "Offline. No saved snapshot is available. Reconnect to load clock settings and alarms.");
+        notice("connection-error", uiFormat("Cannot reach the dashboard: {error}", { error: error.message }));
+        notice("offline-status", ui("Offline. No saved snapshot is available. Reconnect to load clock settings and alarms."));
         notice("snapshot-error", snapshots.error);
-        $("initial-loading").textContent = "Cannot connect. No saved snapshot is available.";
-        $("connection").textContent = "Disconnected";
+        $("initial-loading").textContent = ui("Cannot connect. No saved snapshot is available.");
+        $("connection").textContent = ui("Disconnected");
       }
     }
   })().finally(() => { polling = null; });
@@ -370,7 +392,7 @@ async function poll() {
 
 async function write(url, data) {
   const alarmWrite = /^api\/(?:alarm\/|settings\/alarm(?:$|-playback$))/.test(url);
-  if (!(url === "api/kiosk/dimming/save" ? canControlKioskDimming() : url === "api/kiosk/update/install" ? canControlKiosk() : alarmWrite ? canControlAlarms() : canControl())) { toast("The requested backend is read-only or disconnected."); return false; }
+  if (!(url === "api/kiosk/dimming/save" ? canControlKioskDimming() : url === "api/kiosk/update/install" ? canControlKiosk() : alarmWrite ? canControlAlarms() : canControl())) { toast(ui("The requested backend is read-only or disconnected.")); return false; }
   pending++;
   checkIdleReturn();
   notice("command-error", "");
@@ -451,13 +473,14 @@ addEventListener("keydown", (event) => {
   }
 });
 $("fullscreen").hidden = !document.fullscreenEnabled;
+$("language-reload").addEventListener("click", () => location.reload());
 $("fullscreen").addEventListener("click", async () => {
   try {
     if (document.fullscreenElement) await document.exitFullscreen();
     else await document.documentElement.requestFullscreen();
-  } catch (error) { toast(`Cannot enter full screen: ${error.message}`); }
+  } catch (error) { toast(uiFormat("Cannot enter full screen: {error}", { error: error.message })); }
 });
-addEventListener("fullscreenchange", () => { $("fullscreen").textContent = document.fullscreenElement ? "Exit full screen" : "Full screen"; });
+addEventListener("fullscreenchange", () => { $("fullscreen").textContent = ui(document.fullscreenElement ? "Exit full screen" : "Full screen"); });
 navigate();
 model = snapshots.restore("Checking the connection to Home Assistant.");
 if (model) render();

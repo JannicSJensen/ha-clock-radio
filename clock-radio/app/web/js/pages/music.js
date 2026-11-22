@@ -1,3 +1,4 @@
+import { ui } from "../lib/ui-language.js";
 import { h } from "../core/h.js";
 import { icon } from "../core/icons.js";
 import { getPref, setPref } from "../core/prefs.js";
@@ -45,7 +46,7 @@ export function createMusicPage(model, ctx) {
       content.scrollTop = top.scrollTop;
     },
     async play(item, el, { container = null } = {}) {
-      if (!ctx.canControl()) return ctx.toast("Playback is disabled in read-only or disconnected mode.");
+      if (!ctx.canControl()) return ctx.toast(ui("Playback is disabled in read-only or disconnected mode."));
       const target = panel.target();
       if (!target) return ctx.toast(t("choose_speaker"));
       el?.classList.add("is-loading");
@@ -55,7 +56,7 @@ export function createMusicPage(model, ctx) {
       if (!ok) panel.clearPending();
     },
     async queue(item) {
-      if (!ctx.canControl()) return ctx.toast("Playback is disabled in read-only or disconnected mode.");
+      if (!ctx.canControl()) return ctx.toast(ui("Playback is disabled in read-only or disconnected mode."));
       const target = panel.target();
       if (!target) return ctx.toast(t("choose_speaker"));
       if (await ctx.playMusic(target, playRequest(item, { enqueue: "add" }))) ctx.toast(t("added_to_queue"));

@@ -10,7 +10,7 @@ export const CLOCK_CHOICES = {
 };
 export const CLOCK_DEFAULTS = {
   layout: "widget", face: "analog", full_face: "analog", widget: "calendar",
-  seconds: true, second_hand: "30", time_format: "24-hour", language: "",
+  seconds: true, second_hand: "30", time_format: "24-hour", language: "", app_language: "",
   week_start: "automatic", primary: "#ffffff", accent: "#ff3b30",
   seconds_color: "#ff9f0a", background: "#000000", weather_entity: "",
   weather_name: "", next_alarm_entity: "", night_mode: "off", night_start: 22,
@@ -22,7 +22,7 @@ export function clockRendererOptions(settings, timeZone) {
   return {
     layout: settings.layout, clock: settings.layout === "full" ? settings.full_face : settings.face,
     widget: settings.widget, seconds: settings.seconds, secondHand: settings.second_hand,
-    timeFormat: settings.time_format, locale: settings.language,
+    timeFormat: settings.time_format, locale: settings.app_language || settings.language,
     timeZone, weekStart: settings.week_start, primary: settings.primary,
     accent: settings.accent, secondsColor: settings.seconds_color, background: settings.background,
     night: ["entity", "illuminance", "sun"].includes(settings.night_mode) ? "entity" : settings.night_mode,
@@ -40,6 +40,7 @@ export function parseClockOptions(raw = {}, defaults = CLOCK_DEFAULTS) {
   for (const [key, choices] of Object.entries(CLOCK_CHOICES)) {
     if (!choices.includes(result[key])) throw new Error(`clock.${key}: choose ${choices.join(", ")}.`);
   }
+  if (!["", "en", "da"].includes(result.app_language)) throw new Error("clock.app_language: choose automatic, en or da.");
   if (typeof result.seconds !== "boolean") throw new Error("clock.seconds must be a boolean.");
   for (const key of ["primary", "accent", "seconds_color", "background", "night_color"]) {
     if (typeof result[key] !== "string" || !/^#[a-f0-9]{6}$/i.test(result[key])) throw new Error(`clock.${key} must be a six-digit hex color.`);

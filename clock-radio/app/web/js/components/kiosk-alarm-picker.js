@@ -1,9 +1,10 @@
+import { ui, uiFormat } from "../lib/ui-language.js";
 import { h } from "../core/h.js";
 import { getJson } from "../core/api.js";
 
 const MUSIC_SOURCE = "ma";
 const MUSIC_SPEAKER = "show-01";
-const label = (value) => value.replace(/[_-]/g, " ").replace(/^\w/, (letter) => letter.toUpperCase());
+const label = (value) => ui(value.replace(/[_-]/g, " ").replace(/^\w/, (letter) => letter.toUpperCase()));
 const row = (name, control) => h("div", { class: "alarm-editor__row" }, h("span", null, name), control);
 
 function fixedMusicSpeaker(data) {
@@ -47,26 +48,26 @@ export function createKioskAlarmPicker({ onChange }) {
   let trail = [];
   let items = [];
   let nextOffset = 0;
-  const category = h("select", { "aria-label": "Alarm music category" });
+  const category = h("select", { "aria-label": ui("Alarm music category") });
   const summary = h("p", { class: "alarm-editor__hint" });
   const musicStatus = h("p", { class: "alarm-editor__hint", role: "status" });
-  const back = h("button", { class: "btn", type: "button", hidden: true }, "Back to music list");
-  const list = h("div", { class: "alarm-stations__list", role: "radiogroup", "aria-label": "Native alarm music" });
-  const more = h("button", { class: "btn", type: "button", hidden: true }, "More music");
-  const retryMusic = h("button", { class: "btn", type: "button" }, "Refresh music choices");
-  const music = h("section", { class: "alarm-stations" }, h("h3", null, "Alarm music"), summary,
-    row("Browse", category), back, musicStatus, list, more, retryMusic);
-  const tone = h("select", { "aria-label": "Native buzzer tone" });
+  const back = h("button", { class: "btn", type: "button", hidden: true }, ui("Back to music list"));
+  const list = h("div", { class: "alarm-stations__list", role: "radiogroup", "aria-label": ui("Native alarm music") });
+  const more = h("button", { class: "btn", type: "button", hidden: true }, ui("More music"));
+  const retryMusic = h("button", { class: "btn", type: "button" }, ui("Refresh music choices"));
+  const music = h("section", { class: "alarm-stations" }, h("h3", null, ui("Alarm music")), summary,
+    row(ui("Browse"), category), back, musicStatus, list, more, retryMusic);
+  const tone = h("select", { "aria-label": ui("Native buzzer tone") });
   const toneStatus = h("p", { class: "alarm-editor__hint", role: "status" });
-  const retryTone = h("button", { class: "btn", type: "button" }, "Refresh tone choices");
+  const retryTone = h("button", { class: "btn", type: "button" }, ui("Refresh tone choices"));
   const toneTitle = h("h3");
-  const tones = h("section", { class: "alarm-stations" }, toneTitle, row("Sound", tone), toneStatus, retryTone);
+  const tones = h("section", { class: "alarm-stations" }, toneTitle, row(ui("Sound"), tone), toneStatus, retryTone);
   const el = h("div", { class: "kiosk-alarm-picker", hidden: true }, music, tones);
 
   function updateControls() {
     music.hidden = type !== "Music";
-    toneTitle.textContent = type === "Music" ? "Fallback buzzer tone" : "Buzzer tone";
-    summary.textContent = `Selected: ${selectedName || "Kiosk Alarm music default"}`;
+    toneTitle.textContent = type === "Music" ? ui("Fallback buzzer tone") : ui("Buzzer tone");
+    summary.textContent = uiFormat("Selected: {name}", { name: selectedName || ui("Kiosk Alarm music default") });
     for (const control of [category, back, more, retryMusic, ...list.querySelectorAll("input, button")]) {
       control.disabled = disabled || musicLoading;
     }
@@ -80,20 +81,20 @@ export function createKioskAlarmPicker({ onChange }) {
     soundRequest?.abort();
     soundRequest = new AbortController();
     soundLoading = true;
-    toneStatus.textContent = "Loading native tones...";
+    toneStatus.textContent = ui("Loading native tones...");
     updateControls();
     try {
       const data = await getJson("api/alarm/sounds", { signal: soundRequest.signal });
       if (generation !== soundGeneration) return;
       const value = tone.value;
       const options = [...data.sounds];
-      if (value && !options.some(({ id }) => id === value)) options.push({ id: value, name: "Saved tone (not in the current catalog)", missing: true });
+      if (value && !options.some(({ id }) => id === value)) options.push({ id: value, name: ui("Saved tone (not in the current catalog)"), missing: true });
       tone.replaceChildren(...options.map(({ id, name, missing }) => h("option", { value: id ?? "", disabled: Boolean(missing) }, name)));
       tone.value = value;
       toneStatus.textContent = "";
     } catch (error) {
       if (generation !== soundGeneration) return;
-      toneStatus.textContent = `Tone choices unavailable: ${error.message} Saved tones are kept unless you choose another.`;
+      toneStatus.textContent = uiFormat("Tone choices unavailable: {error} Saved tones are kept unless you choose another.", { error: error.message });
     } finally {
       if (generation === soundGeneration) { soundLoading = false; updateControls(); }
     }
@@ -115,7 +116,7 @@ export function createKioskAlarmPicker({ onChange }) {
       if (item.playable) entry.append(h("label", null, input, h("span", null, item.name)));
       else entry.append(h("span", null, item.name));
       if (item.expandable) {
-        const open = h("button", { class: "btn", type: "button", "aria-label": `Open ${item.name}` }, "Open");
+        const open = h("button", { class: "btn", type: "button", "aria-label": uiFormat("Open {name}", { name: item.name }) }, ui("Open"));
         open.addEventListener("click", () => {
           trail.push({ id: item.id, name: item.name });
           void loadMusic({ ...query, parent: item.id });
@@ -133,7 +134,7 @@ export function createKioskAlarmPicker({ onChange }) {
     musicRequest = new AbortController();
     musicLoading = true;
     if (!append) { items = []; more.hidden = true; renderItems(); }
-    musicStatus.textContent = "Loading native music choices...";
+    musicStatus.textContent = ui("Loading native music choices...");
     updateControls();
     try {
       const data = await kioskAlarmMusicOptions(params, { signal: musicRequest.signal });
@@ -144,11 +145,11 @@ export function createKioskAlarmPicker({ onChange }) {
       items = append ? [...items, ...data.items] : data.items;
       nextOffset = data.offset;
       more.hidden = !data.more;
-      musicStatus.textContent = `New selections use Music Assistant on ${MUSIC_SPEAKER}. Save applies the choice; nothing plays now.${!items.length ? " No music found in this list." : ""}`;
+      musicStatus.textContent = uiFormat("New selections use Music Assistant on {speaker}. Save applies the choice; nothing plays now.", { speaker: MUSIC_SPEAKER }) + (!items.length ? ui(" No music found in this list.") : "");
       renderItems();
     } catch (error) {
       if (generation !== musicGeneration) return;
-      musicStatus.textContent = `Music choices unavailable: ${error.message} Your saved music is unchanged.`;
+      musicStatus.textContent = uiFormat("Music choices unavailable: {error} Your saved music is unchanged.", { error: error.message });
     } finally {
       if (generation === musicGeneration) { musicLoading = false; updateControls(); }
     }
@@ -186,18 +187,18 @@ export function createKioskAlarmPicker({ onChange }) {
       alarm = value;
       musicDirty = toneDirty = soundStarted = musicStarted = musicLoading = soundLoading = false;
       selected = value.music_station_id ?? null;
-      selectedName = `${value.music_station_name || "Kiosk Alarm music default"}${value.music_speaker_name ? ` · ${value.music_speaker_name}` : ""}`;
+      selectedName = `${value.music_station_name || ui("Kiosk Alarm music default")}${value.music_speaker_name ? ` · ${value.music_speaker_name}` : ""}`;
       items = [];
       trail = [];
       query = {};
       more.hidden = true;
       list.replaceChildren();
       category.replaceChildren();
-      tone.replaceChildren(h("option", { value: "" }, "Use Kiosk tone default"),
-        h("option", { value: "builtin" }, "Kiosk built-in alarm"));
+      tone.replaceChildren(h("option", { value: "" }, ui("Use Kiosk tone default")),
+        h("option", { value: "builtin" }, ui("Kiosk built-in alarm")));
       if (value.buzzer_sound_id && value.buzzer_sound_id !== "builtin") tone.append(h("option", { value: value.buzzer_sound_id }, value.buzzer_sound_name));
       tone.value = value.buzzer_sound_id ?? "";
-      toneStatus.textContent = musicStatus.textContent = "Reconnect to load choices. Saved selections are preserved.";
+      toneStatus.textContent = musicStatus.textContent = ui("Reconnect to load choices. Saved selections are preserved.");
     },
     update(options) {
       disabled = options.disabled;

@@ -1,3 +1,4 @@
+import { ui, uiFormat } from "../lib/ui-language.js";
 import { h } from "../core/h.js";
 import { icon, setIcon } from "../core/icons.js";
 import { pictureUrl } from "../core/api.js";
@@ -24,7 +25,7 @@ export function createAlarmScreen(ctx, { onOpen, onClose }) {
   let busy = false;
   let error = "";
   let artwork = null;
-  const heading = h("h1", { class: "ringing__label", id: "ringing-title", tabindex: "-1" }, icon("alarm"), "Alarm");
+  const heading = h("h1", { class: "ringing__label", id: "ringing-title", tabindex: "-1" }, icon("alarm"), ui("Alarm"));
   const time = h("span", { class: "ringing__time" });
   const period = h("span", { class: "ringing__period" });
   const context = h("p", { class: "ringing__context" });
@@ -32,18 +33,18 @@ export function createAlarmScreen(ctx, { onOpen, onClose }) {
   const title = h("div", { class: "ringing-player__title" });
   const subtitle = h("div", { class: "ringing-player__subtitle" });
   const playIcon = icon("pause");
-  const previous = h("button", { type: "button", "aria-label": "Previous track" }, icon("skip-previous"));
-  const play = h("button", { type: "button", "aria-label": "Pause alarm music" }, playIcon);
-  const next = h("button", { type: "button", "aria-label": "Next track" }, icon("skip-next"));
-  const progress = h("progress", { max: "100", value: "0", "aria-label": "Alarm music playback position" });
+  const previous = h("button", { type: "button", "aria-label": ui("Previous track") }, icon("skip-previous"));
+  const play = h("button", { type: "button", "aria-label": ui("Pause alarm music") }, playIcon);
+  const next = h("button", { type: "button", "aria-label": ui("Next track") }, icon("skip-next"));
+  const progress = h("progress", { max: "100", value: "0", "aria-label": ui("Alarm music playback position") });
   const elapsed = h("span", { class: "ringing-player__elapsed" });
-  const volume = h("input", { type: "range", min: "0", max: "100", step: "1", "aria-label": "Alarm music volume" });
-  const miniPlayer = h("section", { class: "ringing-player", "aria-label": "Alarm music player" },
+  const volume = h("input", { type: "range", min: "0", max: "100", step: "1", "aria-label": ui("Alarm music volume") });
+  const miniPlayer = h("section", { class: "ringing-player", "aria-label": ui("Alarm music player") },
     h("div", { class: "ringing-player__media" }, art, h("div", { class: "ringing-player__text" }, title, subtitle)),
     h("div", { class: "ringing-player__progress" }, progress, elapsed),
     h("div", { class: "ringing-player__controls" }, previous, play, next),
     h("label", { class: "ringing-player__volume" }, icon("volume-high"), volume));
-  const snooze = h("button", { class: "ringing__snooze", type: "button" }, "Snooze");
+  const snooze = h("button", { class: "ringing__snooze", type: "button" }, ui("Snooze"));
   const snoozeHint = h("p", { class: "ringing__hint" });
   const status = h("p", { class: "ringing__status", role: "status", "aria-live": "polite" });
   const slide = createSlideToStop(() => mutate("stop"));
@@ -76,11 +77,11 @@ export function createAlarmScreen(ctx, { onOpen, onClose }) {
       : ctx.call("media_player", kind, active.player, data));
     if (alarmKey(active) !== key || !el.open) return;
     if (!ok) {
-      error = ctx.writeError() || "The alarm command failed. Please try again.";
+      error = ctx.writeError() || ui("The alarm command failed. Please try again.");
       clearAction();
     } else if (["stop", "snooze"].includes(kind)) {
       confirmation = setTimeout(() => {
-        error = "Home Assistant has not confirmed the alarm ended. Check the HA scripts and try again.";
+        error = ui("Home Assistant has not confirmed the alarm ended. Check the HA scripts and try again.");
         clearAction();
         paint();
       }, 15000);
@@ -117,17 +118,17 @@ export function createAlarmScreen(ctx, { onOpen, onClose }) {
     const supports = (flag) => Boolean((player?.supported_features ?? 0) & flag);
     const unavailable = !player || ["unavailable", "unknown"].includes(player.state);
     miniPlayer.hidden = native || active.type !== "Music";
-    heading.lastChild.textContent = active.label || "Alarm";
-    context.textContent = [active.type + " alarm", ...(native ? [active.station, active.speaker] : [])].filter(Boolean).join(" · ");
+    heading.lastChild.textContent = active.label || ui("Alarm");
+    context.textContent = [uiFormat("{type} alarm", { type: ui(active.type) }), ...(native ? [active.station, active.speaker] : [])].filter(Boolean).join(" · ");
     const media = describeMedia(attrs, ctx.stations());
-    title.textContent = media.title || "Alarm music";
-    subtitle.textContent = unavailable ? "Speaker unavailable" : [media.subtitle, player.name, player.state === "paused" ? "Paused" : ""].filter(Boolean).join(" · ");
+    title.textContent = media.title || ui("Alarm music");
+    subtitle.textContent = unavailable ? ui("Speaker unavailable") : [media.subtitle, player.name, player.state === "paused" ? ui("Paused") : ""].filter(Boolean).join(" · ");
     const picture = pictureUrl(attrs.entity_picture);
     if (picture !== artwork) {
       artwork = picture;
       art.replaceChildren(picture ? h("img", { src: picture, alt: "" }) : icon("music"));
     }
-    play.setAttribute("aria-label", player?.state === "paused" ? "Play alarm music" : "Pause alarm music");
+    play.setAttribute("aria-label", player?.state === "paused" ? ui("Play alarm music") : ui("Pause alarm music"));
     setIcon(playIcon, player?.state === "paused" ? "play" : "pause");
     previous.disabled = locked || unavailable || !supports(16);
     next.disabled = locked || unavailable || !supports(32);
@@ -135,19 +136,19 @@ export function createAlarmScreen(ctx, { onOpen, onClose }) {
     volume.disabled = locked || unavailable || !supports(4) || !Number.isFinite(player?.volume_level);
     if (document.activeElement !== volume && Number.isFinite(player?.volume_level)) volume.value = String(Math.round(player.volume_level * 100));
     snooze.disabled = locked || !model.alarms.can_snooze;
-    snoozeHint.textContent = model.alarms.can_snooze ? `Ring again in ${native ? active.snooze_minutes : 10} minutes`
-      : Number(model.alarms.scheduler_version) >= 6 ? "Snooze is unavailable. Check the HA alarm scripts and helpers."
-      : "Update the HA alarm package to scheduler version 6 for reliable Snooze.";
+    snoozeHint.textContent = model.alarms.can_snooze ? uiFormat("Ring again in {minutes} minutes", { minutes: native ? active.snooze_minutes : 10 })
+      : Number(model.alarms.scheduler_version) >= 6 ? ui("Snooze is unavailable. Check the HA alarm scripts and helpers.")
+      : ui("Update the HA alarm package to scheduler version 6 for reliable Snooze.");
     slide.setDisabled(locked || !model.alarms.can_stop);
     const policyMessage = native ? ""
-      : !model.connected ? "Disconnected. Reconnect to stop or snooze the alarm."
-      : model.read_only ? "Read-only. Use Home Assistant to stop or snooze the alarm."
+      : !model.connected ? ui("Disconnected. Reconnect to stop or snooze the alarm.")
+      : model.read_only ? ui("Read-only. Use Home Assistant to stop or snooze the alarm.")
       : "";
     const backend = native ? "Kiosk Satellite" : "Home Assistant";
-    status.textContent = [error, policyMessage].filter(Boolean).join(" ") || (action === "stop" ? `Waiting for ${backend} to stop the alarm...`
-      : action === "snooze" ? `Waiting for ${backend} to snooze the alarm...`
-      : action ? "Updating music..."
-      : !model.alarms.can_stop ? "The HA alarm stop script is unavailable." : "");
+    status.textContent = [error, policyMessage].filter(Boolean).join(" ") || (action === "stop" ? uiFormat("Waiting for {backend} to stop the alarm...", { backend })
+      : action === "snooze" ? uiFormat("Waiting for {backend} to snooze the alarm...", { backend })
+      : action ? ui("Updating music...")
+      : !model.alarms.can_stop ? ui("The HA alarm stop script is unavailable.") : "");
     paintClock();
   }
   function update(model, pending) {

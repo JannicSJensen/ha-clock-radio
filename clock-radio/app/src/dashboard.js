@@ -4,7 +4,7 @@ import { ClockData, NIGHT_OVERRIDE_ENTITY } from "./clock-data.js";
 import { alarmEntities, alarmSnapshot, canCreateAlarm, deleteAlarm, provisionAlarm, saveAlarm, validateAlarm, validateDeleteAlarm, validatePlaybackSettings } from "./alarms.js";
 import { availableTabs } from "./music.js";
 import { fetchImage } from "./images.js";
-import { parseClockOptions } from "../web/js/lib/clock-options.js";
+import { CLOCK_DEFAULTS, parseClockOptions } from "../web/js/lib/clock-options.js";
 import { ALARM_SOUNDS, alarmSoundId } from "../web/js/lib/alarm-sounds.js";
 export { RequestError } from "./errors.js";
 
@@ -229,7 +229,7 @@ export class Dashboard {
   async saveClock(body) {
     await this.mutationReady();
     try {
-      const clock = parseClockOptions(body);
+      const clock = parseClockOptions(body, { ...CLOCK_DEFAULTS, app_language: this.configStore.current.clock.app_language });
       if (body.weather_entity !== undefined && clock.weather_entity !== this.weatherEntity) {
         throw new RequestError("Configure weather_entity in the Home Assistant app configuration and restart the app.");
       }

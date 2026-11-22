@@ -5,6 +5,7 @@ import { parseConfig } from "../src/config.js";
 import { demoStates } from "../dev/fixtures.js";
 import { SnapshotStore, offlineStatus } from "../web/js/core/snapshot.js";
 import { canEditAlarm } from "../web/js/pages/alarms.js";
+import { setUiLanguage } from "../web/js/lib/ui-language.js";
 
 function storage() {
   const values = new Map();
@@ -50,6 +51,27 @@ test("a real dashboard snapshot survives reload as a complete, read-only model",
   assert.equal(offlineStatus(live), "");
   restored.config.clock.face = "analog";
   assert.equal(cache.restore("").config.clock.face, "digital", "Views cannot mutate the stored definition");
+});
+
+test("offline snapshots preserve shared language and accept legacy snapshots", async () => {
+  const live = await payload();
+  live.config.clock.app_language = "da";
+  const { cache, disk } = store();
+  cache.save(live);
+  const restored = store(disk).cache.restore("");
+  assert.equal(restored.config.clock.app_language, "da");
+  assert.equal(restored.clock.locale, "da");
+  try {
+    setUiLanguage("da");
+    assert.match(offlineStatus(restored), /Offline.*gemte tidsplaner.*Skrivebeskyttet.*Senest synkroniseret/);
+  } finally {
+    setUiLanguage("en");
+  }
+  const [key, value] = [...disk.values.entries()][0];
+  const old = JSON.parse(value);
+  delete old.config.clock.app_language;
+  disk.values.set(key, JSON.stringify(old));
+  assert.equal(store(disk).cache.restore("").config.clock.app_language, "");
 });
 
 test("only definitions are persisted; credentials, URLs, live timers and capabilities never return", async () => {

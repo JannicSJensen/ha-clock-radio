@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.30.0
+
+- Add a shared English/Danish app-language setting, with localized clock,
+  alarms, controls, settings, offline status and accessibility labels.
+- Preserve the selected language across restarts, legacy clock saves and
+  offline snapshots; notify other devices to reload without discarding drafts.
+
 ## 0.29.0
 
 - Show and cancel a snooze started in the native Kiosk Satellite alarm UI on
