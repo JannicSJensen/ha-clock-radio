@@ -1,4 +1,5 @@
 import { createSnoozePanel } from "../js/components/snooze-panel.js";
+import { weatherHeading, weatherTemperatureSize } from "./weather-layout.js";
 
 (function () {
   'use strict';
@@ -580,16 +581,16 @@ import { createSnoozePanel } from "../js/components/snooze-panel.js";
         return;
       }
       var place = typeof options.weatherPlace === 'string' ? options.weatherPlace : '';
-      if (place.length > 20) place = place.slice(0, 19) + '…';
-      text(root, 6, 20, place, 17, 600, 'fill', 'start');
+      var heading = text(root, 6, 20, weatherHeading(now, locale, place), 17, 600, 'fill', 'start');
+      scaleFrom(heading, 6, fitScale(heading, 6, 194));
       var temperature = typeof options.weatherTemperature === 'number' ? degrees(options.weatherTemperature) : '--°';
-      text(root, 0, 86, temperature, 92, 500, 'fill', 'start').setAttribute('letter-spacing', '-4');
+      text(root, 6, 74, temperature, 36, 600, 'fill weather-temperature', 'start');
       var condition = typeof options.weatherCondition === 'string' ? options.weatherCondition : '';
-      if (condition) weatherIcon(root, condition, 6, 134, 26);
-      text(root, 6, 174, conditionName(condition), 17, 700, 'fill', 'start');
+      if (condition) weatherIcon(root, condition, 6, 110, 26);
+      text(root, 6, 156, conditionName(condition), 17, 700, 'fill', 'start');
       // The plugin sends the day its high and low belong to. They go once that day is over.
       if (options.weatherDate === isoDate(now) && typeof options.weatherHigh === 'number' && typeof options.weatherLow === 'number') {
-        text(root, 6, 194, word('high') + Math.round(options.weatherHigh) + '° ' + word('low') + Math.round(options.weatherLow) + '°', 17, 700, 'fill', 'start');
+        text(root, 6, 182, word('high') + Math.round(options.weatherHigh) + '° ' + word('low') + Math.round(options.weatherLow) + '°', 17, 700, 'fill', 'start');
       }
     }
   };
@@ -634,13 +635,32 @@ import { createSnoozePanel } from "../js/components/snooze-panel.js";
       parent.postMessage({ type: 'clock-radio-night', active: dark }, location.origin);
     }
     var day = now.toISOString().slice(0, 10);
+    update(now);
     if (o.layout === 'widget' && o.widget !== 'none' && day !== widgetDay) {
       widgetDay = day;
       widgetPanel.textContent = '';
       widgets[o.widget](widgetPanel, now);
     }
     if (snoozePanel && o.widget === 'snooze') snoozePanel.update(options.snooze);
-    update(now);
+    if (o.layout === 'widget' && o.widget === 'weather') {
+      var clockNumber = clockPanel.querySelector('svg text');
+      var temperature = widgetPanel.querySelector('.weather-temperature');
+      if (clockNumber && temperature) {
+        var clockSize = Number(clockNumber.getAttribute('font-size'));
+        var clockWidth = o.clock === 'analog-round' ? 216 : 200;
+        var size = String(weatherTemperatureSize(clockSize, clockWidth));
+        if (temperature.getAttribute('data-sized') !== size) {
+          temperature.setAttribute('font-size', size);
+          temperature.removeAttribute('textLength');
+          var length = temperature.getComputedTextLength();
+          if (length > 188) {
+            temperature.setAttribute('textLength', 188);
+            temperature.setAttribute('lengthAdjust', 'spacingAndGlyphs');
+          }
+          if (length > 0) temperature.setAttribute('data-sized', size);
+        }
+      }
+    }
     root.setAttribute('aria-label', time(now) + (hour12 ? ' ' + period(now) : '') + ' ' + format(now, { dateStyle: 'full' }));
     keepSweep();
     if (ticking) ticking.style.transform = 'rotate(' + now.getUTCSeconds() * 6 + 'deg)';

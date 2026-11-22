@@ -381,6 +381,8 @@ must be able to reach and decode the URL. The app itself does not fetch streams.
 The renderer is adapted from [nightstand-clock](https://github.com/taclab/nightstand-clock).
 The widget layout offers square analog, round analog and digital faces with
 calendar, weather, date, date/calendar or no widget. Portrait stacks the panels.
+The weather widget shows the place and localized current date together; its
+temperature matches the size of the selected clock face's numerals.
 Full-screen analog extends its dial to the screen edges; full-screen digital
 uses oversized digits with date/weather and the next alarm.
 

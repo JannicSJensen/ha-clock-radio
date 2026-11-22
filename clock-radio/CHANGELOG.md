@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.28.0
+
+- Add the localized date beside the place in the Clock weather widget and size
+  the temperature to match the selected clock face's numerals.
+
 ## 0.27.0
 
 - Show a mini-player beside the Clock while the configured Music speaker is
