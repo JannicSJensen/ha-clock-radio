@@ -23,7 +23,8 @@ timed-out changes are never replayed. This does not run alarms without HA or
 guarantee that a cold browser reload works without the dashboard server.
 
 For native scheduling, select **kiosk_satellite** under **Alarm backend** in the HA app
-configuration and provide the kiosk's Remote Administration URL/API token.
+configuration and provide the kiosk's Remote Administration URL and password
+for automatic token renewal, or a manually renewed API token.
 The existing editor then manages Clock Radio's native alarms. Choose music
 and native buzzer tones in **Clock Radio's alarm editor**. New music
 selections use **Music Assistant > show-01**, without source/speaker controls;

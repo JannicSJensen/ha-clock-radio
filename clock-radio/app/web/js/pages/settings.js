@@ -41,7 +41,7 @@ function setValues(form, values) {
 
 export function kioskUpdateMessage(update, offline = false) {
   if (offline) return ui("Offline. Reconnect to check KS updates or install.");
-  if (!update?.configured) return update?.error || ui("Set the Kiosk Satellite address and Remote API token in the HA app configuration to enable updates with either alarm backend.");
+  if (!update?.configured) return update?.error || ui("Set the Kiosk Satellite address and Remote Administration password or Remote API token in the HA app configuration to enable updates with either alarm backend.");
   if (!update.connected) return update.error || ui("Connecting to the configured KS device.");
   if (update.progress !== null) return uiFormat("Downloading on KS: {progress}%.", { progress: Math.round(update.progress * 100) });
   if (update.installing) return ui("KS is installing the update and may restart.");
@@ -60,7 +60,7 @@ export function kioskUpdateMessage(update, offline = false) {
 
 export function kioskDimmingMessage(dimming, offline = false) {
   if (offline) return ui("Offline. Reconnect to change native KS dimming. Its saved behavior continues on KS.");
-  if (!dimming?.configured) return dimming?.error || ui("Set the KS address and Remote API token in the HA app configuration to use its proximity sensor with either alarm backend.");
+  if (!dimming?.configured) return dimming?.error || ui("Set the KS address and Remote Administration password or Remote API token in the HA app configuration to use its proximity sensor with either alarm backend.");
   if (!dimming.connected) return dimming.error || ui("Connecting to the configured KS device.");
   if (dimming.error) return dimming.error;
   if (dimming.alarm_phase !== "idle") return ui("A native KS alarm, sunrise or snooze is active. Wait before changing dimming.");

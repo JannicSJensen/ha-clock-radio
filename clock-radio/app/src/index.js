@@ -72,7 +72,7 @@ const radio = new RadioLibrary({ ha, music, logger });
 const kiosk = nativeOptions ? new KioskAlarms({ ...nativeOptions, logger }) : null;
 let deviceClient = kiosk;
 let deviceConfigurationError = null;
-if (!deviceClient && (options.kiosk_satellite_url || options.kiosk_satellite_token)) {
+if (!deviceClient && (options.kiosk_satellite_url || options.kiosk_satellite_token || options.kiosk_satellite_password)) {
   try {
     deviceClient = new KioskAlarms({ ...kioskOptions({ ...options, alarm_backend: "kiosk_satellite" }), logger });
   } catch (error) {

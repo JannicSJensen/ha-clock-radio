@@ -42,6 +42,12 @@ test("configuration is opt-in, validates before connecting, and does not embed c
   assert.equal(kioskOptions({ alarm_backend: "home_assistant" }), null);
   const valid = { alarm_backend: "kiosk_satellite", kiosk_satellite_url: "http://192.0.2.1:2324", kiosk_satellite_token: "fictional" };
   assert.deepEqual(kioskOptions(valid), { url: valid.kiosk_satellite_url, token: "fictional" });
+  assert.deepEqual(kioskOptions({ ...valid, kiosk_satellite_token: "", kiosk_satellite_password: " password " }),
+    { url: valid.kiosk_satellite_url, password: " password " });
+  assert.deepEqual(kioskOptions({ ...valid, kiosk_satellite_password: "password" }),
+    { url: valid.kiosk_satellite_url, password: "password" });
+  assert.throws(() => kioskOptions({ ...valid, kiosk_satellite_password: null }), /must be a string/);
+  assert.throws(() => kioskOptions({ ...valid, kiosk_satellite_token: "", kiosk_satellite_password: "" }), /is required/);
   assert.deepEqual(kioskOptions({ ...valid, kiosk_satellite_alarm_ui: "clock" }), { url: valid.kiosk_satellite_url, token: "fictional", alarmUi: "clock" });
   assert.throws(() => kioskOptions({ ...valid, kiosk_satellite_alarm_ui: "automatic" }), /must be native or clock/);
   for (const change of [

@@ -47,6 +47,8 @@ test("Supervisor packaging has persistent config, ingress and non-conflicting ta
   assert.equal(config.options.kiosk_satellite_url, "");
   assert.equal(config.options.kiosk_satellite_token, "");
   assert.equal(config.schema.kiosk_satellite_token, "password?");
+  assert.equal(config.options.kiosk_satellite_password, "");
+  assert.equal(config.schema.kiosk_satellite_password, "password?");
   const translation = YAML.parse(read(path.join(addon, "translations/en.yaml")));
   assert.deepEqual(Object.keys(config.options).sort(), Object.keys(translation.configuration).sort());
   assert.ok(!("image" in config), "Supervisor should build locally");

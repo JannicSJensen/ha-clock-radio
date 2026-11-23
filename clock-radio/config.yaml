@@ -1,5 +1,5 @@
 name: Clock Radio
-version: "0.30.1"
+version: "0.31.0"
 slug: clock_radio
 url: https://github.com/JannicSJensen/ha-clock-radio
 description: Nightstand clock, music overview and Home Assistant alarm settings
@@ -35,6 +35,7 @@ options:
   alarm_backend: home_assistant
   kiosk_satellite_url: ""
   kiosk_satellite_token: ""
+  kiosk_satellite_password: ""
   kiosk_satellite_alarm_ui: native
   music_assistant_url: ""
   music_assistant_token: ""
@@ -48,6 +49,7 @@ schema:
   alarm_backend: list(home_assistant|kiosk_satellite)
   kiosk_satellite_url: str?
   kiosk_satellite_token: password?
+  kiosk_satellite_password: password?
   kiosk_satellite_alarm_ui: list(native|clock)
   music_assistant_url: str?
   music_assistant_token: password?

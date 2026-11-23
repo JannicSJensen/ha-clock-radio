@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.31.0
+
+- Add an optional Kiosk Satellite Remote Administration password for automatic
+  login at startup and token renewal while running, with either alarm backend.
+  Keep manual tokens supported, credentials server-side, and failed logins
+  backed off without automatically replaying device operations.
+
 ## 0.30.1
 
 - Match the Music and Settings page titles to the Alarm configuration title

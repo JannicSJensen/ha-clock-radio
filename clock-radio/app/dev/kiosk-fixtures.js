@@ -1,6 +1,7 @@
 import http from "node:http";
 
 export const DEMO_KIOSK_TOKEN = "clock-radio-fictional-kiosk";
+export const DEMO_KIOSK_PASSWORD = "clock-radio-fictional-kiosk-password";
 
 export function createKioskDemo() {
   const alarms = [{ id: "personal-native-alarm", time: "07:00", days: [0, 6], on: false, label: "Personal alarm", tone: "builtin", music: "none", sunrise: false, speak: false, phrase: "" }];
@@ -42,6 +43,17 @@ export function createKioskDemo() {
       res.writeHead(status, { "Content-Type": "application/json" });
       res.end(JSON.stringify(data));
     };
+    if (req.url === "/api/login" && req.method === "POST") {
+      const chunks = [];
+      for await (const chunk of req) chunks.push(chunk);
+      let data;
+      try { data = JSON.parse(Buffer.concat(chunks).toString()); }
+      catch { return reply(400, { error: "Invalid JSON." }); }
+      if (mode.unavailable) return reply(503, { error: "Fictional Kiosk offline." });
+      if (data?.password !== DEMO_KIOSK_PASSWORD) return reply(401, { error: "Invalid fictional password." });
+      record("login", { ttl_days: data.ttl_days });
+      return reply(200, { token: DEMO_KIOSK_TOKEN });
+    }
     if (req.headers.authorization !== `Bearer ${DEMO_KIOSK_TOKEN}`) return reply(401, { error: "Invalid fictional Kiosk token." });
     if (mode.unavailable) return reply(503, { error: "Fictional Kiosk offline." });
     if (req.url === "/api/settings" && ["GET", "PATCH"].includes(req.method)) {

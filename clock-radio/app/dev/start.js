@@ -4,7 +4,7 @@ import os from "node:os";
 import { spawn } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { createDemoAPI, DEMO_HA_TOKEN, DEMO_MA_TOKEN } from "./fixtures.js";
-import { createKioskDemo, DEMO_KIOSK_TOKEN } from "./kiosk-fixtures.js";
+import { createKioskDemo, DEMO_KIOSK_TOKEN, DEMO_KIOSK_PASSWORD } from "./kiosk-fixtures.js";
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 const configDir = process.env.CONFIG_DIR ?? path.join(root, "dev/config");
@@ -52,7 +52,7 @@ let runtimeOptions = optionsFile;
 let kioskDemo = null;
 let kioskTemp = null;
 const configuredOptions = JSON.parse(fs.readFileSync(optionsFile, "utf8"));
-if (configuredOptions.alarm_backend === "kiosk_satellite" || configuredOptions.kiosk_satellite_url || configuredOptions.kiosk_satellite_token) {
+if (configuredOptions.alarm_backend === "kiosk_satellite" || configuredOptions.kiosk_satellite_url || configuredOptions.kiosk_satellite_token || configuredOptions.kiosk_satellite_password) {
   kioskDemo = createKioskDemo();
   kioskDemo.mode.autoUpdate = true;
   if (configuredOptions.kiosk_satellite_alarm_ui === "clock") {
@@ -67,6 +67,7 @@ if (configuredOptions.alarm_backend === "kiosk_satellite" || configuredOptions.k
   fs.writeFileSync(runtimeOptions, JSON.stringify({
     ...configuredOptions,
     kiosk_satellite_url: `http://127.0.0.1:${kioskDemo.server.address().port}`, kiosk_satellite_token: DEMO_KIOSK_TOKEN,
+    kiosk_satellite_password: configuredOptions.kiosk_satellite_password ? DEMO_KIOSK_PASSWORD : "",
   }));
 }
 const child = spawn(process.execPath, ["src/index.js"], {

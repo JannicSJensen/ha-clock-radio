@@ -579,9 +579,18 @@ Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
   Settings > Kiosk Satellite updates or Proximity screen dimming, with
   either alarm backend.
 - `kiosk_satellite_token`: Kiosk Remote API bearer token, masked in app options
-  and retained only on the server. Not an HA/MA token. Required for native
-  alarms, KS updates and proximity dimming; restart after changing the
-  address/token.
+  and retained only on the server. Not an HA/MA token. Manual alternative to
+  `kiosk_satellite_password` for native alarms, KS updates and proximity dimming.
+  Renew manually when expired; ignored when a password is configured.
+- `kiosk_satellite_password`: optional Kiosk Remote Administration password,
+  masked and stored in HA app options, never in dashboard YAML/browser state.
+  Takes precedence over the manual token. Clock Radio logs in at startup and
+  requests a seven-day token, kept only in server memory. Normal device polling
+  renews it after six days. Failed logins back off from 30 seconds to 15 minutes
+  and report explicit errors; no fallback to a manual token. Rejected tokens
+  trigger a new login on a later request after backoff, never automatic replay
+  of the rejected operation. Restart after changing the address or credentials.
+  The password grants powerful admin access: use a trusted LAN or HTTPS.
 - `kiosk_satellite_alarm_ui`: `native` (default) or `clock`. Clock presentation
   requires compatible KS dashboard-alarm support and its trusted dashboard URL;
   unsupported devices keep native controls. Native scheduling remains unchanged.
@@ -605,7 +614,8 @@ Set these in **Settings > Apps > Clock Radio > Configuration** and restart:
 
 In **Settings > Proximity screen dimming**, enable the option and
 **Save changes**. It targets the KS device configured by
-`kiosk_satellite_url`/`kiosk_satellite_token`, with either alarm backend.
+`kiosk_satellite_url` and either `kiosk_satellite_password` or
+`kiosk_satellite_token`, with either alarm backend.
 It uses KS's built-in proximity sensor and actual hardware brightness,
 not CSS darkening or a browser timer.
 
@@ -643,7 +653,8 @@ never stored in the browser's offline snapshot.
 
 **Settings > Kiosk Satellite updates** can check for a newer release and
 start installation on the KS device configured by `kiosk_satellite_url` and
-`kiosk_satellite_token`. This works with **either alarm backend**, including
+either `kiosk_satellite_password` or `kiosk_satellite_token`.
+This works with **either alarm backend**, including
 HA scheduling, and does not require HA to be online. Missing or invalid KS
 configuration is explained in Settings; it does not change HA alarm behavior.
 
@@ -688,15 +699,17 @@ on important alarms.
 1. Enable Kiosk **Remote Administration**, set its password, and confirm the
    installed version offers native alarms and the `alarmsStatus`, `alarmSave`
    and `alarmDelete` commands.
-2. Obtain a Remote API token with Kiosk's `POST /api/login` endpoint. Its JSON
-   body takes `password` and optionally `ttl_days`; tokens expire after seven
-   days by default and must be renewed. See the [official Remote API authentication guide](https://github.com/jxlarrea/kiosk-satellite/blob/main/docs/remote-api.md#authentication).
+2. For automatic login and renewal, use the Remote Administration password
+   below. Alternatively, obtain a manual Remote API token with Kiosk's
+   `POST /api/login` endpoint (JSON `password` and optional `ttl_days`).
+   Manual tokens expire after seven days by default and must be renewed.
+   See the [official Remote API authentication guide](https://github.com/jxlarrea/kiosk-satellite/blob/main/docs/remote-api.md#authentication).
 3. In **Settings > Apps > Clock Radio > Configuration**, set:
 
    ```yaml
    alarm_backend: kiosk_satellite
    kiosk_satellite_url: "http://<echo-ip>:2324"
-   kiosk_satellite_token: "<remote-api-token>"
+   kiosk_satellite_password: "<remote-administration-password>"
    ```
 
 4. Save and restart Clock Radio. Open **Alarm configuration** to verify that
@@ -707,9 +720,11 @@ on important alarms.
 Use the Echo's LAN address, **not** `127.0.0.1:2325`: the secure-context proxy is
 local to the Echo, while this connection originates on the app server. HTTPS
 certificates must be trusted by the server; certificate checks are not disabled.
-The Remote API token is a powerful admin credential. Keep it private and use
-a trusted LAN or HTTPS. Browser API responses, logs and local snapshots do not
-include it. All tablets connected to this app manage the **same configured kiosk**.
+The Remote Administration password and API token are powerful admin credentials.
+Changing the password does not revoke already-issued tokens. Keep both private
+and use a trusted LAN or HTTPS. Browser API responses, logs and local snapshots
+do not include either credential. All tablets connected to this app manage the
+**same configured kiosk**.
 
 ### Supported behavior and differences
 
@@ -778,8 +793,8 @@ The installed KS build must advertise presentation protocol 1 in
    `kiosk_satellite_alarm_ui: clock` in the HA app configuration, save and
    restart Clock Radio. To keep the native ringing screen, leave this option
    at `native`; the trusted URL is still required for snooze cancellation.
-   Keep the usual KS Remote Administration URL/token on the server for
-   schedule editing.
+   Keep the usual KS Remote Administration URL and password/token on the server
+   for schedule editing.
 3. Fully reload the KS dashboard. The banner explains missing native
    capabilities, the trusted-URL setting or a mismatched device.
 
@@ -953,8 +968,9 @@ Alarm source helper URLs are visible to users of this trusted-LAN editor.
 `npm run dev` always uses a fictional loopback HA, regardless of inherited
 `HA_URL`, `HA_TOKEN`, `SUPERVISOR_TOKEN`, `MA_URL` or `MA_TOKEN`. `DEMO=1` is an internal display flag,
 not a way to make `npm start` use mock data. With `alarm_backend: kiosk_satellite`
-in the demo options, the URL/token are also replaced with a fictional loopback
-Kiosk; it never contacts the configured real device. Demo URLs never play real audio.
+in the demo options, the URL and password/token are also replaced with a
+fictional loopback Kiosk; it never contacts the configured real device.
+Demo URLs never play real audio.
 
 ## Troubleshooting
 

@@ -1,6 +1,7 @@
 import crypto from "node:crypto";
 import { isDeepStrictEqual } from "node:util";
 import { RequestError } from "./errors.js";
+import { KioskAuth } from "./kiosk-auth.js";
 import { WEEKDAYS, validateAlarmSchedule } from "./alarms.js";
 
 const object = (value) => value !== null && typeof value === "object" && !Array.isArray(value);
@@ -15,7 +16,7 @@ export function kioskOptions(options) {
   const backend = options.alarm_backend ?? "home_assistant";
   if (!["home_assistant", "kiosk_satellite"].includes(backend)) throw new Error("alarm_backend must be home_assistant or kiosk_satellite.");
   if (options.kiosk_satellite_alarm_ui !== undefined && !["native", "clock"].includes(options.kiosk_satellite_alarm_ui)) throw new Error("kiosk_satellite_alarm_ui must be native or clock.");
-  for (const key of ["kiosk_satellite_url", "kiosk_satellite_token"]) {
+  for (const key of ["kiosk_satellite_url", "kiosk_satellite_token", "kiosk_satellite_password"]) {
     if (options[key] !== undefined && typeof options[key] !== "string") throw new Error(`${key} must be a string.`);
   }
   if (backend === "home_assistant") return null;
@@ -28,13 +29,15 @@ export function kioskOptions(options) {
     throw new Error("kiosk_satellite_url must be an HTTP(S) origin without a path, credentials, query or fragment.");
   }
   const token = options.kiosk_satellite_token;
-  if (typeof token !== "string" || !token.trim() || /[\s]/.test(token)) throw new Error("kiosk_satellite_token is required and must not contain whitespace.");
-  return { url: url.origin, token, ...(options.kiosk_satellite_alarm_ui === "clock" ? { alarmUi: "clock" } : {}) };
+  const password = options.kiosk_satellite_password;
+  if (!password && (typeof token !== "string" || !token.trim() || /[\s]/.test(token))) throw new Error("kiosk_satellite_token is required and must not contain whitespace, unless kiosk_satellite_password is configured.");
+  return { url: url.origin, ...(password ? { password } : { token }), ...(options.kiosk_satellite_alarm_ui === "clock" ? { alarmUi: "clock" } : {}) };
 }
 
 export class KioskAlarms {
-  constructor({ url, token, alarmUi = "native", fetchImpl = globalThis.fetch, logger = console, timeoutMs = 5000, now = Date.now }) {
-    Object.assign(this, { url, token, alarmUi, fetch: fetchImpl, logger, timeoutMs, now });
+  constructor({ url, token, password = "", alarmUi = "native", fetchImpl = globalThis.fetch, logger = console, timeoutMs = 5000, now = Date.now }) {
+    Object.assign(this, { url, alarmUi, fetch: fetchImpl, logger, timeoutMs, now });
+    this.auth = new KioskAuth({ url, token, password, fetchImpl, timeoutMs, now });
     this.backendId = crypto.createHash("sha256").update(url).digest("hex").slice(0, 16);
     this.connected = false;
     this.updatedAt = null;
@@ -58,6 +61,7 @@ export class KioskAlarms {
   }
 
   async request(path, { name, method = "POST", params, mutation = false, timeoutMs = this.timeoutMs, unwrap = false }) {
+    const token = await this.auth.getToken();
     const uncertain = !mutation ? "" : name === "installUpdate"
       ? " The update may already be running. Check KS update status before retrying."
       : name === "display settings" ? " Some display settings may have changed. Refresh KS dimming settings before retrying."
@@ -66,14 +70,19 @@ export class KioskAlarms {
     try {
       response = await this.fetch(`${this.url}${path}`, {
         method, redirect: "error", signal: AbortSignal.timeout(timeoutMs),
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${this.token}` },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         ...(method === "GET" ? {} : { body: JSON.stringify(params) }),
       });
       body = await response.text();
     } catch {
       throw new RequestError(`Kiosk Satellite could not be reached or the request timed out.${uncertain}`, 502);
     }
-    if (response.status === 401 || response.status === 403) throw new RequestError("Kiosk Satellite refused the API token. Renew it in the HA app configuration.", 502);
+    if (response.status === 401 || response.status === 403) {
+      this.auth.reject(token);
+      throw new RequestError(this.auth.password
+        ? "Kiosk Satellite refused the API token. Automatic login will retry shortly; the operation was not retried."
+        : "Kiosk Satellite refused the API token. Renew it in the HA app configuration.", 502);
+    }
     let result;
     try {
       if (body.length > 2_000_000) throw new Error();

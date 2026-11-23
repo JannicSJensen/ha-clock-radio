@@ -126,7 +126,7 @@ export class KioskUpdates {
   }
 
   async check() {
-    if (!this.client) throw new RequestError(this.configurationError || "Configure the KS address and Remote API token in the HA app options.", 409);
+    if (!this.client) throw new RequestError(this.configurationError || "Configure the KS address and Remote Administration password or Remote API token in the HA app options.", 409);
     if (!this.snapshot().can_check) throw new RequestError("A KS update operation is already running. Wait and check its status.", 409);
     this.checking = true;
     this.epoch++;

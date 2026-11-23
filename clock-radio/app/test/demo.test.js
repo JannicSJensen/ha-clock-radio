@@ -99,6 +99,20 @@ test("Kiosk startup uses a fictional device, exposes no credentials and supports
   assert.doesNotMatch(JSON.stringify(current), /must-not-use-real-kiosk-token|clock-radio-fictional-kiosk|192\.0\.2\.1/);
 });
 
+test("password-based Kiosk startup connects with either alarm backend without leaking credentials", async (t) => {
+  for (const alarm_backend of ["kiosk_satellite", "home_assistant"]) {
+    const { state, output } = await startDemo(t, { alarm_backend,
+      kiosk_satellite_url: "http://192.0.2.1:2324", kiosk_satellite_password: "must-not-use-real-kiosk-password" });
+    const current = await state();
+    assert.equal(current.alarms.backend, alarm_backend);
+    assert.equal(current.kiosk_update.connected, true);
+    assert.equal(current.kiosk_dimming.connected, true);
+    if (alarm_backend === "kiosk_satellite") assert.equal(current.alarms.connected, true);
+    assert.doesNotMatch(JSON.stringify(current) + output(),
+      /must-not-use-real-kiosk-password|clock-radio-fictional-kiosk|192\.0\.2\.1/);
+  }
+});
+
 test("startup rejects invalid return-to-clock options before connecting", (t) => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "clock-radio-idle-options-"));
   t.after(() => fs.rmSync(dir, { recursive: true }));
