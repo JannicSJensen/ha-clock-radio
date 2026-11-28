@@ -1,3 +1,19 @@
+# Moved to Home Assistant Apps
+
+Clock Radio is now maintained in the public
+[JannicSJensen/ha-apps](https://github.com/JannicSJensen/ha-apps) repository.
+Add that repository URL to Home Assistant for new installations and future updates.
+
+**Existing installations do not migrate automatically.** Back up the app,
+install its new copy, transfer options/configuration/private data, and verify it
+before uninstalling the old copy. Leave existing HA and Kiosk alarms in place.
+Follow the
+[migration guide](https://github.com/JannicSJensen/ha-apps/blob/main/MIGRATION.md).
+This original repository is archived; running apps are not stopped or deleted,
+but will receive no further updates here.
+
+## Historical documentation
+
 # Clock Radio - Home Assistant app
 
 [![CI](https://github.com/JannicSJensen/ha-clock-radio/actions/workflows/ci.yaml/badge.svg)](https://github.com/JannicSJensen/ha-clock-radio/actions/workflows/ci.yaml)
